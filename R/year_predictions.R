@@ -60,11 +60,13 @@ pred_list <- pmap(
         pred_up_logcpue = (est_link + (qnorm(0.975) * se_link)) - offset
       )
     
-    # save random intercept parameters and bind to vector of years based on input
-    # data
+    # save random intercept parameters and bind to vector of years based on 
+    # input data
     rand_int <- ssdr[rownames(ssdr) %in% "z1_k", ] 
-    year_ints <- data.frame(year = levels(as.factor(as.character(catch_dat$year))),
-                            z1_k = as.numeric(rand_int[, "Estimate"])) 
+    year_ints <- data.frame(
+      year = levels(as.factor(as.character(catch_dat$year))),
+      z1_k = as.numeric(rand_int[, "Estimate"])
+    ) 
     
     # generate RE predictions
     year_preds <- expand.grid(year = year_ints$year, 
@@ -151,6 +153,8 @@ reg_re_preds_rec %>%
 
 dev.off()
 
+
+
 ## COMPOSITION -----------------------------------------------------------------
 
 
@@ -165,6 +169,7 @@ comp_wide_dat <- fit_tbl$comp_wide[[1]]
 comp_dat <- fit_tbl$comp_long[[1]]
 years <- levels(as.factor(as.character(comp_dat$year)))
 stk_names <- unique(comp_dat$agg)
+ssdr <- fit_tbl$ssdr[[1]]
 
 b2 <- ssdr[rownames(ssdr) %in% "b2_jg", ] 
 b2_mat <- matrix(b2[, 1], nrow = 6, ncol = n_stocks)
