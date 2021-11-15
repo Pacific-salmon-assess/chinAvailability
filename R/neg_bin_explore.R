@@ -186,7 +186,7 @@ library(sdmTMB)
 
 trim_rec_catch <- rec_catch %>% 
   filter(
-    region == "JdFS",
+    region %in% c("JdFS", "SSoG"),
     year %in% c("2015", "2016", "2017", "2018", "2019")
   )
 trim_pred <- pred_dat %>% 
@@ -196,76 +196,43 @@ trim_pred <- pred_dat %>%
   )
 
 
-# model matrices (no random intercepts since they are estimated separately)
-
-
-
-# construct factor key for regional aggregates associated with areas
-grouping_vec <- as.numeric(pred_dat_catch$reg_month_f) - 1
-grouping_key <- unique(grouping_vec)
-
-
-# input data
-data <- list(
-  # abundance input data
-  y1_i = catch_dat$catch,
-  X1_ij = fix_mm_catch,
-  factor1k_i = yr_vec_catch,
-  nk1 = length(unique(yr_vec_catch)),
-  X1_pred_ij = pred_mm_catch,
-  pred_factor2k_h = grouping_vec,
-  pred_factor2k_levels = grouping_key,
+m1 <- mgcv::gam(catch ~ region + 
+                  s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
+                  offset,
+                data = trim_rec_catch,
+                family = mgcv::nb()
 )
 
-# input parameter initial values
-pars <- list(
-  # abundance parameters
-  b1_j = coef(m1) + rnorm(length(coef(m1)), 0, 0.01),
-  log_phi = log(1.5),
-  z1_k = rep(0, length(unique(yr_vec_catch))),
-  log_sigma_zk1 = log(0.25),
-)
 
-# mapped values (not estimated)
-# offset for effort
-pars$b1_j[offset_pos] <- 1
-b1_j_map <- seq_along(pars$b1_j)
-b1_j_map[offset_pos] <- NA
-tmb_map <- list(b1_j = as.factor(b1_j_map))
-# offset for composition parameters
-if (!is.na(comp_map$agg[1])) {
-  temp_betas <- pars$b2_jg
-  for (i in seq_len(nrow(comp_map))) {
-    offset_stock_pos <- grep(
-      paste(comp_map$agg[i], collapse = "|"),
-      colnames(obs_comp)
-    )
-    offset_region_pos <- grep(
-      paste(comp_map$region[i], collapse = "|"),
-      colnames(fix_mm_comp)
-    )
-    for (j in seq_len(ncol(fix_mm_comp))) {
-      for (k in seq_len(ncol(obs_comp))) {
-        if (j %in% offset_region_pos & k %in% offset_stock_pos) {
-          # pars$b2_jg[j, k] <- 0.00001
-          temp_betas[j, k] <- NA
-        }
-      }
-    }
-  }
-  comp_map_pos <- which(is.na(as.vector(temp_betas)))
-  b2_jg_map <- seq_along(pars$b2_jg)
-  b2_jg_map[comp_map_pos] <- NA
-  tmb_map <- c(tmb_map, list(b2_jg = as.factor(b2_jg_map)))
-}
+n<-400
+dat <- gamSim(1, n=n)
+# g <- exp(dat$f/5)
 
+## negative binomial data... 
+# dat$y <- rnbinom(g,size=3,mu=g)
+# ## known theta fit ...
+# b0 <- gam(y~s(x0)+s(x1)+s(x2)+s(x3),family=negbin(3),data=dat)
+# plot(b0,pages=1)
+# print(b0)
+# 
+# ## same with theta estimation...
+# b <- gam(y~s(x0)+s(x1)+s(x2)+s(x3),family=nb(link = "log"),data=dat)
+# plot(b,pages=1)
+# print(b)
+# b$family$getTheta(TRUE) ## extract final theta estimate
+
+b <- gam(y~s(x0)+s(x1)+s(x2)+s(x3), data=dat)
 
 
 
 f1 <- catch ~ region + 
   s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
-  # s(month_n, by = year, bs="tp", m = 1, k = 3) +  
-  s(year, bs="re") + offset
+  # s(year, bs="re") + 
+  offset
+f2 <- catch ~ region + 
+  s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
+  s(year, bs="re") +
+  offset
 f2 <- catch ~ region + 
   s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
   s(month_n, by = year, bs="tp", m = 1, k = 3) +  
@@ -281,6 +248,47 @@ source(here::here("R", "utils.R"))
 
 # generate model matrices
 formula_no_sm <- remove_s_and_t2(f1)
-X_ij <- model.matrix(formula_no_sm, data = trim_rec_catch)
-sm <- parse_smoothers(f1, data = trim_rec_catch)
-sm_pred <- parse_smoothers(f1, data = trim_rec_catch, newdata = trim_pred)
+X_ij <- model.matrix(formula_no_sm, data = dat)
+sm <- parse_smoothers(f1, data = dat)
+# sm2 <- parse_smoothers(f2, data = dat)
+# sm_pred <- parse_smoothers(f1, data = dat, newdata = trim_pred)
+# yr_vec_catch <- as.numeric(as.factor(as.character(dat$year))) - 1
+
+# input data
+data <- list(
+  # abundance input data
+  # y1_i = trim_rec_catch$catch,
+  y1_i = dat$y,
+  X1_ij = X_ij,
+  # factor1k_i = yr_vec_catch,
+  # nk1 = length(unique(yr_vec_catch)),
+  b_smooth_start = sm$b_smooth_start,
+  Zs = sm$Zs, # optional smoother basis function matrices
+  Xs = sm$Xs # optional smoother linear effect matrix
+  # X1_pred_ij = pred_mm_catch,
+  # pred_factor2k_h = grouping_vec,
+  # pred_factor2k_levels = grouping_key,
+)
+
+# input parameter initial values
+pars <- list(
+  b1_j = rnorm(ncol(X_ij), 0, 0.01),
+  phi = 1.5,
+  # log_phi = log(1.5),
+  bs = rep(0, ncol(sm$Xs)),
+  ln_smooth_sigma = rep(0, length(sm$sm_dims)),
+  b_smooth = rep(0, sum(sm$sm_dims))#,
+  # z1_k = rep(0, length(unique(yr_vec_catch))),
+  # log_sigma_zk1 = log(0.25)
+)
+
+
+compile(here::here("src", "negbin_rsplines.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines")))
+
+obj <- MakeADFun(data, pars, DLL = "negbin_rsplines")
+opt <- nlminb(obj$par, obj$fn, obj$gr)
+sdr <- sdreport(obj)
+ssdr <- summary(sdr)
+
+ssdr[rownames(ssdr) %in% c("b1_j", "log_phi", "bs"), ]
