@@ -204,39 +204,36 @@ m1 <- mgcv::gam(catch ~ region +
 )
 
 
-n<-400
-dat <- gamSim(1, n=n)
-# g <- exp(dat$f/5)
+dat <- mgcv::gamSim(3, n = 800)
+g <- exp(dat$f / 5)
+dat$y <- rnbinom(g, size=3, mu = g)
 
 ## negative binomial data... 
-# dat$y <- rnbinom(g,size=3,mu=g)
-# ## known theta fit ...
-# b0 <- gam(y~s(x0)+s(x1)+s(x2)+s(x3),family=negbin(3),data=dat)
-# plot(b0,pages=1)
-# print(b0)
-# 
-# ## same with theta estimation...
-# b <- gam(y~s(x0)+s(x1)+s(x2)+s(x3),family=nb(link = "log"),data=dat)
-# plot(b,pages=1)
-# print(b)
-# b$family$getTheta(TRUE) ## extract final theta estimate
+b <- gam(y~s(x2, by = x1), family=nb(link = "log"), data=dat)
+f1 <- y~s(x2, by = x1)
 
-b <- gam(y~s(x0)+s(x1)+s(x2)+s(x3), data=dat)
+new_dat <- expand_grid(
+  x1 = seq(min(dat$x1), max(dat$x1), length.out = 50),
+  x2 = seq(min(dat$x2), max(dat$x2), length.out = 10)
+)
 
+preds <- predict.gam(b, newdata = new_dat)
+new_dat$fit <- exp(preds)
+ggplot(new_dat) +
+  geom_raster(aes(x = x1, y = x2, fill = fit))
 
-
-f1 <- catch ~ region + 
-  s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
-  # s(year, bs="re") + 
-  offset
-f2 <- catch ~ region + 
-  s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
-  s(year, bs="re") +
-  offset
-f2 <- catch ~ region + 
-  s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
-  s(month_n, by = year, bs="tp", m = 1, k = 3) +  
-  s(year, bs="re") + offset
+# f1 <- catch ~ region + 
+#   s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
+#   # s(year, bs="re") + 
+#   offset
+# f2 <- catch ~ region + 
+#   s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
+#   s(year, bs="re") +
+#   offset
+# f2 <- catch ~ region + 
+#   s(month_n, bs = "tp", k = 3, by = region, m = 2) + 
+#   s(month_n, by = year, bs="tp", m = 1, k = 3) +  
+#   s(year, bs="re") + offset
 
 
 # utility functions for prepping smooths 
@@ -250,8 +247,8 @@ source(here::here("R", "utils.R"))
 formula_no_sm <- remove_s_and_t2(f1)
 X_ij <- model.matrix(formula_no_sm, data = dat)
 sm <- parse_smoothers(f1, data = dat)
-# sm2 <- parse_smoothers(f2, data = dat)
-# sm_pred <- parse_smoothers(f1, data = dat, newdata = trim_pred)
+pred_X_ij <- as.matrix(X_ij[1:nrow(new_dat), ], ncol = 1)
+sm_pred <- parse_smoothers(f1, data = dat, newdata = new_dat)
 # yr_vec_catch <- as.numeric(as.factor(as.character(dat$year))) - 1
 
 # input data
@@ -264,8 +261,10 @@ data <- list(
   # nk1 = length(unique(yr_vec_catch)),
   b_smooth_start = sm$b_smooth_start,
   Zs = sm$Zs, # optional smoother basis function matrices
-  Xs = sm$Xs # optional smoother linear effect matrix
-  # X1_pred_ij = pred_mm_catch,
+  Xs = sm$Xs, # optional smoother linear effect matrix
+  pred_X1_ij = pred_X_ij,
+  pred_Zs = sm_pred$Zs,
+  pred_Xs = sm_pred$Xs
   # pred_factor2k_h = grouping_vec,
   # pred_factor2k_levels = grouping_key,
 )
@@ -273,8 +272,7 @@ data <- list(
 # input parameter initial values
 pars <- list(
   b1_j = rnorm(ncol(X_ij), 0, 0.01),
-  phi = 1.5,
-  # log_phi = log(1.5),
+  log_phi = log(1.5),
   bs = rep(0, ncol(sm$Xs)),
   ln_smooth_sigma = rep(0, length(sm$sm_dims)),
   b_smooth = rep(0, sum(sm$sm_dims))#,
@@ -292,3 +290,29 @@ sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
 ssdr[rownames(ssdr) %in% c("b1_j", "log_phi", "bs"), ]
+tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_fe"), "Estimate"]
+
+
+set.seed(19203)
+# examples from ?mgcv::gam.models
+# continuous by example:
+dat <- mgcv::gamSim(3, n = 800)
+m_mgcv <- mgcv::gam(y ~ s(x2
+                          # , by = x1
+                          ), data = dat)
+p_mgcv <- predict(m_mgcv)
+dat$X <- runif(nrow(dat))
+dat$Y <- runif(nrow(dat))
+spde <- make_mesh(dat, c("X", "Y"), cutoff = 0.1)
+m <- sdmTMB(y ~ s(x2
+                  # , by = x1
+                  ),
+                           data = dat,
+                           spde = spde,
+            include_spatial = FALSE
+)
+p <- predict(m, newdata = NULL)
+plot(p$est, p_mgcv)
+abline(a = 0, b = 1)
+
+m$tmb_data$Zs %>% glimpse()

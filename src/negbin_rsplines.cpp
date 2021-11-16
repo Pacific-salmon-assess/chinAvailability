@@ -16,6 +16,9 @@ template<class Type>
 Type objective_function<Type>::operator() ()
 {
 
+  using namespace density;
+  using namespace Eigen;
+
   // DATA ----------------------------------------------------------------------
   
   DATA_VECTOR(y1_i);
@@ -25,7 +28,11 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(b_smooth_start);
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
-  // DATA_MATRIX(X1_pred_ij); // matrix for predictions
+
+  //predictions
+  DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
+  DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
+  DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
   // vector of higher level aggregates used to generate predictions; length
   // is equal to the number of predictions made
   // DATA_IVECTOR(pred_factor2k_h);
@@ -35,8 +42,7 @@ Type objective_function<Type>::operator() ()
   // PARAMETERS ----------------------------------------------------------------
   
   PARAMETER_VECTOR(b1_j); // fixed effects parameters
-  PARAMETER(phi);     // variance
-  // PARAMETER(log_phi);     // variance
+  PARAMETER(log_phi);     // variance
   PARAMETER_VECTOR(bs);   // smoother linear effects
   PARAMETER_VECTOR(ln_smooth_sigma);  // variances of spline REs if included
   // random effects
@@ -74,19 +80,19 @@ Type objective_function<Type>::operator() ()
   for (int i = 0; i < n1; i++) {
     eta_i(i) = eta_fixed_i(i) + eta_smooth_i(i); // + offset_i(i);
   }
-  vector<Type> mu_i = eta_i;
+  
+  vector<Type> mu_i = exp(eta_i);
 
 
   // LIKELIHOOD ----------------------------------------------------------------
 
   // Type s1, s2;
-  // vector<Type> s1(n1);
-  // vector<Type> s2(n1);
+  vector<Type> s1(n1);
+  vector<Type> s2(n1);
   for(int i = 0; i < n1; i++){
-    // s1(i) = log(mu_i(i)); // + z1_k(factor1k_i(i)); //mu
-    // s2(i) = 2.0 * (s1(i) - log_phi); //scale
-    // jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
-    jnll -= dnorm(y1_i(i), mu_i(i), phi, true);
+    s1(i) = log(mu_i(i)); // + z1_k(factor1k_i(i)); //mu
+    s2(i) = 2.0 * (s1(i) - log_phi); //scale
+    jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
   }
 
   // Report for residuals
@@ -106,11 +112,28 @@ Type objective_function<Type>::operator() ()
 
   // PREDICTIONS ---------------------------------------------------------------
 
-  // vector<Type> log_pred_abund(X1_pred_ij.rows());
-  // log_pred_abund = X1_pred_ij * b1_j;
-  // matrix<Type> pred_abund = exp(log_pred_abund.array());
+  vector<Type> pred_fe = pred_X1_ij * b1_j;
 
-  // REPORT(pred_abund);
+  // smoothers
+  vector<Type> pred_smooth_i(pred_X1_ij.rows());
+  pred_smooth_i.setZero();
+  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+    vector<Type> beta_s(pred_Zs(s).cols());
+    beta_s.setZero();
+    for (int j = 0; j < beta_s.size(); j++) {
+      beta_s(j) = b_smooth(b_smooth_start(s) + j);
+    }
+    pred_smooth_i += pred_Zs(s) * beta_s;
+  }
+  pred_smooth_i += pred_Xs * bs;
+  
+  //combine fixed and smoothed predictions
+  for (int i = 0; i < pred_X1_ij.rows(); i++) {
+    pred_fe(i) += pred_smooth_i(i);
+  }
+
+  REPORT(pred_fe);
+  ADREPORT(pred_fe);
   // ADREPORT(pred_abund);
   // ADREPORT(log_pred_abund);
 
