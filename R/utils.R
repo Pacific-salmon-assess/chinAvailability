@@ -1,6 +1,24 @@
 ## Utility functions for generating model matrices with smooths for TMB
 # Taken from sdmTMB utils.R and smoothers.R
 
+safe_deparse <- function (x, collapse = " ") {
+  paste(deparse(x, 500L), collapse = collapse)
+}
+
+barnames <- function (bars) {
+  vapply(bars, function(x) safe_deparse(x[[3]]), "")
+}
+
+check_valid_factor_levels <- function(x, .name = "") {
+  assertthat::assert_that(is.factor(x),
+              msg = sprintf("Random effect group column `%s` is not a factor.", .name))
+  lev <- sort(levels(x))
+  uni <- sort(unique(as.character(x)))
+  assert_that(identical(lev, uni),
+              msg = sprintf(
+                "Random effect group column `%s` has extra factor levels. Please remove them.", .name))
+}
+
 rm_wsp <- function (x) {
   out <- gsub("[ \t\r\n]+", "", x, perl = TRUE)
   dim(out) <- dim(x)

@@ -20,6 +20,8 @@ Type objective_function<Type>::operator() ()
   
   DATA_VECTOR(y1_i);
   DATA_MATRIX(X1_ij);
+  DATA_IVECTOR(factor1k_i);
+  DATA_INTEGER(nk1);
   DATA_IVECTOR(b_smooth_start);
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
@@ -42,6 +44,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(ln_smooth_sigma);  // variances of spline REs if included
   // random effects
   PARAMETER_VECTOR(b_smooth);  // P-spline smooth parameters
+  PARAMETER_VECTOR(z1_k);
+  PARAMETER(ln_sigma_zk1);
   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
@@ -83,7 +87,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> s1(n1);
   vector<Type> s2(n1);
   for(int i = 0; i < n1; i++){
-    s1(i) = log(mu_i(i)); //mu
+    s1(i) = log(mu_i(i)) + z1_k(factor1k_i(i)); //mu
     s2(i) = 2.0 * (s1(i) - ln_phi); //scale
     jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
     // jnll -= dnorm(y1_i(i), mu_i(i) + z1_k(factor1k_i(i)), exp(ln_phi), true);  
@@ -93,31 +97,41 @@ Type objective_function<Type>::operator() ()
   // ADREPORT(s1);
   // ADREPORT(s2);
 
-  
+  // Probability of random coefficients
+  for(int k = 0; k < nk1; k++){
+    if (k == 0) {
+      jnll -= dnorm(z1_k(k), Type(0.0), exp(ln_sigma_zk1), true);  
+    }
+    if (k > 0) {
+      jnll -= dnorm(z1_k(k), z1_k(k - 1), exp(ln_sigma_zk1), true);
+    }
+  }
+
+
   // PREDICTIONS ---------------------------------------------------------------
 
-  vector<Type> pred_fe = pred_X1_ij * b1_j;
+  // vector<Type> pred_fe = pred_X1_ij * b1_j;
 
-  // smoothers
-  vector<Type> pred_smooth_i(pred_X1_ij.rows());
-  pred_smooth_i.setZero();
-  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-    vector<Type> beta_s(pred_Zs(s).cols());
-    beta_s.setZero();
-    for (int j = 0; j < beta_s.size(); j++) {
-      beta_s(j) = b_smooth(b_smooth_start(s) + j);
-    }
-    pred_smooth_i += pred_Zs(s) * beta_s;
-  }
-  pred_smooth_i += pred_Xs * bs;
+  // // smoothers
+  // vector<Type> pred_smooth_i(pred_X1_ij.rows());
+  // pred_smooth_i.setZero();
+  // for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+  //   vector<Type> beta_s(pred_Zs(s).cols());
+  //   beta_s.setZero();
+  //   for (int j = 0; j < beta_s.size(); j++) {
+  //     beta_s(j) = b_smooth(b_smooth_start(s) + j);
+  //   }
+  //   pred_smooth_i += pred_Zs(s) * beta_s;
+  // }
+  // pred_smooth_i += pred_Xs * bs;
   
-  //combine fixed and smoothed predictions
-  for (int i = 0; i < pred_X1_ij.rows(); i++) {
-    pred_fe(i) += pred_smooth_i(i);
-  }
+  // //combine fixed and smoothed predictions
+  // for (int i = 0; i < pred_X1_ij.rows(); i++) {
+  //   pred_fe(i) += pred_smooth_i(i);
+  // }
 
-  REPORT(pred_fe);
-  ADREPORT(pred_fe);
+  // REPORT(pred_fe);
+  // ADREPORT(pred_fe);
   // ADREPORT(pred_abund);
   // ADREPORT(ln_pred_abund);
 
