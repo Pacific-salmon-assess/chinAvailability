@@ -32,8 +32,8 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
   // vector of higher level aggregates used to generate predictions; length
   // is equal to the number of predictions made
-  // DATA_IVECTOR(pred_factor2k_h);
-  // DATA_IVECTOR(pred_factor2k_levels);
+  DATA_IVECTOR(pred_factor2k_h);
+  DATA_IVECTOR(pred_factor2k_levels);
   
 
   // PARAMETERS ----------------------------------------------------------------
@@ -45,7 +45,7 @@ Type objective_function<Type>::operator() ()
   // random effects
   PARAMETER_VECTOR(b_smooth);  // P-spline smooth parameters
   PARAMETER_VECTOR(z1_k);
-  PARAMETER(ln_sigma_zk1);
+  PARAMETER(ln_sigma_z1_k);
   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
@@ -78,7 +78,12 @@ Type objective_function<Type>::operator() ()
     eta_i(i) = eta_fixed_i(i) + eta_smooth_i(i); // + offset_i(i);
   }
   
-  vector<Type> mu_i = exp(eta_i);
+  // Add random intercepts
+  vector<Type> mu_i(n1); 
+  mu_i.setZero();
+  for (int i = 0; i < n1; i++) {
+    mu_i(i) = eta_i(i) + z1_k(factor1k_i(i));
+  }
 
 
   // LIKELIHOOD ----------------------------------------------------------------
@@ -87,10 +92,9 @@ Type objective_function<Type>::operator() ()
   vector<Type> s1(n1);
   vector<Type> s2(n1);
   for(int i = 0; i < n1; i++){
-    s1(i) = log(mu_i(i)) + z1_k(factor1k_i(i)); //mu
+    s1(i) = mu_i(i); //mu
     s2(i) = 2.0 * (s1(i) - ln_phi); //scale
     jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
-    // jnll -= dnorm(y1_i(i), mu_i(i) + z1_k(factor1k_i(i)), exp(ln_phi), true);  
   }
 
   // Report for residuals
@@ -100,58 +104,60 @@ Type objective_function<Type>::operator() ()
   // Probability of random coefficients
   for(int k = 0; k < nk1; k++){
     if (k == 0) {
-      jnll -= dnorm(z1_k(k), Type(0.0), exp(ln_sigma_zk1), true);  
+      jnll -= dnorm(z1_k(k), Type(0.0), exp(ln_sigma_z1_k), true);  
     }
     if (k > 0) {
-      jnll -= dnorm(z1_k(k), z1_k(k - 1), exp(ln_sigma_zk1), true);
+      jnll -= dnorm(z1_k(k), z1_k(k - 1), exp(ln_sigma_z1_k), true);
     }
   }
 
 
   // PREDICTIONS ---------------------------------------------------------------
 
-  // vector<Type> pred_fe = pred_X1_ij * b1_j;
+  vector<Type> pred_fe = pred_X1_ij * b1_j;
 
-  // // smoothers
-  // vector<Type> pred_smooth_i(pred_X1_ij.rows());
-  // pred_smooth_i.setZero();
-  // for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-  //   vector<Type> beta_s(pred_Zs(s).cols());
-  //   beta_s.setZero();
-  //   for (int j = 0; j < beta_s.size(); j++) {
-  //     beta_s(j) = b_smooth(b_smooth_start(s) + j);
-  //   }
-  //   pred_smooth_i += pred_Zs(s) * beta_s;
-  // }
-  // pred_smooth_i += pred_Xs * bs;
+  // smoothers
+  vector<Type> pred_smooth_i(pred_X1_ij.rows());
+  pred_smooth_i.setZero();
+  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+    vector<Type> beta_s(pred_Zs(s).cols());
+    beta_s.setZero();
+    for (int j = 0; j < beta_s.size(); j++) {
+      beta_s(j) = b_smooth(b_smooth_start(s) + j);
+    }
+    pred_smooth_i += pred_Zs(s) * beta_s;
+  }
+  pred_smooth_i += pred_Xs * bs;
   
-  // //combine fixed and smoothed predictions
-  // for (int i = 0; i < pred_X1_ij.rows(); i++) {
-  //   pred_fe(i) += pred_smooth_i(i);
-  // }
+  //combine fixed and smoothed predictions
+  for (int i = 0; i < pred_X1_ij.rows(); i++) {
+    pred_fe(i) += pred_smooth_i(i);
+  }
 
-  // REPORT(pred_fe);
-  // ADREPORT(pred_fe);
-  // ADREPORT(pred_abund);
-  // ADREPORT(ln_pred_abund);
+  REPORT(pred_fe);
+  ADREPORT(pred_fe);
+  
 
   // Calculate predicted abundance based on higher level groupings
-  // int n_preds = pred_factor2k_h.size();
-  // int n_pred_levels = pred_factor2k_levels.size();
-  // vector<Type> agg_pred_abund(n_pred_levels);
-  // vector<Type> ln_agg_pred_abund(n_pred_levels);
+  int n_preds = pred_factor2k_h.size();
+  int n_pred_levels = pred_factor2k_levels.size();
+  vector<Type> pred_fe_cumsum(n_pred_levels);
+  vector<Type> ln_pred_fe_cumsum(n_pred_levels);
+  vector<Type> exp_pred_fe = exp(pred_fe); // calculate real values for summing
 
-  // for (int h = 0; h < n_preds; h++) {
-  //   for (int g = 0; g < n_pred_levels; g++) {
-  //     if (pred_factor2k_h(h) == pred_factor2k_levels(g)) {
-  //       agg_pred_abund(g) += pred_abund(h);
-  //       ln_agg_pred_abund(g) = log(agg_pred_abund(g));
-  //     }
-  //   }
-  // }
 
-  // ADREPORT(agg_pred_abund);
-  // ADREPORT(ln_agg_pred_abund);
+  for (int h = 0; h < n_preds; h++) {
+    for (int g = 0; g < n_pred_levels; g++) {
+      if (pred_factor2k_h(h) == pred_factor2k_levels(g)) {
+        pred_fe_cumsum(g) += exp_pred_fe(h);
+        ln_pred_fe_cumsum(g) = log(pred_fe_cumsum(g));
+      }
+    }
+  }
+
+  ADREPORT(pred_fe_cumsum);
+  ADREPORT(ln_pred_fe_cumsum);
+
 
   return jnll;
 }
