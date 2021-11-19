@@ -65,10 +65,12 @@ pred_dat <- group_split(rec_catch, region) %>%
   mutate(
     month = as.factor(month_n),
     order = row_number(),
-    reg_month = paste(region, month_n, sep = "_"),
-    reg_month_f = fct_reorder(factor(reg_month), order)
+    # year is necessary regardless of whether RIs are inlcuded because of year-
+    # specific smooths 
+    reg_month_year = paste(region, month_n, year, sep = "_"),
+    reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
-  select(-order, -reg_month, -strata) %>%
+  select(-order, -reg_month_year, -strata) %>%
   distinct() 
 
 
@@ -145,7 +147,7 @@ pred_X_ij <- predict(gam(formula_no_sm, data = dat),
                      new_dat, type = "lpmatrix")
 sm_pred <- parse_smoothers(f1, data = dat, newdata = new_dat)
 rand_int_vec <- as.numeric(as.factor(as.character(dat$year))) - 1
-grouping_vec <- as.numeric(new_dat$reg_month_f) - 1
+grouping_vec <- as.numeric(new_dat$reg_month_year_f) - 1
 grouping_key <- unique(grouping_vec)
 
 
@@ -215,11 +217,8 @@ new_dat %>%
   geom_abline(slope = 1, intercept = 0)
 
 
-## BUG FE_PREDS include year smooths (by variable), but not RIs and aggregated 
-# versions do not include either
-
-
 ## look at predictions for areas and regions
+# NOTE that these include predictions from random smooths (e.g. by = year)
 pred_dat_tmb <- calc_ribbons(pred_dat = new_dat, fit_vec = tmb_pred,
                             se_vec = tmb_pred_se)
 
@@ -231,7 +230,7 @@ ggplot() +
 tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_fe_cumsum"), "Estimate"]
 tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_fe_cumsum"), "Std. Error"]
 new_dat_region <- new_dat %>% 
-  select(month_n, region, offset, month, reg_month_f) %>% 
+  select(month_n, region, year, offset, month, reg_month_year_f) %>% 
   distinct()
 pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region, 
                                     fit_vec = tmb_pred_region,
@@ -239,5 +238,9 @@ pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region,
 
 ggplot() +
   geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
-  facet_wrap(~area, scales = "free_y") +
+  # geom_ribbon(data = pred_dat_tmb_region,
+  #             aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
+  #                 colour = year),
+  #             alpha = 0.4) +
+  facet_wrap(~region, scales = "free_y") +
   ggsidekick::theme_sleek()
