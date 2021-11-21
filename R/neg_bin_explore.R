@@ -112,7 +112,7 @@ m1 <- mgcv::gam(f1a,
 
 preds_m1 <- predict.gam(m1,
                         new_dat,
-                        exclude = "s(year)",
+                        # exclude = "s(year)",
                         se.fit = TRUE)
 
 calc_ribbons <- function(pred_dat, fit_vec, se_vec) {
@@ -131,10 +131,10 @@ pred_dat_m1 <- calc_ribbons(pred_dat = new_dat, fit_vec = preds_m1$fit,
 
 ggplot() +
   geom_line(data = pred_dat_m1, aes(x = month_n, y = fit, colour = year)) +
-  # geom_ribbon(data = pred_dat_m1,
-  #             aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
-  #                 colour = year),
-  #             alpha = 0.4) +
+  geom_ribbon(data = pred_dat_m1,
+              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
+                  colour = year),
+              alpha = 0.4) +
   facet_wrap(~area, scales = "free_y") +
   ggsidekick::theme_sleek()
 
@@ -147,6 +147,7 @@ pred_X_ij <- predict(gam(formula_no_sm, data = dat),
                      new_dat, type = "lpmatrix")
 sm_pred <- parse_smoothers(f1, data = dat, newdata = new_dat)
 rand_int_vec <- as.numeric(as.factor(as.character(dat$year))) - 1
+pred_rand_int_vec <- as.numeric(new_dat$year) - 1
 grouping_vec <- as.numeric(new_dat$reg_month_year_f) - 1
 grouping_key <- unique(grouping_vec)
 
@@ -167,6 +168,7 @@ data <- list(
   pred_X1_ij = pred_X_ij,
   pred_Zs = sm_pred$Zs,
   pred_Xs = sm_pred$Xs,
+  pred_factor1k_i = pred_rand_int_vec,
   pred_factor2k_h = grouping_vec,
   pred_factor2k_levels = grouping_key
 )
@@ -203,22 +205,23 @@ sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
 sdr
-tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_fe"), "Estimate"]
-tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_fe"), "Std. Error"]
+tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Estimate"]
+tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Std. Error"]
 
 
 # slight deviation is due to RIs in TMB coded as random walk
-new_dat %>% 
-  mutate(tmb = tmb_pred,
-         gam = as.numeric(preds_m1$fit)
-         ) %>% 
-  ggplot(.) +
-  geom_point(aes(x = tmb, y = gam, col = region)) +
-  geom_abline(slope = 1, intercept = 0)
+# new_dat %>% 
+#   mutate(tmb = tmb_pred,
+#          gam = as.numeric(preds_m1$fit)
+#          ) %>% 
+#   ggplot(.) +
+#   geom_point(aes(x = tmb, y = gam, col = region)) +
+#   geom_abline(slope = 1, intercept = 0)
 
 
 ## look at predictions for areas and regions
-# NOTE that these include predictions from random smooths (e.g. by = year)
+# NOTE that these include predictions from random smooths (e.g. by = year) and
+# random intercepts
 pred_dat_tmb <- calc_ribbons(pred_dat = new_dat, fit_vec = tmb_pred,
                             se_vec = tmb_pred_se)
 
@@ -227,8 +230,9 @@ ggplot() +
   facet_wrap(~area, scales = "free_y") +
   ggsidekick::theme_sleek()
 
-tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_fe_cumsum"), "Estimate"]
-tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_fe_cumsum"), "Std. Error"]
+
+tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Estimate"]
+tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Std. Error"]
 new_dat_region <- new_dat %>% 
   select(month_n, region, year, offset, month, reg_month_year_f) %>% 
   distinct()
@@ -238,9 +242,10 @@ pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region,
 
 ggplot() +
   geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
-  # geom_ribbon(data = pred_dat_tmb_region,
-  #             aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
-  #                 colour = year),
-  #             alpha = 0.4) +
+  geom_ribbon(data = pred_dat_tmb_region,
+              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
+                  colour = year),
+              alpha = 0.2) +
   facet_wrap(~region, scales = "free_y") +
   ggsidekick::theme_sleek()
+

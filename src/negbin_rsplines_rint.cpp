@@ -30,6 +30,7 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
   DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
+  DATA_IVECTOR(pred_factor1k_i);
   // vector of higher level aggregates used to generate predictions; length
   // is equal to the number of predictions made
   DATA_IVECTOR(pred_factor2k_h);
@@ -114,7 +115,7 @@ Type objective_function<Type>::operator() ()
 
   // PREDICTIONS ---------------------------------------------------------------
 
-  vector<Type> pred_fe = pred_X1_ij * b1_j;
+  vector<Type> pred_eff = pred_X1_ij * b1_j;
 
   // smoothers
   vector<Type> pred_smooth_i(pred_X1_ij.rows());
@@ -129,34 +130,43 @@ Type objective_function<Type>::operator() ()
   }
   pred_smooth_i += pred_Xs * bs;
   
-  //combine fixed and smoothed predictions
+  // combine fixed and smoothed predictions
   for (int i = 0; i < pred_X1_ij.rows(); i++) {
-    pred_fe(i) += pred_smooth_i(i);
+    pred_eff(i) += pred_smooth_i(i);
   }
 
-  REPORT(pred_fe);
-  ADREPORT(pred_fe);
+  // REPORT(pred_eff);
+  // ADREPORT(pred_eff);
   
+  // add random intercepts 
+  // vector<Type> pred_re(pred_X1_ij.rows());
+  for (int i = 0; i < pred_X1_ij.rows(); i++) {
+    pred_eff(i) += z1_k(pred_factor1k_i(i));
+  }
+
+  REPORT(pred_eff);
+  ADREPORT(pred_eff);
+
 
   // Calculate predicted abundance based on higher level groupings
   int n_preds = pred_factor2k_h.size();
   int n_pred_levels = pred_factor2k_levels.size();
-  vector<Type> pred_fe_cumsum(n_pred_levels);
-  vector<Type> ln_pred_fe_cumsum(n_pred_levels);
-  vector<Type> exp_pred_fe = exp(pred_fe); // calculate real values for summing
+  vector<Type> pred_eff_cumsum(n_pred_levels);
+  vector<Type> ln_pred_eff_cumsum(n_pred_levels);
+  vector<Type> exp_pred_eff = exp(pred_eff); // calculate real values for summing
 
 
   for (int h = 0; h < n_preds; h++) {
     for (int g = 0; g < n_pred_levels; g++) {
       if (pred_factor2k_h(h) == pred_factor2k_levels(g)) {
-        pred_fe_cumsum(g) += exp_pred_fe(h);
-        ln_pred_fe_cumsum(g) = log(pred_fe_cumsum(g));
+        pred_eff_cumsum(g) += exp_pred_eff(h);
+        ln_pred_eff_cumsum(g) = log(pred_eff_cumsum(g));
       }
     }
   }
 
-  ADREPORT(pred_fe_cumsum);
-  ADREPORT(ln_pred_fe_cumsum);
+  ADREPORT(pred_eff_cumsum);
+  ADREPORT(ln_pred_eff_cumsum);
 
 
   return jnll;
