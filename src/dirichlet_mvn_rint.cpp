@@ -54,7 +54,7 @@ Type objective_function<Type>::operator() ()
 
   for (int i = 0; i < n_obs; ++i) {
     for(int k = 0; k < n_cat; k++) {
-      Mu2_ik(i, k) = Mu2_ik_fx(i, k) + A2_hk(rfac2(i), k);
+      Mu2_ik(i, k) = Mu2_ik_fx(i, k);// + A2_hk(rfac2(i), k);
     }
   }
 

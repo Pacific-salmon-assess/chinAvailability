@@ -121,12 +121,12 @@ m2 <- mgcv::gam(rep(0, length.out = nrow(comp_dat)) ~
                              by = region),
                 data = comp_dat
 )
-fix_mm_comp <- predict(m2, type = "lpmatrix")
-pred_mm_comp <- predict(m2, pred_dat_comp, type = "lpmatrix")
+X2_ij <- predict(m2, type = "lpmatrix")
+pred_X2_ij <- predict(m2, pred_dat_comp, type = "lpmatrix")
 
-rand_int_vec <- as.numeric(as.factor(as.character(comp_dat$year))) - 1
-n_rint <- length(unique(rand_int_vec))
-pred_rand_int_vec <- as.numeric(pred_dat_comp$year) - 1
+rfac2 <- as.numeric(as.factor(as.character(comp_dat$year))) - 1
+n_rint <- length(unique(rfac2))
+pred_rfac2 <- as.numeric(pred_dat_comp$year) - 1
 
 
 # input data
@@ -146,12 +146,12 @@ data <- list(
   pred_rfac_agg = pred_rfac_agg,
   pred_rfac_agg_levels = pred_rfac_agg_levels,
   #composition
-  # Y2_ik = obs_comp,
-  # X2_ij = fix_mm_comp,
-  # rfac2 = rand_int_vec,
-  # n_rfac2 = n_rint,
-  pred_X2_ij = pred_mm_comp#,
-  # pred_rfac2 = pred_rand_int_vec
+  Y2_ik = obs_comp,
+  X2_ij = X2_ij,
+  rfac2 = rfac2,
+  n_rfac2 = n_rint,
+  pred_X2_ij = pred_X2_ij#,
+  # pred_rfac2 = pred_rfac2
 )
 
 # input parameters
@@ -163,18 +163,18 @@ pars <- list(
   ln_smooth_sigma = rep(0, length(sm$sm_dims)),
   b_smooth = rep(0, sum(sm$sm_dims)),
   a1 = rep(0, length(unique(rfac1))),
-  ln_sigma_a1 = log(0.25)#,
+  ln_sigma_a1 = log(0.25),
   #composition
-  # B2_jk = matrix(0,
-  #                nrow = ncol(fix_mm_comp),
-  #                ncol = ncol(obs_comp)
-  # ),
-  # # mvn matrix of REs
-  # A2_hk = matrix(0,
-  #                nrow = n_rint,
-  #                ncol = ncol(obs_comp)
-  # ),
-  # ln_sigma_A2 = log(0.25)
+  B2_jk = matrix(0,
+                 nrow = ncol(X2_ij),
+                 ncol = ncol(obs_comp)
+  ),
+  # mvn matrix of REs
+  A2_hk = matrix(0,
+                 nrow = n_rint,
+                 ncol = ncol(obs_comp)
+  ),
+  ln_sigma_A2 = log(0.25)
 )
 
 # mapped parameters
@@ -221,7 +221,7 @@ if (!is.na(comp_map$agg[1])) {
 
 
 # define random variables
-tmb_random <- c("b_smooth", "a1")#, "A2_hk")
+tmb_random <- c("b_smooth", "a1", "A2_hk")
 
 
 compile(here::here("src", "negbin_dirichlet_mvn_rsplines.cpp"))

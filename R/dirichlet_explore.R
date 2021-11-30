@@ -14,21 +14,21 @@ source(here::here("R", "utils.R"))
 
 
 # use example data from WCVI for initial fitting
-comp <- stockseasonr::comp_ex #%>% 
-  # #collapse some stock levels
-  # mutate(
-  #   agg2 = case_when(
-  #     agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
-  #     grepl("CR", agg) ~ "col",
-  #     TRUE ~ "other"
-  #   )
-  # ) %>% 
-  # group_by(
-  #   sample_id, region, year, month_n, agg2, nn
-  # ) %>% 
-  # summarize(agg_prob2 = sum(agg_prob), .groups = "drop") %>% 
-  # rename(agg = agg2, agg_prob = agg_prob2) %>% 
-  # ungroup()
+comp <- stockseasonr::comp_ex %>% 
+  #collapse some stock levels
+  mutate(
+    agg2 = case_when(
+      agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
+      grepl("CR", agg) ~ "col",
+      TRUE ~ "other"
+    )
+  ) %>%
+  group_by(
+    sample_id, region, year, month_n, agg2, nn
+  ) %>%
+  summarize(agg_prob2 = sum(agg_prob), .groups = "drop") %>%
+  rename(agg = agg2, agg_prob = agg_prob2) %>%
+  ungroup()
 
 # prediction dataset 
 pred_dat <- group_split(comp, region) %>%
@@ -72,17 +72,17 @@ pred_rand_int_vec <- as.numeric(pred_dat$year) - 1
 
 # input data
 data <- list(
-  y2_ik = obs_comp,
+  Y2_ik = obs_comp,
   X2_ij = fix_mm_comp,
-  rint = rand_int_vec,
-  n_rint = n_rint,
-  pred_X2s = pred_mm_comp,
-  pred_rint = pred_rand_int_vec
+  rfac2 = rand_int_vec,
+  n_rfac2 = n_rint,
+  pred_X2_ij = pred_mm_comp,
+  pred_rfac2 = pred_rand_int_vec
 )
 
 # input parameters
 pars <- list(
-  b2_jk = matrix(0,
+  B2_jk = matrix(0,
                 nrow = ncol(fix_mm_comp),
                 ncol = ncol(obs_comp)
   ),
