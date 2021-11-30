@@ -1,0 +1,194 @@
+### MVN Random Intercepts Dirichlet
+## Adapt stockseasonr model with MVN intercepts
+## NOTE: attempted to incorporate random smooths, but unclear how to proceed 
+## given parameters are a matrix, not vector
+## Nov. 29, 2021
+
+library(tidyverse)
+library(mgcv)
+library(TMB)
+library(sdmTMB)
+
+# utility functions for prepping smooths 
+source(here::here("R", "utils.R"))
+
+
+# use example data from WCVI for initial fitting
+comp <- stockseasonr::comp_ex #%>% 
+  # #collapse some stock levels
+  # mutate(
+  #   agg2 = case_when(
+  #     agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
+  #     grepl("CR", agg) ~ "col",
+  #     TRUE ~ "other"
+  #   )
+  # ) %>% 
+  # group_by(
+  #   sample_id, region, year, month_n, agg2, nn
+  # ) %>% 
+  # summarize(agg_prob2 = sum(agg_prob), .groups = "drop") %>% 
+  # rename(agg = agg2, agg_prob = agg_prob2) %>% 
+  # ungroup()
+
+# prediction dataset 
+pred_dat <- group_split(comp, region) %>%
+  map_dfr(., function(x) {
+    expand.grid(
+      region = unique(x$region),
+      month_n = seq(min(x$month_n),
+                    max(x$month_n),
+                    by = 0.1
+      ),
+      year = unique(x$year)
+    )
+  })  
+  
+
+## GENERATE TMB INPUTS ---------------------------------------------------------
+
+dat <- comp %>%
+  pivot_wider(., names_from = agg, values_from = agg_prob) %>%
+  mutate_if(is.numeric, ~ replace_na(., 0.00001)) %>% 
+  mutate(dummy = 0)
+obs_comp <- dat %>%
+  select(-c(sample_id:nn, dummy)) %>%
+  as.matrix()
+
+months2 <- unique(dat$month_n)
+spline_type <- if (max(months2) == 12) "cc" else "tp"
+n_knots <- if (max(months2) == 12) 4 else 3
+# response variable doesn't matter, since not fit
+m2 <- mgcv::gam(rep(0, length.out = nrow(dat)) ~
+                  region + s(month_n, bs = spline_type, k = n_knots, 
+                             by = region),
+                data = dat
+)
+fix_mm_comp <- predict(m2, type = "lpmatrix")
+pred_mm_comp <- predict(m2, pred_dat, type = "lpmatrix")
+
+rand_int_vec <- as.numeric(as.factor(as.character(dat$year))) - 1
+n_rint <- length(unique(rand_int_vec))
+pred_rand_int_vec <- as.numeric(pred_dat$year) - 1
+
+# input data
+data <- list(
+  y2_ik = obs_comp,
+  X2_ij = fix_mm_comp,
+  rint = rand_int_vec,
+  n_rint = n_rint,
+  pred_X2s = pred_mm_comp,
+  pred_rint = pred_rand_int_vec
+)
+
+# input parameters
+pars <- list(
+  b2_jk = matrix(0,
+                nrow = ncol(fix_mm_comp),
+                ncol = ncol(obs_comp)
+  ),
+  # mvn matrix of REs
+  A2_hk = matrix(0,
+                 nrow = n_rint,
+                 ncol = ncol(obs_comp)
+  ),
+  ln_sigma_A2 = log(0.25)
+)
+
+# mapped parameters
+## region-stock combinations with 0 observations to map
+comp_map <- comp %>%
+  group_by(region, agg) %>%
+  complete(., region, nesting(agg)) %>%
+  summarize(total_obs = sum(agg_prob), .groups = "drop") %>%
+  filter(is.na(total_obs)) %>%
+  select(agg, region)
+
+tmb_map <- list()
+if (!is.na(comp_map$agg[1])) {
+  temp_betas <- pars$b2_jg
+  for (i in seq_len(nrow(comp_map))) {
+    offset_stock_pos <- grep(
+      paste(comp_map$agg[1], collapse = "|"),
+      colnames(obs_comp)
+    )
+    offset_region_pos <- grep(
+      paste(comp_map$region[1], collapse = "|"),
+      colnames(fix_mm_comp)
+    )
+    for (j in seq_len(ncol(fix_mm_comp))) {
+      for (k in seq_len(ncol(obs_comp))) {
+        if (j %in% offset_region_pos & k %in% offset_stock_pos) {
+          temp_betas[j, k] <- NA
+        }
+      }
+    }
+  }
+  comp_map_pos <- which(is.na(as.vector(temp_betas)))
+  b2_jg_map <- seq_along(pars$b2_jg)
+  b2_jg_map[comp_map_pos] <- NA
+  tmb_map <- c(tmb_map, list(b2_jg = as.factor(b2_jg_map)))
+}
+
+
+compile(here::here("src", "dirichlet_mvn_rint.cpp"))
+dyn.load(dynlib(here::here("src", "dirichlet_mvn_rint")))
+
+obj <- MakeADFun(data, pars, 
+                 map = tmb_map,
+                 random = "A2_hk",
+                 DLL = "dirichlet_mvn_rint")
+
+opt <- nlminb(obj$par, obj$fn, obj$gr)
+sdr <- sdreport(obj)
+ssdr <- summary(sdr)
+
+logit_pred_ppn <- ssdr[rownames(ssdr) %in% "logit_pred_pi_prop", ]
+
+link_preds <- data.frame(
+  link_prob_est = logit_pred_ppn[ , "Estimate"],
+  link_prob_se =  logit_pred_ppn[ , "Std. Error"]
+) %>% 
+  mutate(
+    pred_prob_est = plogis(link_prob_est),
+    pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
+    pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
+  ) 
+
+# plot predictions
+stock_seq <- colnames(obs_comp)
+pred_comp <- purrr::map(stock_seq, function (x) {
+  dum <- pred_dat
+  dum$stock <- x
+  return(dum)
+}) %>%
+  bind_rows() %>%
+  cbind(., link_preds) 
+
+p <- ggplot(data = pred_comp, aes(x = month_n)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(region~stock) +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_prob_est, colour = year)) +
+  geom_ribbon(data = pred_comp,
+              aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
+              alpha = 0.5)
+plot(p)
+
+
+# generate observed proportions
+
+# number of samples in an event
+long_dat <- dat %>% 
+  mutate(samp_nn = apply(obs_comp, 1, sum), each = length(stock_seq)) %>% 
+  pivot_longer(cols = c(col, other, salish), names_to = "stock", 
+               values_to = "obs_count") %>% 
+  mutate(obs_ppn = obs_count / samp_nn)
+
+p + 
+  geom_point(data = long_dat, aes(x = month_n, y = obs_ppn, colour = year))
+
+
+
+library(stockseasonr)
+tt <- stockseasonr::gen_tmb(comp_dat = comp_ex, catch_dat = catch_ex,  
+                            model_type = "integrated")

@@ -20,8 +20,8 @@ Type objective_function<Type>::operator() ()
   
   DATA_VECTOR(y1_i);
   DATA_MATRIX(X1_ij);
-  DATA_IVECTOR(factor1k_i);
-  DATA_INTEGER(nk1);
+  DATA_IVECTOR(rfac1);
+  DATA_INTEGER(n_rfac1);
   DATA_IVECTOR(b_smooth_start);
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
@@ -30,11 +30,11 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
   DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
-  DATA_IVECTOR(pred_factor1k_i);
+  DATA_IVECTOR(pred_rfac1);
   // vector of higher level aggregates used to generate predictions; length
   // is equal to the number of predictions made
-  DATA_IVECTOR(pred_factor2k_h);
-  DATA_IVECTOR(pred_factor2k_levels);
+  DATA_IVECTOR(pred_rfac_agg);
+  DATA_IVECTOR(pred_rfac_agg_levels);
   
 
   // PARAMETERS ----------------------------------------------------------------
@@ -45,8 +45,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(ln_smooth_sigma);  // variances of spline REs if included
   // random effects
   PARAMETER_VECTOR(b_smooth);  // P-spline smooth parameters
-  PARAMETER_VECTOR(z1_k);
-  PARAMETER(ln_sigma_z1_k);
+  PARAMETER_VECTOR(a1);
+  PARAMETER(ln_sigma_a1);
   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
@@ -83,7 +83,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_i(n1); 
   mu_i.setZero();
   for (int i = 0; i < n1; i++) {
-    mu_i(i) = eta_i(i) + z1_k(factor1k_i(i));
+    mu_i(i) = eta_i(i) + a1(rfac1(i));
   }
 
 
@@ -103,12 +103,12 @@ Type objective_function<Type>::operator() ()
   // ADREPORT(s2);
 
   // Probability of random coefficients
-  for(int k = 0; k < nk1; k++){
+  for(int k = 0; k < n_rfac1; k++){
     if (k == 0) {
-      jnll -= dnorm(z1_k(k), Type(0.0), exp(ln_sigma_z1_k), true);  
+      jnll -= dnorm(a1(k), Type(0.0), exp(ln_sigma_a1), true);  
     }
     if (k > 0) {
-      jnll -= dnorm(z1_k(k), z1_k(k - 1), exp(ln_sigma_z1_k), true);
+      jnll -= dnorm(a1(k), a1(k - 1), exp(ln_sigma_a1), true);
     }
   }
 
@@ -141,7 +141,7 @@ Type objective_function<Type>::operator() ()
   // add random intercepts 
   // vector<Type> pred_re(pred_X1_ij.rows());
   for (int i = 0; i < pred_X1_ij.rows(); i++) {
-    pred_eff(i) += z1_k(pred_factor1k_i(i));
+    pred_eff(i) += a1(pred_rfac1(i));
   }
 
   REPORT(pred_eff);
@@ -149,8 +149,8 @@ Type objective_function<Type>::operator() ()
 
 
   // Calculate predicted abundance based on higher level groupings
-  int n_preds = pred_factor2k_h.size();
-  int n_pred_levels = pred_factor2k_levels.size();
+  int n_preds = pred_rfac_agg.size();
+  int n_pred_levels = pred_rfac_agg_levels.size();
   vector<Type> pred_eff_cumsum(n_pred_levels);
   vector<Type> ln_pred_eff_cumsum(n_pred_levels);
   vector<Type> exp_pred_eff = exp(pred_eff); // calculate real values for summing
@@ -158,7 +158,7 @@ Type objective_function<Type>::operator() ()
 
   for (int h = 0; h < n_preds; h++) {
     for (int g = 0; g < n_pred_levels; g++) {
-      if (pred_factor2k_h(h) == pred_factor2k_levels(g)) {
+      if (pred_rfac_agg(h) == pred_rfac_agg_levels(g)) {
         pred_eff_cumsum(g) += exp_pred_eff(h);
         ln_pred_eff_cumsum(g) = log(pred_eff_cumsum(g));
       }
