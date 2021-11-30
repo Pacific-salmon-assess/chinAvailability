@@ -31,10 +31,10 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(Xs); // smoother linear effect matrix
 
   // Composition data
-  DATA_MATRIX(Y2_ik);    // response matrix (a n-by-k matrix)
-  DATA_MATRIX(X2_ij);    // covariate matrix (a n-by-j matrix)
-  DATA_IVECTOR(rfac2);    // vector of random factor levels
-  DATA_INTEGER(n_rfac2);  // number of random factor levels
+  // DATA_MATRIX(Y2_ik);    // response matrix (a n-by-k matrix)
+  // DATA_MATRIX(X2_ij);    // covariate matrix (a n-by-j matrix)
+  // DATA_IVECTOR(rfac2);    // vector of random factor levels
+  // DATA_INTEGER(n_rfac2);  // number of random factor levels
   
   // Abundance predictions
   DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
@@ -46,9 +46,9 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(pred_rfac_agg);
   DATA_IVECTOR(pred_rfac_agg_levels);
   
-  // Composition predictions
+  // // Composition predictions
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
-  DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
+  // DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
 
 
   // PARAMETERS ----------------------------------------------------------------
@@ -64,32 +64,33 @@ Type objective_function<Type>::operator() ()
   PARAMETER(ln_sigma_a1);
   
   // Composition parameters
-  PARAMETER_MATRIX(B2_jk); // parameter matrix
-  PARAMETER_MATRIX(A2_hk);  // matrix of random intercepts (n_rfac2 x n_cat)
-  PARAMETER(ln_sigma_A2); // among random intercept SD
+  // PARAMETER_MATRIX(B2_jk); // parameter matrix
+  // PARAMETER_MATRIX(A2_hk);  // matrix of random intercepts (n_rfac2 x n_cat)
+  // PARAMETER(ln_sigma_A2); // among random intercept SD
 
 
 // DERIVED QUANTITIES --------------------------------------------------------
 
-  int n_sub_preds = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
-  int n_obs = Y2_ik.rows();         // number of observations
-  int n_cat = Y2_ik.cols();         // number of categories
-  int n_preds = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
-
+  int n1 = y1_i.size();
+  // int n2 = Y2_ik.rows();         // number of observations
+  // int n_cat = Y2_ik.cols();         // number of categories
+  int n_predX1 = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
+  int n_predX2 = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
+  
   // Matrix for intermediate objects
-  matrix<Type> Mu2_ik(n_obs, n_cat); // matrix of combined fixed/random eff
+  // matrix<Type> Mu2_ik(n2, n_cat); // matrix of combined fixed/random eff
 
-  // Covariance matrix for MVN random intercepts
-  matrix<Type> cov_mat(n_cat, n_cat);
-  for (int j = 0; j < n_cat; j++) {
-    for (int jj = 0; jj < n_cat; jj++) {
-      if (j == jj) {
-        cov_mat(j, jj) = exp(ln_sigma_A2) * exp(ln_sigma_A2);
-      } else {
-        cov_mat(j, jj) = 0;
-      }
-    }
-  }
+  // // Covariance matrix for MVN random intercepts
+  // matrix<Type> cov_mat(n_cat, n_cat);
+  // for (int j = 0; j < n_cat; j++) {
+  //   for (int jj = 0; jj < n_cat; jj++) {
+  //     if (j == jj) {
+  //       cov_mat(j, jj) = exp(ln_sigma_A2) * exp(ln_sigma_A2);
+  //     } else {
+  //       cov_mat(j, jj) = 0;
+  //     }
+  //   }
+  // }
 
   Type jnll = 0.0; // initialize joint negative log likelihood
 
@@ -115,11 +116,10 @@ Type objective_function<Type>::operator() ()
   eta_smooth_i += Xs * bs;
 
   // Combine smooths and linear
-  int n1 = y1_i.size();
   vector<Type> eta_i(n1);
   eta_i.setZero();
   for (int i = 0; i < n1; i++) {
-    eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); // + offset_i(i);
+    eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); 
   }
   
   // Add random intercepts
@@ -131,17 +131,17 @@ Type objective_function<Type>::operator() ()
 
 
   // Composition (no random smooths)
-  matrix<Type> Mu2_fx_ik = X2_ij * B2_jk; // fixed effects
+  // matrix<Type> Mu2_fx_ik = X2_ij * B2_jk; // fixed effects
 
-  for (int i = 0; i < n_obs; ++i) {
-    for(int k = 0; k < n_cat; k++) {
-      Mu2_ik(i, k) = Mu2_fx_ik(i, k) + A2_hk(rfac2(i), k);
-    }
-  }
+  // for (int i = 0; i < n2; ++i) {
+  //   for(int k = 0; k < n_cat; k++) {
+  //     Mu2_ik(i, k) = Mu2_fx_ik(i, k) + A2_hk(rfac2(i), k);
+  //   }
+  // }
 
-  matrix<Type> Gamma = exp(Mu2_ik.array()); // add random effect
-  vector<Type> n_plus = Y2_ik.rowwise().sum(); // row sum of response
-  vector<Type> Gamma_plus = Gamma.rowwise().sum(); // row sum of gamma
+  // matrix<Type> Gamma = exp(Mu2_ik.array()); // add random effect
+  // vector<Type> n_plus = Y2_ik.rowwise().sum(); // row sum of response
+  // vector<Type> Gamma_plus = Gamma.rowwise().sum(); // row sum of gamma
  
 
   // ABUNDANCE LIKELIHOOD ------------------------------------------------------
@@ -172,30 +172,30 @@ Type objective_function<Type>::operator() ()
 
   // COMPOSITION LIKELIHOOD ----------------------------------------------------
 
-  Type jll = 0; // initialize joint log-likelihood
+  // Type jll = 0; // initialize joint log-likelihood
 
-  for(int i = 0; i <= (n_obs - 1); i++){
-    jll = jll + lgamma((n_plus(i) + 1));
-    jll = jll + lgamma(Gamma_plus(i));
-    jll = jll - lgamma((n_plus(i) + Gamma_plus(i)));
-    for(int k = 0; k <= (n_cat - 1); k++){
-      jll += lgamma((Y2_ik(i, k) + Gamma(i, k)));
-      jll -= lgamma(Gamma(i, k));
-      jll -= lgamma((Y2_ik(i, k) + 1));
-    }
-  }
+  // for(int i = 0; i <= (n2 - 1); i++){
+  //   jll = jll + lgamma((n_plus(i) + 1));
+  //   jll = jll + lgamma(Gamma_plus(i));
+  //   jll = jll - lgamma((n_plus(i) + Gamma_plus(i)));
+  //   for(int k = 0; k <= (n_cat - 1); k++){
+  //     jll += lgamma((Y2_ik(i, k) + Gamma(i, k)));
+  //     jll -= lgamma(Gamma(i, k));
+  //     jll -= lgamma((Y2_ik(i, k) + 1));
+  //   }
+  // }
 
-  jnll = -jll;
+  // jnll = -jll;
   
-  // Probability of multivariate random intercepts
-  for (int h = 0; h < n_rfac2; h++) {
-    vector<Type> A2_hk_vec = A2_hk.row(h);
-    MVNORM_t<Type> neg_log_dmvnorm(cov_mat);
-    jnll += neg_log_dmvnorm(A2_hk_vec);
-  }
+  // // Probability of multivariate random intercepts
+  // for (int h = 0; h < n_rfac2; h++) {
+  //   vector<Type> A2_hk_vec = A2_hk.row(h);
+  //   MVNORM_t<Type> neg_log_dmvnorm(cov_mat);
+  //   jnll += neg_log_dmvnorm(A2_hk_vec);
+  // }
 
-  Type sigma_rfac2 = exp(ln_sigma_A2);
-  ADREPORT(sigma_rfac2);
+  // Type sigma_rfac2 = exp(ln_sigma_A2);
+  // ADREPORT(sigma_rfac2);
   
 
   // PREDICTIONS ---------------------------------------------------------------
@@ -204,7 +204,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> pred_mu1 = pred_X1_ij * b1_j;
 
   // smoothers
-  vector<Type> pred_smooth_i(pred_X1_ij.rows());
+  vector<Type> pred_smooth_i(n_predX1);
   pred_smooth_i.setZero();
   for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
     vector<Type> beta_s(pred_Zs(s).cols());
@@ -217,15 +217,12 @@ Type objective_function<Type>::operator() ()
   pred_smooth_i += pred_Xs * bs;
   
   // combine fixed and smoothed predictions
-  for (int i = 0; i < pred_X1_ij.rows(); i++) {
+  for (int i = 0; i < n_predX1; i++) {
     pred_mu1(i) += pred_smooth_i(i);
   }
 
-  // REPORT(pred_mu1);
-  // ADREPORT(pred_mu1);
-  
   // add random intercepts 
-  for (int i = 0; i < pred_X1_ij.rows(); i++) {
+  for (int i = 0; i < n_predX1; i++) {
     pred_mu1(i) += a1(pred_rfac1(i));
   }
 
@@ -234,17 +231,15 @@ Type objective_function<Type>::operator() ()
 
 
   // Predicted aggregate abundance
-  // int n_agg_preds = pred_rfac_agg.size();
-  // int n_agg_levels = pred_rfac_agg_levels.size();
-  vector<Type> pred_mu1_cumsum(n_preds);
-  vector<Type> ln_pred_mu1_cumsum(n_preds);
+  vector<Type> pred_mu1_cumsum(n_predX2);
+  vector<Type> ln_pred_mu1_cumsum(n_predX2);
   vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
 
 
-  for (int h = 0; h < n_sub_preds; h++) {
-    for (int m = 0; m < n_preds; m++) {
-      if (pred_rfac_agg(h) == pred_rfac_agg_levels(m)) {
-        pred_mu1_cumsum(m) += exp_pred_mu1(h);
+  for (int i = 0; i < n_predX1; i++) {
+    for (int m = 0; m < n_predX2; m++) {
+      if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
+        pred_mu1_cumsum(m) += exp_pred_mu1(i);
         ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
       }
     }
@@ -254,56 +249,56 @@ Type objective_function<Type>::operator() ()
   ADREPORT(ln_pred_mu1_cumsum);
 
 
-  // Predicted composition 
-  matrix<Type> pred_Mu2_fx(n_preds, n_cat);    //pred fixed effects on log scale
-  matrix<Type> pred_Mu2(n_preds, n_cat);    //pred FE + RE on log scale
-  matrix<Type> pred_Gamma(n_preds, n_cat);  //transformed pred effects 
-  vector<Type> pred_Gamma_plus(n_preds);        
-  vector<Type> pred_theta(n_preds); 
-  matrix<Type> pred_Pi(n_preds, n_cat);      // predicted counts in real 
-  vector<Type> pred_n_plus(n_preds); 
-  matrix<Type> pred_Pi_prop(n_preds, n_cat); // predicted counts as ppn.
-  matrix<Type> logit_pred_Pi_prop(n_preds, n_cat); 
+  // // Predicted composition 
+  // matrix<Type> pred_Mu2_fx(n_predX2, n_cat);    //pred fixed effects on log scale
+  // matrix<Type> pred_Mu2(n_predX2, n_cat);    //pred FE + RE on log scale
+  // matrix<Type> pred_Gamma(n_predX2, n_cat);  //transformed pred effects 
+  // vector<Type> pred_Gamma_plus(n_predX2);        
+  // vector<Type> pred_theta(n_predX2); 
+  // matrix<Type> pred_Pi(n_predX2, n_cat);      // predicted counts in real 
+  // vector<Type> pred_n_plus(n_predX2); 
+  // matrix<Type> pred_Pi_prop(n_predX2, n_cat); // predicted counts as ppn.
+  // matrix<Type> logit_pred_Pi_prop(n_predX2, n_cat); 
 
-  pred_Mu2_fx = pred_X2_ij * B2_jk; 
+  // pred_Mu2_fx = pred_X2_ij * B2_jk; 
 
-  for (int m = 0; m < n_preds; m++) {
-    for(int k = 0; k < n_cat; k++) {
-      pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac2(m), k);
-    }
-  }
-  pred_Gamma = exp(pred_Mu2.array());
-  pred_Gamma_plus = pred_Gamma.rowwise().sum();
-  pred_theta = 1 / (pred_Gamma_plus + 1);
-  for(int m = 0; m < n_preds; m++) {
-    for(int k = 0; k < n_cat; k++) {
-      pred_Pi(m, k) = pred_Gamma(m, k) / pred_theta(m);
-    }
-  }
-  pred_n_plus = pred_Pi.rowwise().sum();
-  for(int m = 0; m < n_preds; m++) {
-    for(int k = 0; k < n_cat; k++) {
-      pred_Pi_prop(m, k) = pred_Pi(m, k) / pred_n_plus(m);
-      logit_pred_Pi_prop(m, k) = logit(pred_Pi_prop(m, k));
-    }
-  }
+  // for (int m = 0; m < n_predX2; m++) {
+  //   for(int k = 0; k < n_cat; k++) {
+  //     pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac2(m), k);
+  //   }
+  // }
+  // pred_Gamma = exp(pred_Mu2.array());
+  // pred_Gamma_plus = pred_Gamma.rowwise().sum();
+  // pred_theta = 1 / (pred_Gamma_plus + 1);
+  // for(int m = 0; m < n_predX2; m++) {
+  //   for(int k = 0; k < n_cat; k++) {
+  //     pred_Pi(m, k) = pred_Gamma(m, k) / pred_theta(m);
+  //   }
+  // }
+  // pred_n_plus = pred_Pi.rowwise().sum();
+  // for(int m = 0; m < n_predX2; m++) {
+  //   for(int k = 0; k < n_cat; k++) {
+  //     pred_Pi_prop(m, k) = pred_Pi(m, k) / pred_n_plus(m);
+  //     logit_pred_Pi_prop(m, k) = logit(pred_Pi_prop(m, k));
+  //   }
+  // }
 
-  ADREPORT(pred_Mu2);
-  ADREPORT(logit_pred_Pi_prop);
+  // ADREPORT(pred_Mu2);
+  // ADREPORT(logit_pred_Pi_prop);
   
 
-  // Combined predictions
-  matrix<Type> pred_abund(n_preds, n_cat);
+  // // Combined predictions
+  // matrix<Type> pred_abund(n_predX2, n_cat);
   
-  for (int m = 0; m < n_preds; m++) {
-    for (int k = 0; k < n_cat; k++) {
-      pred_abund(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
-    }
-  }
-  matrix<Type> log_pred_abund = log(pred_abund.array());
+  // for (int m = 0; m < n_predX2; m++) {
+  //   for (int k = 0; k < n_cat; k++) {
+  //     pred_abund(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
+  //   }
+  // }
+  // matrix<Type> log_pred_abund = log(pred_abund.array());
   
-  // Report
-  ADREPORT(log_pred_abund);
+  // // Report
+  // ADREPORT(log_pred_abund);
 
 
   return jnll;

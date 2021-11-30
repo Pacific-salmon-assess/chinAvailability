@@ -40,6 +40,7 @@ rec_catch <- readRDS(here::here("data", "rec", "month_area_recCatch.rds")) %>%
   #           offset = log(eff)) %>%
   # ungroup()
 
+
 ## predicted dataset
 pred_dat <- group_split(rec_catch, region) %>%
   map_dfr(., function(x) {
@@ -160,17 +161,17 @@ offset_pos <- grep("^offset$", colnames(X_ij))
 data <- list(
   y1_i = dat$catch,
   X1_ij = X_ij,
-  factor1k_i = rand_int_vec,
-  nk1 = length(unique(rand_int_vec)),
+  rfac1 = rand_int_vec,
+  n_rfac1 = length(unique(rand_int_vec)),
   b_smooth_start = sm$b_smooth_start,
   Zs = sm$Zs, # optional smoother basis function matrices
   Xs = sm$Xs, # optional smoother linear effect matrix
   pred_X1_ij = pred_X_ij,
   pred_Zs = sm_pred$Zs,
   pred_Xs = sm_pred$Xs,
-  pred_factor1k_i = pred_rand_int_vec,
-  pred_factor2k_h = grouping_vec,
-  pred_factor2k_levels = grouping_key
+  pred_rfac1 = pred_rand_int_vec,
+  pred_rfac_agg = grouping_vec,
+  pred_rfac_agg_levels = grouping_key
 )
 
 # input parameter initial values
@@ -180,8 +181,8 @@ pars <- list(
   bs = rep(0, ncol(sm$Xs)),
   ln_smooth_sigma = rep(0, length(sm$sm_dims)),
   b_smooth = rep(0, sum(sm$sm_dims)),
-  z1_k = rep(0, length(unique(rand_int_vec))),
-  ln_sigma_z1_k = log(0.25)
+  a1 = rep(0, length(unique(rand_int_vec))),
+  ln_sigma_a1 = log(0.25)
 )
 
 # define offset
@@ -191,7 +192,7 @@ b1_j_map[offset_pos] <- NA
 tmb_map <- list(b1_j = as.factor(b1_j_map))
 
 # define random parameters
-tmb_random <- c("b_smooth", "z1_k")
+tmb_random <- c("b_smooth", "a1")
 
 compile(here::here("src", "negbin_rsplines_rint.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_rint")))

@@ -97,10 +97,10 @@ sm <- parse_smoothers(f1, data = catch)
 pred_X_ij <- predict(gam(formula_no_sm, data = catch), 
                      pred_dat_catch, type = "lpmatrix")
 sm_pred <- parse_smoothers(f1, data = catch, newdata = pred_dat_catch)
-abund_rand_int_vec <- as.numeric(as.factor(as.character(catch$year))) - 1
-pred_rand_int_vec <- as.numeric(pred_dat_catch$year) - 1
-grouping_vec <- as.numeric(pred_dat_catch$reg_month_year_f) - 1
-grouping_key <- unique(grouping_vec)
+rfac1 <- as.numeric(as.factor(as.character(catch$year))) - 1
+pred_rfac1 <- as.numeric(pred_dat_catch$year) - 1
+pred_rfac_agg <- as.numeric(pred_dat_catch$reg_month_year_f) - 1
+pred_rfac_agg_levels <- unique(pred_rfac_agg)
 
 
 # composition inputs 
@@ -134,24 +134,24 @@ data <- list(
   #abundance
   y1_i = catch$catch,
   X1_ij = X_ij,
-  rfac1 = rand_int_vec,
-  n_rfac1 = length(unique(abund_rand_int_vec)),
+  rfac1 = rfac1,
+  n_rfac1 = length(unique(rfac1)),
   b_smooth_start = sm$b_smooth_start,
   Zs = sm$Zs, # optional smoother basis function matrices
   Xs = sm$Xs, # optional smoother linear effect matrix
   pred_X1_ij = pred_X_ij,
   pred_Zs = sm_pred$Zs,
   pred_Xs = sm_pred$Xs,
-  pred_rfac1 = pred_rand_int_vec,
-  pred_rfac_agg = grouping_vec,
-  pred_rfac_agg_levels = grouping_key,
+  pred_rfac1 = pred_rfac1,
+  pred_rfac_agg = pred_rfac_agg,
+  pred_rfac_agg_levels = pred_rfac_agg_levels,
   #composition
-  Y2_ik = obs_comp,
-  X2_ij = fix_mm_comp,
-  rfac2 = rand_int_vec,
-  n_rfac2 = n_rint,
-  pred_X2_ij = pred_mm_comp,
-  pred_rfac2 = pred_rand_int_vec
+  # Y2_ik = obs_comp,
+  # X2_ij = fix_mm_comp,
+  # rfac2 = rand_int_vec,
+  # n_rfac2 = n_rint,
+  pred_X2_ij = pred_mm_comp#,
+  # pred_rfac2 = pred_rand_int_vec
 )
 
 # input parameters
@@ -162,22 +162,30 @@ pars <- list(
   bs = rep(0, ncol(sm$Xs)),
   ln_smooth_sigma = rep(0, length(sm$sm_dims)),
   b_smooth = rep(0, sum(sm$sm_dims)),
-  a1 = rep(0, length(unique(abund_rand_int_vec))),
-  ln_sigma_a1 = log(0.25),
+  a1 = rep(0, length(unique(rfac1))),
+  ln_sigma_a1 = log(0.25)#,
   #composition
-  B2_jk = matrix(0,
-                 nrow = ncol(fix_mm_comp),
-                 ncol = ncol(obs_comp)
-  ),
-  # mvn matrix of REs
-  A2_hk = matrix(0,
-                 nrow = n_rint,
-                 ncol = ncol(obs_comp)
-  ),
-  ln_sigma_A2 = log(0.25)
+  # B2_jk = matrix(0,
+  #                nrow = ncol(fix_mm_comp),
+  #                ncol = ncol(obs_comp)
+  # ),
+  # # mvn matrix of REs
+  # A2_hk = matrix(0,
+  #                nrow = n_rint,
+  #                ncol = ncol(obs_comp)
+  # ),
+  # ln_sigma_A2 = log(0.25)
 )
 
 # mapped parameters
+tmb_map <- list()
+offset_pos <- grep("^offset$", colnames(X_ij))
+pars$b1_j[offset_pos] <- 1
+b1_j_map <- seq_along(pars$b1_j)
+b1_j_map[offset_pos] <- NA
+tmb_map <- c(tmb_map, list(b1_j = as.factor(b1_j_map)))
+
+
 ## region-stock combinations with 0 observations to map
 comp_map <- comp %>%
   group_by(region, agg) %>%
@@ -186,9 +194,8 @@ comp_map <- comp %>%
   filter(is.na(total_obs)) %>%
   select(agg, region)
 
-tmb_map <- list()
 if (!is.na(comp_map$agg[1])) {
-  temp_betas <- pars$b2_jg
+  temp_betas <- pars$B2_jk
   for (i in seq_len(nrow(comp_map))) {
     offset_stock_pos <- grep(
       paste(comp_map$agg[1], collapse = "|"),
@@ -207,10 +214,14 @@ if (!is.na(comp_map$agg[1])) {
     }
   }
   comp_map_pos <- which(is.na(as.vector(temp_betas)))
-  b2_jg_map <- seq_along(pars$b2_jg)
-  b2_jg_map[comp_map_pos] <- NA
-  tmb_map <- c(tmb_map, list(b2_jg = as.factor(b2_jg_map)))
+  B2_jk_map <- seq_along(pars$B2_jk)
+  B2_jk_map[comp_map_pos] <- NA
+  tmb_map <- c(tmb_map, list(B2_jk = as.factor(B2_jk_map)))
 }
+
+
+# define random variables
+tmb_random <- c("b_smooth", "a1")#, "A2_hk")
 
 
 compile(here::here("src", "negbin_dirichlet_mvn_rsplines.cpp"))
@@ -218,12 +229,15 @@ dyn.load(dynlib(here::here("src", "negbin_dirichlet_mvn_rsplines")))
 
 obj <- MakeADFun(data, pars, 
                  map = tmb_map,
-                 random = "A2_hk",
+                 random = tmb_random,
                  DLL = "negbin_dirichlet_mvn_rsplines")
 
 opt <- nlminb(obj$par, obj$fn, obj$gr)
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
+
+
+
 
 logit_pred_ppn <- ssdr[rownames(ssdr) %in% "logit_pred_pi_prop", ]
 
@@ -236,6 +250,7 @@ link_preds <- data.frame(
     pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
   ) 
+
 
 # plot predictions
 stock_seq <- colnames(obs_comp)
@@ -272,6 +287,48 @@ p +
 
 
 
-library(stockseasonr)
-tt <- stockseasonr::gen_tmb(comp_dat = comp_ex, catch_dat = catch_ex,  
-                            model_type = "integrated")
+
+
+
+
+calc_ribbons <- function(pred_dat, fit_vec, se_vec) {
+  pred_dat %>%
+    mutate(link_fit = as.numeric(fit_vec),
+           link_se_fit = as.numeric(se_vec),
+           link_lo = link_fit + (qnorm(0.025) * link_se_fit),
+           link_up = link_fit + (qnorm(0.975) * link_se_fit),
+           fit = exp(link_fit),
+           fit_lo = exp(link_lo),
+           fit_up = exp(link_up))
+}
+
+
+tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_mu1"), "Estimate"]
+tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_mu1"), "Std. Error"]
+
+pred_dat_tmb <- calc_ribbons(pred_dat = pred_dat_catch, fit_vec = tmb_pred,
+                             se_vec = tmb_pred_se)
+
+ggplot() +
+  geom_line(data = pred_dat_tmb, aes(x = month_n, y = fit, colour = year)) +
+  facet_wrap(~area, scales = "free_y") +
+  ggsidekick::theme_sleek()
+
+
+tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_mu1_cumsum"), "Estimate"]
+tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_mu1_cumsum"), "Std. Error"]
+new_dat_region <- pred_dat_catch %>% 
+  select(month_n, region, year, offset, month, reg_month_year_f) %>% 
+  distinct()
+pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region, 
+                                    fit_vec = tmb_pred_region,
+                                    se_vec = tmb_pred_se_region)
+
+ggplot() +
+  geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
+  geom_ribbon(data = pred_dat_tmb_region,
+              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
+                  colour = year),
+              alpha = 0.2) +
+  facet_wrap(~region, scales = "free_y") +
+  ggsidekick::theme_sleek()
