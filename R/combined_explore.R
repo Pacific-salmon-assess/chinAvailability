@@ -139,18 +139,18 @@ data <- list(
   b_smooth_start = sm$b_smooth_start,
   Zs = sm$Zs, # optional smoother basis function matrices
   Xs = sm$Xs, # optional smoother linear effect matrix
-  pred_X1_ij = pred_X_ij,
-  pred_Zs = sm_pred$Zs,
-  pred_Xs = sm_pred$Xs,
-  pred_rfac1 = pred_rfac1,
-  pred_rfac_agg = pred_rfac_agg,
-  pred_rfac_agg_levels = pred_rfac_agg_levels,
+  # pred_X1_ij = pred_X_ij,
+  # pred_Zs = sm_pred$Zs,
+  # pred_Xs = sm_pred$Xs,
+  # pred_rfac1 = pred_rfac1,
+  # pred_rfac_agg = pred_rfac_agg,
+  # pred_rfac_agg_levels = pred_rfac_agg_levels,
   #composition
   Y2_ik = obs_comp,
   X2_ij = X2_ij,
   rfac2 = rfac2,
-  n_rfac2 = n_rint,
-  pred_X2_ij = pred_X2_ij#,
+  n_rfac2 = n_rint#,
+  # pred_X2_ij = pred_X2_ij#,
   # pred_rfac2 = pred_rfac2
 )
 
@@ -160,9 +160,9 @@ pars <- list(
   b1_j = rep(0, ncol(X_ij)),
   ln_phi = log(1.5),
   bs = rep(0, ncol(sm$Xs)),
-  ln_smooth_sigma = rep(0, length(sm$sm_dims)),
-  b_smooth = rep(0, sum(sm$sm_dims)),
-  a1 = rep(0, length(unique(rfac1))),
+  ln_smooth_sigma = rnorm(length(sm$sm_dims), 0, 0.5), #rep(0, length(sm$sm_dims)),
+  b_smooth = rnorm(sum(sm$sm_dims), 0, 0.5),
+  a1 = rnorm(length(unique(rfac1)), 0, 0.5), #rep(0, length(unique(rfac1))),
   ln_sigma_a1 = log(0.25),
   #composition
   B2_jk = matrix(0,
@@ -170,7 +170,7 @@ pars <- list(
                  ncol = ncol(obs_comp)
   ),
   # mvn matrix of REs
-  A2_hk = matrix(0,
+  A2_hk = matrix(rnorm(n_rint * ncol(obs_comp), 0, 0.5), #0,
                  nrow = n_rint,
                  ncol = ncol(obs_comp)
   ),
@@ -221,21 +221,52 @@ if (!is.na(comp_map$agg[1])) {
 
 
 # define random variables
-tmb_random <- c("b_smooth", "a1", "A2_hk")
+tmb_random <- c("b_smooth", "a1",
+                "A2_hk")
 
 
 compile(here::here("src", "negbin_dirichlet_mvn_rsplines.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_dirichlet_mvn_rsplines")))
 
-obj <- MakeADFun(data, pars, 
-                 map = tmb_map,
-                 random = tmb_random,
-                 DLL = "negbin_dirichlet_mvn_rsplines")
+# fit first w/out REs
+tmb_map1 <- c(
+  tmb_map,
+  list(
+    b_smooth = factor(rep(NA, length(pars$b_smooth))),
+    ln_smooth_sigma = factor(rep(NA, length(pars$ln_smooth_sigma))),
+    a1 = factor(rep(NA, length(pars$a1))),
+    ln_sigma_a1 = as.factor(NA),
+    A2_hk = factor(rep(NA, length(pars$A2_hk))),
+    ln_sigma_A2 = as.factor(NA)
+  )
+)
+obj1 <- TMB::MakeADFun(
+  data = data,
+  parameters = pars,
+  map = tmb_map1,
+  DLL = "negbin_dirichlet_mvn_rsplines"
+)
+opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
+                      control = list(eval.max = 1e4, iter.max = 1e4)
+)
+sdr1 <- sdreport(obj1)
 
-opt <- nlminb(obj$par, obj$fn, obj$gr)
+# fit with REs using first run as inits
+obj <- TMB::MakeADFun(
+  data = data,
+  parameters = obj1$env$parList(opt1$par),
+  map = tmb_map,
+  random = tmb_random,
+  DLL = "negbin_dirichlet_mvn_rsplines"
+)
+opt <- stats::nlminb(obj$par, obj$fn, obj$gr)
+nlminb_loops = 2
+for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
+  opt <- stats::nlminb(opt$par, obj$fn, obj$gr)
+}
+
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
-
 
 
 

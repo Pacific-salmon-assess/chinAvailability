@@ -54,7 +54,7 @@ Type objective_function<Type>::operator() ()
 
   for (int i = 0; i < n_obs; ++i) {
     for(int k = 0; k < n_cat; k++) {
-      Mu2_ik(i, k) = Mu2_ik_fx(i, k);// + A2_hk(rfac2(i), k);
+      Mu2_ik(i, k) = Mu2_ik_fx(i, k) + A2_hk(rfac2(i), k);
     }
   }
 
@@ -93,7 +93,7 @@ Type objective_function<Type>::operator() ()
 
   // PREDICTIONS ---------------------------------------------------------------
   
-  matrix<Type> pred_mus_fx(n_levels, n_cat);    //pred fixed effects on log scale
+  matrix<Type> pred_mu_fx(n_levels, n_cat);    //pred fixed effects on log scale
   matrix<Type> pred_mu(n_levels, n_cat);    //pred FE + RE on log scale
   matrix<Type> pred_gamma(n_levels, n_cat);  //transformed pred effects 
   vector<Type> pred_gamma_plus(n_levels);        

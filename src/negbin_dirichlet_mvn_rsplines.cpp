@@ -37,17 +37,17 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(n_rfac2);  // number of random factor levels
   
   // Abundance predictions
-  DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
-  DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
-  DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
-  DATA_IVECTOR(pred_rfac1);
-  // vector of higher level aggregates used to generate predictions; length
-  // is equal to the number of predictions made
-  DATA_IVECTOR(pred_rfac_agg);
-  DATA_IVECTOR(pred_rfac_agg_levels);
+  // DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
+  // DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
+  // DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
+  // DATA_IVECTOR(pred_rfac1);
+  // // vector of higher level aggregates used to generate predictions; length
+  // // is equal to the number of predictions made
+  // DATA_IVECTOR(pred_rfac_agg);
+  // DATA_IVECTOR(pred_rfac_agg_levels);
   
   // // Composition predictions
-  DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
+  // DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
   // DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
 
 
@@ -74,8 +74,8 @@ Type objective_function<Type>::operator() ()
   int n1 = y1_i.size();
   int n2 = Y2_ik.rows();         // number of observations
   int n_cat = Y2_ik.cols();         // number of categories
-  int n_predX1 = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
-  int n_predX2 = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
+  // int n_predX1 = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
+  // int n_predX2 = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
   
   // Matrix for intermediate objects
   matrix<Type> Mu2_ik(n2, n_cat); // matrix of combined fixed/random eff
@@ -201,52 +201,52 @@ Type objective_function<Type>::operator() ()
   // PREDICTIONS ---------------------------------------------------------------
 
   // Predicted abundance
-  vector<Type> pred_mu1 = pred_X1_ij * b1_j;
+  // vector<Type> pred_mu1 = pred_X1_ij * b1_j;
 
-  // smoothers
-  vector<Type> pred_smooth_i(n_predX1);
-  pred_smooth_i.setZero();
-  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-    vector<Type> beta_s(pred_Zs(s).cols());
-    beta_s.setZero();
-    for (int j = 0; j < beta_s.size(); j++) {
-      beta_s(j) = b_smooth(b_smooth_start(s) + j);
-    }
-    pred_smooth_i += pred_Zs(s) * beta_s;
-  }
-  pred_smooth_i += pred_Xs * bs;
+  // // smoothers
+  // vector<Type> pred_smooth_i(n_predX1);
+  // pred_smooth_i.setZero();
+  // for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+  //   vector<Type> beta_s(pred_Zs(s).cols());
+  //   beta_s.setZero();
+  //   for (int j = 0; j < beta_s.size(); j++) {
+  //     beta_s(j) = b_smooth(b_smooth_start(s) + j);
+  //   }
+  //   pred_smooth_i += pred_Zs(s) * beta_s;
+  // }
+  // pred_smooth_i += pred_Xs * bs;
   
-  // combine fixed and smoothed predictions
-  for (int i = 0; i < n_predX1; i++) {
-    pred_mu1(i) += pred_smooth_i(i);
-  }
+  // // combine fixed and smoothed predictions
+  // for (int i = 0; i < n_predX1; i++) {
+  //   pred_mu1(i) += pred_smooth_i(i);
+  // }
 
-  // add random intercepts 
-  for (int i = 0; i < n_predX1; i++) {
-    pred_mu1(i) += a1(pred_rfac1(i));
-  }
+  // // add random intercepts 
+  // for (int i = 0; i < n_predX1; i++) {
+  //   pred_mu1(i) += a1(pred_rfac1(i));
+  // }
 
-  REPORT(pred_mu1);
-  ADREPORT(pred_mu1);
-
-
-  // Predicted aggregate abundance
-  vector<Type> pred_mu1_cumsum(n_predX2);
-  vector<Type> ln_pred_mu1_cumsum(n_predX2);
-  vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
+  // REPORT(pred_mu1);
+  // ADREPORT(pred_mu1);
 
 
-  for (int i = 0; i < n_predX1; i++) {
-    for (int m = 0; m < n_predX2; m++) {
-      if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
-        pred_mu1_cumsum(m) += exp_pred_mu1(i);
-        ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
-      }
-    }
-  }
+  // // Predicted aggregate abundance
+  // vector<Type> pred_mu1_cumsum(n_predX2);
+  // vector<Type> ln_pred_mu1_cumsum(n_predX2);
+  // vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
 
-  ADREPORT(pred_mu1_cumsum);
-  ADREPORT(ln_pred_mu1_cumsum);
+
+  // for (int i = 0; i < n_predX1; i++) {
+  //   for (int m = 0; m < n_predX2; m++) {
+  //     if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
+  //       pred_mu1_cumsum(m) += exp_pred_mu1(i);
+  //       ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
+  //     }
+  //   }
+  // }
+
+  // ADREPORT(pred_mu1_cumsum);
+  // ADREPORT(ln_pred_mu1_cumsum);
 
 
   // // Predicted composition 
