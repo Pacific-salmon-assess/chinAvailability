@@ -12,27 +12,30 @@ source(here::here("R", "utils.R"))
 
 
 # use example data from WCVI for initial fitting
-comp <- stockseasonr::comp_ex %>% 
-  #collapse some stock levels
-  mutate(
-    agg2 = case_when(
-      agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
-      grepl("CR", agg) ~ "col",
-      TRUE ~ "other"
-    )
-  ) %>%
-  group_by(
-    sample_id, region, year, month_n, agg2, nn
-  ) %>%
-  summarize(agg_prob2 = sum(agg_prob), .groups = "drop") %>%
-  rename(agg = agg2, agg_prob = agg_prob2) %>%
-  ungroup()
+# comp_ex <- stockseasonr::comp_ex %>%
+#   #collapse some stock levels
+#   mutate(
+#     agg2 = case_when(
+#       agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
+#       grepl("CR", agg) ~ "col",
+#       TRUE ~ "other"
+#     )
+#   ) %>%
+#   group_by(
+#     sample_id, region, year, month_n, agg2, nn
+#   ) %>%
+#   summarize(agg_prob2 = sum(agg_prob), .groups = "drop") %>%
+#   rename(agg = agg2, agg_prob = agg_prob2) %>%
+#   ungroup()
+# 
+# catch <- stockseasonr::catch_ex %>% 
+#   filter(
+#     year %in% comp$year,
+#     month_n %in% comp$month_n
+#   )
 
-catch <- stockseasonr::catch_ex %>% 
-  filter(
-    year %in% comp$year,
-    month_n %in% comp$month_n
-  )
+comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) 
+catch <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) 
 
 
 # prediction datasets 
@@ -259,7 +262,8 @@ obj <- TMB::MakeADFun(
   random = tmb_random,
   DLL = "negbin_dirichlet_mvn_rsplines"
 )
-opt <- stats::nlminb(obj$par, obj$fn, obj$gr)
+opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
+                     )
 nlminb_loops = 2
 for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
   opt <- stats::nlminb(opt$par, obj$fn, obj$gr)
@@ -269,8 +273,12 @@ sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
 
+comp_betas <- ssdr[rownames(ssdr) %in% "B2_jk", "Std. Error"]
+matrix(comp_betas,
+       nrow = ncol(X2_ij),
+       ncol = ncol(obs_comp)
+)
 
-logit_pred_ppn <- ssdr[rownames(ssdr) %in% "logit_pred_pi_prop", ]
 
 link_preds <- data.frame(
   link_prob_est = logit_pred_ppn[ , "Estimate"],
@@ -307,14 +315,17 @@ plot(p)
 # generate observed proportions
 
 # number of samples in an event
-long_dat <- dat %>% 
+long_dat <- comp_dat %>% 
   mutate(samp_nn = apply(obs_comp, 1, sum), each = length(stock_seq)) %>% 
   pivot_longer(cols = c(col, other, salish), names_to = "stock", 
                values_to = "obs_count") %>% 
   mutate(obs_ppn = obs_count / samp_nn)
 
-p + 
-  geom_point(data = long_dat, aes(x = month_n, y = obs_ppn, colour = year))
+ggplot(data = long_dat) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(region~stock) +
+  ggsidekick::theme_sleek() + 
+  geom_point(aes(x = month_n, y = obs_ppn, colour = year))
 
 
 
