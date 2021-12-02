@@ -34,12 +34,16 @@ source(here::here("R", "utils.R"))
 #     month_n %in% comp$month_n
 #   )
 
-comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) 
-catch <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) 
+comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
+  filter(!region == "NSoG") %>% 
+  droplevels()
+catch <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) %>% 
+  filter(!region == "NSoG") %>% 
+  droplevels()
 
 
 # prediction datasets 
-pred_dat_comp <- group_split(comp, region) %>%
+pred_dat_comp1 <- group_split(comp, region) %>%
   map_dfr(., function(x) {
     expand.grid(
       region = unique(x$region),
@@ -78,21 +82,30 @@ pred_dat_catch <- group_split(catch, region) %>%
   mutate(
     month = as.factor(month_n),
     order = row_number(),
-    # year is necessary regardless of whether RIs are inlcuded because of year-
+    # year is necessary regardless of whether RIs are included because of year-
     # specific smooths 
     reg_month_year = paste(region, month_n, year, sep = "_"),
     reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
-  select(-order, -reg_month_year, -strata) %>%
-  distinct() 
+  select(-order, -strata) %>%
+  distinct() %>% 
+  # remove years that lack gsi data
+  filter(
+    year %in% pred_dat_comp1$year
+  )
+
+# subset predicted composition dataset to match pred_dat_catch since fitting 
+# data can be more extensive
+pred_dat_comp <- pred_dat_comp1 %>% 
+  filter(reg_month_year %in% pred_dat_catch$reg_month_year)
 
 
 ## GENERATE TMB INPUTS ---------------------------------------------------------
 
 # abundance inputs 
 f1 <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = region) +
-  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+  s(month_n, bs = "tp", k = 4, by = region) +
+  # s(month_n, by = year, bs = "tp", m = 1, k = 3) +
   offset
 formula_no_sm <- remove_s_and_t2(f1)
 X_ij <- model.matrix(formula_no_sm, data = catch)
@@ -142,20 +155,24 @@ data <- list(
   b_smooth_start = sm$b_smooth_start,
   Zs = sm$Zs, # optional smoother basis function matrices
   Xs = sm$Xs, # optional smoother linear effect matrix
-  # pred_X1_ij = pred_X_ij,
-  # pred_Zs = sm_pred$Zs,
-  # pred_Xs = sm_pred$Xs,
-  # pred_rfac1 = pred_rfac1,
-  # pred_rfac_agg = pred_rfac_agg,
-  # pred_rfac_agg_levels = pred_rfac_agg_levels,
+  pred_X1_ij = pred_X_ij,
+  pred_Zs = sm_pred$Zs,
+  pred_Xs = sm_pred$Xs,
+  pred_rfac1 = pred_rfac1,
+  pred_rfac_agg = pred_rfac_agg,
+  pred_rfac_agg_levels = pred_rfac_agg_levels,
   #composition
   Y2_ik = obs_comp,
   X2_ij = X2_ij,
   rfac2 = rfac2,
-  n_rfac2 = n_rint#,
-  # pred_X2_ij = pred_X2_ij#,
-  # pred_rfac2 = pred_rfac2
+  n_rfac2 = n_rint,
+  pred_X2_ij = pred_X2_ij,
+  pred_rfac2 = pred_rfac2
 )
+
+if(nrow(pred_X2_ij) != length(pred_rfac_agg_levels)) {
+  warning("Prediction DFs do not match")
+}
 
 # input parameters
 pars <- list(
@@ -206,9 +223,9 @@ if (!is.na(comp_map$agg[1])) {
     )
     offset_region_pos <- grep(
       paste(comp_map$region[1], collapse = "|"),
-      colnames(fix_mm_comp)
+      colnames(X_ij)
     )
-    for (j in seq_len(ncol(fix_mm_comp))) {
+    for (j in seq_len(ncol(X_ij))) {
       for (k in seq_len(ncol(obs_comp))) {
         if (j %in% offset_region_pos & k %in% offset_stock_pos) {
           temp_betas[j, k] <- NA
@@ -224,9 +241,10 @@ if (!is.na(comp_map$agg[1])) {
 
 
 # define random variables
-tmb_random <- c("b_smooth", "a1",
-                "A2_hk")
+tmb_random <- c("b_smooth", "a1", "A2_hk")
 
+
+## FIT MODEL  ------------------------------------------------------------------
 
 compile(here::here("src", "negbin_dirichlet_mvn_rsplines.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_dirichlet_mvn_rsplines")))
@@ -272,13 +290,14 @@ for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
+saveRDS(ssdr, here::here("data", "model_fits", "combined_mvn.rds"))
 
-comp_betas <- ssdr[rownames(ssdr) %in% "B2_jk", "Std. Error"]
-matrix(comp_betas,
-       nrow = ncol(X2_ij),
-       ncol = ncol(obs_comp)
-)
 
+# GENERATE PREDICTIONS ---------------------------------------------------------
+
+unique(rownames(ssdr))
+
+logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 
 link_preds <- data.frame(
   link_prob_est = logit_pred_ppn[ , "Estimate"],
@@ -294,7 +313,7 @@ link_preds <- data.frame(
 # plot predictions
 stock_seq <- colnames(obs_comp)
 pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat
+  dum <- pred_dat_comp
   dum$stock <- x
   return(dum)
 }) %>%
@@ -305,27 +324,28 @@ p <- ggplot(data = pred_comp, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(region~stock) +
   ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est, colour = year)) +
-  geom_ribbon(data = pred_comp,
-              aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
-              alpha = 0.5)
+  geom_line(aes(y = pred_prob_est, colour = year))# +
+  # geom_ribbon(data = pred_comp,
+  #             aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
+  #             alpha = 0.5)
 plot(p)
 
 
 # generate observed proportions
 
 # number of samples in an event
+stock_seq <- colnames(obs_comp)
 long_dat <- comp_dat %>% 
   mutate(samp_nn = apply(obs_comp, 1, sum), each = length(stock_seq)) %>% 
-  pivot_longer(cols = c(col, other, salish), names_to = "stock", 
+  pivot_longer(cols = c(PSD:`FR-early`), names_to = "stock", 
                values_to = "obs_count") %>% 
   mutate(obs_ppn = obs_count / samp_nn)
+mean_long_dat <- long_dat %>% 
+  group_by(month_n, year, region, stock) %>% 
+  summarize(obs_ppn = mean(obs_ppn), .groups = "drop")
 
-ggplot(data = long_dat) +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(region~stock) +
-  ggsidekick::theme_sleek() + 
-  geom_point(aes(x = month_n, y = obs_ppn, colour = year))
+p + 
+  geom_point(data = mean_long_dat, aes(x = month_n, y = obs_ppn, colour = year))
 
 
 

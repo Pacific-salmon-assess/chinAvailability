@@ -69,20 +69,33 @@ rec <- readRDS(here::here("data", "rec",
   mutate(
     temp_strata = paste(month, region, sep = "_"),
     sample_id = paste(temp_strata, jDay, year, sep = "_"),
+    # min_m = case_when(
+    #   region %in% c("N. Strait of Georgia", "S. Strait of Georgia") ~ 5,
+    #   region %in% c("Juan de Fuca Strait",
+    #                 "Queen Charlotte and\nJohnstone Straits") ~ 6
+    # ),
+    # max_m = case_when(
+    #   region %in% c("Juan de Fuca Strait", "N. Strait of Georgia",
+    #                 "S. Strait of Georgia") ~ 9,
+    #   region == "Queen Charlotte and\nJohnstone Straits" ~ 8
+    # ),
     min_m = case_when(
-      region %in% c("N. Strait of Georgia", "S. Strait of Georgia") ~ 5,
-      region %in% c("Juan de Fuca Strait",
-                    "Queen Charlotte and\nJohnstone Straits") ~ 6
+      region %in% c("N. Strait of Georgia", "S. Strait of Georgia") ~ 1,
+      region == "Queen Charlotte and\nJohnstone Straits" ~ 6,
+      region == c("Juan de Fuca Strait") ~ 3
     ),
     max_m = case_when(
-      region %in% c("Juan de Fuca Strait", "N. Strait of Georgia",
-                    "S. Strait of Georgia") ~ 9,
+      region %in% c("Juan de Fuca Strait", 
+                    "N. Strait of Georgia") ~ 9,
+      region == "S. Strait of Georgia" ~ 12,
       region == "Queen Charlotte and\nJohnstone Straits" ~ 8
     ),
     coarse_agg = case_when(
-      pst_agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
-      grepl("CR", pst_agg) ~ "col",
-      TRUE ~ "other"
+      pst_agg %in% c("WCVI", "NBC_SEAK") ~ "BC-coastal",
+      pst_agg %in% c("CA_ORCST", "WACST") ~ "US-coastal",
+      pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa") ~ "CR-fall",
+      pst_agg %in% c("CR-lower_sp", "CR-upper_sp") ~ "CR-spring",
+      TRUE ~ pst_agg
     )
   ) %>% 
   group_by(region) %>% 
