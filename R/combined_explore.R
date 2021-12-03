@@ -105,7 +105,7 @@ pred_dat_comp <- pred_dat_comp1 %>%
 # abundance inputs 
 f1 <- catch ~ area +
   s(month_n, bs = "tp", k = 4, by = region) +
-  # s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+  s(month_n, by = year, bs = "tp", m = 1, k = 4) +
   offset
 formula_no_sm <- remove_s_and_t2(f1)
 X_ij <- model.matrix(formula_no_sm, data = catch)
@@ -297,6 +297,7 @@ saveRDS(ssdr, here::here("data", "model_fits", "combined_mvn.rds"))
 
 unique(rownames(ssdr))
 
+## predicted stock composition
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 
 link_preds <- data.frame(
@@ -309,8 +310,6 @@ link_preds <- data.frame(
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
   ) 
 
-
-# plot predictions
 stock_seq <- colnames(obs_comp)
 pred_comp <- purrr::map(stock_seq, function (x) {
   dum <- pred_dat_comp
@@ -332,7 +331,6 @@ plot(p)
 
 
 # generate observed proportions
-
 # number of samples in an event
 stock_seq <- colnames(obs_comp)
 long_dat <- comp_dat %>% 
@@ -348,49 +346,51 @@ p +
   geom_point(data = mean_long_dat, aes(x = month_n, y = obs_ppn, colour = year))
 
 
+## predicted abundance
+log_pred_abund <- ssdr[rownames(ssdr) == "log_pred_abund", ]
+
+link_abund_preds <- data.frame(
+  link_fit = log_pred_abund[ , "Estimate"],
+  link_se_fit =  log_pred_abund[ , "Std. Error"]
+) %>% 
+  mutate(
+    link_lo = link_fit + (qnorm(0.025) * link_se_fit),
+    link_up = link_fit + (qnorm(0.975) * link_se_fit),
+    fit = exp(link_fit),
+    fit_lo = exp(link_lo),
+    fit_up = exp(link_up)
+    )
+
+pred_abund <- purrr::map(colnames(obs_comp), function (x) {
+  dum <- pred_dat_comp
+  dum$stock <- x
+  return(dum)
+}) %>%
+  bind_rows() %>%
+  cbind(., link_abund_preds) %>% 
+  #scale abundance for heat plot 
+  group_by(stock, region) %>% 
+  mutate(
+    fit_z = (fit - mean(fit)) / sd(fit)
+  ) %>% 
+  ungroup() %>% 
+  filter(!region == "QCaJS")
+
+p <- ggplot(data = pred_abund, aes(x = month_n)) +
+  labs(y = "Predicted Abundance Index", x = "Month") +
+  facet_grid(region~stock, scales = "free_y") +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = fit, colour = year)) +
+  geom_ribbon(aes(ymin = fit_lo, ymax = fit_up, fill = year),
+              alpha = 0.5)
+plot(p)
 
 
 
-
-
-calc_ribbons <- function(pred_dat, fit_vec, se_vec) {
-  pred_dat %>%
-    mutate(link_fit = as.numeric(fit_vec),
-           link_se_fit = as.numeric(se_vec),
-           link_lo = link_fit + (qnorm(0.025) * link_se_fit),
-           link_up = link_fit + (qnorm(0.975) * link_se_fit),
-           fit = exp(link_fit),
-           fit_lo = exp(link_lo),
-           fit_up = exp(link_up))
-}
-
-
-tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_mu1"), "Estimate"]
-tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_mu1"), "Std. Error"]
-
-pred_dat_tmb <- calc_ribbons(pred_dat = pred_dat_catch, fit_vec = tmb_pred,
-                             se_vec = tmb_pred_se)
-
-ggplot() +
-  geom_line(data = pred_dat_tmb, aes(x = month_n, y = fit, colour = year)) +
-  facet_wrap(~area, scales = "free_y") +
-  ggsidekick::theme_sleek()
-
-
-tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_mu1_cumsum"), "Estimate"]
-tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_mu1_cumsum"), "Std. Error"]
-new_dat_region <- pred_dat_catch %>% 
-  select(month_n, region, year, offset, month, reg_month_year_f) %>% 
-  distinct()
-pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region, 
-                                    fit_vec = tmb_pred_region,
-                                    se_vec = tmb_pred_se_region)
-
-ggplot() +
-  geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
-  geom_ribbon(data = pred_dat_tmb_region,
-              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
-                  colour = year),
-              alpha = 0.2) +
-  facet_wrap(~region, scales = "free_y") +
+ggplot(pred_abund, 
+       aes(x = month_n, y = year)) +
+  geom_raster(aes(fill = fit_z)) +
+  scale_fill_viridis_c(name = "Predicted\nAbundance\nAnomalies") +
+  labs(x = "Month", y = "Year") +
+  facet_grid(region~stock) +
   ggsidekick::theme_sleek()

@@ -72,7 +72,9 @@ pred_dat <- group_split(rec_catch, region) %>%
     reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
   select(-order, -reg_month_year, -strata) %>%
-  distinct() 
+  distinct() %>% 
+  # generate predictions only for swiftsure
+  filter(area %in% c("121", "21"))
 
 
 
@@ -80,15 +82,13 @@ pred_dat <- group_split(rec_catch, region) %>%
 
 
 dat <- rec_catch %>% 
-  # filter(
-  #   region %in% c("JdFS", "SSoG"),
-  #   year %in% c("2015", "2016", "2017", "2018", "2019")
-  # ) %>%
+  filter(
+    !region %in% c("NSoG"),
+  ) %>%
   droplevels() 
 new_dat <- pred_dat %>% 
   filter(
     area %in% dat$area,
-    year %in% dat$year
   ) %>% 
   droplevels()
 
@@ -100,8 +100,8 @@ f1a <- catch ~ area +
   s(year, bs = "re") + 
   offset(offset)
 f1 <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = region) +
-  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+  s(month_n, bs = "tp", k = 4, by = region) +
+  s(month_n, by = year, bs = "tp", m = 1, k = 4) +
   offset
 
 
@@ -205,7 +205,9 @@ opt <- nlminb(obj$par, obj$fn, obj$gr)
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
-sdr
+saveRDS(ssdr, here::here("data", "model_fits", "negbin_rsmooths_121_21_only.rds"))
+
+
 tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Estimate"]
 tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Std. Error"]
 
@@ -250,3 +252,29 @@ ggplot() +
   facet_wrap(~region, scales = "free_y") +
   ggsidekick::theme_sleek()
 
+
+library(ggridges)
+
+ggplot(data = pred_dat_tmb_region, 
+            aes(x = month_n, y = year, color = year)) +
+  geom_ridgeline(aes(height = fit), fill = NA, scale = 0.0001) 
+
+
+# Using ggridges and geom_ridgeline
+ggplot(fixed, aes(x=x, y=measure, color=measure)) + theme_bw() +
+  geom_ridgeline(aes(height=y), fill=NA, scale=0.001)
+
+d <- data.frame(
+  x = rep(1:5, 3) + c(rep(0, 5), rep(0.3, 5), rep(0.6, 5)),
+  y = c(rep(0, 5), rep(1, 5), rep(3, 5)),
+  height = c(0, 1, 3, 4, 0, 1, 2, 3, 5, 4, 0, 5, 4, 4, 1))
+
+ggplot(d, aes(x, y, height = height, group = y, fill = factor(x+y))) +
+  geom_ridgeline_gradient() +
+  scale_fill_viridis_d(direction = -1, guide = "none")
+
+
+ggplot(diamonds, aes(x = price, y = cut)) +
+  geom_density_ridges(scale = 4) + theme_ridges() +
+  scale_y_discrete(expand = c(0.01, 0)) +   # will generally have to set the `expand` option
+  scale_x_continuous(expand = c(0, 0)) 

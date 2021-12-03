@@ -62,8 +62,9 @@ clean_comp <- function(grouping_col, raw_data, ...) {
 # DATA CLEAN -------------------------------------------------------------------
 
 # recreational composition data
-rec <- readRDS(here::here("data", "rec", 
-                          "recIndProbsLong.rds")) %>% 
+rec_raw <- readRDS(here::here("data", "rec", 
+                          "recIndProbsLong.rds")) 
+rec <- rec_raw %>% 
   filter(legal == "legal",
          !region %in% c("Queen Charlotte Sound")) %>%
   mutate(
@@ -136,3 +137,25 @@ rec_catch <- readRDS(here::here("data", "rec", "month_area_recCatch.rds")) %>%
 saveRDS(clean_rec, here::here("data", "rec", "coarse_rec_comp.rds"))
 saveRDS(rec_catch, here::here("data", "rec", "month_area_recCatch_clean.rds"))
 
+
+## EXPLORE STAT AREA COVERAGE --------------------------------------------------
+
+stat_area_samples <- rec_raw %>% 
+  filter(region == c("Juan de Fuca Strait", "S. Strait of Georgia")) %>% 
+  group_by(region, area, month, year) %>% 
+  summarize(n_samples = length(unique(id)))
+
+ggplot(stat_area_samples) +
+  geom_boxplot(aes(x = month, y = n_samples, fill = region)) +
+  facet_wrap(~area)
+
+dum <- stat_area_samples %>% 
+  filter(area %in% c("21", "121", "19"),
+         month %in% c("5", "6", "7", "8", "9"))
+
+sum(dum$n_samples) / (6*5*3)
+
+rec_catch %>% 
+  filter(area %in% c("21", "121", "19")) %>% 
+  group_by(area, month) %>% 
+  tally()
