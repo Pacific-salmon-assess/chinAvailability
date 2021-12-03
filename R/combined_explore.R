@@ -92,12 +92,15 @@ pred_dat_catch <- group_split(catch, region) %>%
   # remove years that lack gsi data
   filter(
     year %in% pred_dat_comp1$year
-  )
+  ) %>% 
+  # generate predictions only for swiftsure
+  filter(area %in% c("121", "21"))
+
 
 # subset predicted composition dataset to match pred_dat_catch since fitting 
 # data can be more extensive
 pred_dat_comp <- pred_dat_comp1 %>% 
-  filter(reg_month_year %in% pred_dat_catch$reg_month_year)
+  filter(reg_month_year %in% pred_dat_catch$reg_month_year) 
 
 
 ## GENERATE TMB INPUTS ---------------------------------------------------------
@@ -290,10 +293,13 @@ for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
-saveRDS(ssdr, here::here("data", "model_fits", "combined_mvn.rds"))
+saveRDS(ssdr, here::here("data", "model_fits", "combined_mvn_121_21_only.rds"))
 
 
 # GENERATE PREDICTIONS ---------------------------------------------------------
+
+
+ssdr <- readRDS(here::here("data", "model_fits", "combined_mvn_121_21_only.rds"))
 
 unique(rownames(ssdr))
 
@@ -373,8 +379,11 @@ pred_abund <- purrr::map(colnames(obs_comp), function (x) {
   mutate(
     fit_z = (fit - mean(fit)) / sd(fit)
   ) %>% 
-  ungroup() %>% 
-  filter(!region == "QCaJS")
+  ungroup() 
+saveRDS(pred_abund, 
+        here::here("data", "model_fits", 
+                   "combined_mvn_121_21_only_pred_abund.rds"))
+
 
 p <- ggplot(data = pred_abund, aes(x = month_n)) +
   labs(y = "Predicted Abundance Index", x = "Month") +
@@ -389,8 +398,21 @@ plot(p)
 
 ggplot(pred_abund, 
        aes(x = month_n, y = year)) +
-  geom_raster(aes(fill = fit_z)) +
+  geom_raster(aes(fill = log(fit))) +
   scale_fill_viridis_c(name = "Predicted\nAbundance\nAnomalies") +
   labs(x = "Month", y = "Year") +
   facet_grid(region~stock) +
   ggsidekick::theme_sleek()
+
+
+ggplot(data = pred_abund %>% filter(region == "JdFS"),  
+       aes(x = month_n, y = year, fill = year)) +
+  geom_ridgeline(aes(height = fit), alpha = 0.4, scale = 0.0004) +
+  scale_fill_viridis_d() +
+  labs(x = "Month", y = "Year") +
+  facet_wrap(~ stock) +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(#breaks = seq(2, 12, by = 2), limits = c(1, 12),
+                     #labels = month_labs, 
+    expand = c(0, 0)) 
+  

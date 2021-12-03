@@ -1,9 +1,8 @@
 ### Random Splines Neg Binomial
-## Adapt stockseasonr model to account for varying splines among REs 
+## Version of neg_bin_explore constrained to stat areas 121/21 
 ## Nov. 12, 2021
 
 library(tidyverse)
-library(mgcv)
 library(TMB)
 library(sdmTMB)
 
@@ -11,7 +10,7 @@ library(sdmTMB)
 source(here::here("R", "utils.R"))
 
 
-rec_catch <- readRDS(here::here("data", "rec", "month_area_recCatch.rds")) %>% 
+dat <- readRDS(here::here("data", "rec", "month_area_recCatch.rds")) %>% 
   # identify months to exclude based on minimal catch or comp estimates 
   #(make region specific)
   mutate(
@@ -32,17 +31,11 @@ rec_catch <- readRDS(here::here("data", "rec", "month_area_recCatch.rds")) %>%
   add_tally() %>% 
   ungroup() %>% 
   filter(!n < 10) %>%
-  droplevels() #%>% 
-  # group by region for now
-  # group_by(region, region_c, month, month_n, year) %>%
-  # summarize(catch = sum(catch),
-  #           eff = sum(eff),
-  #           offset = log(eff)) %>%
-  # ungroup()
+  droplevels() 
 
 
 ## predicted dataset
-pred_dat <- group_split(rec_catch, region) %>%
+new_dat <- group_split(dat, region) %>%
   map_dfr(., function(x) {
     expand.grid(
       # region = unique(x$region),
@@ -55,11 +48,11 @@ pred_dat <- group_split(rec_catch, region) %>%
     )
   }) %>% 
   left_join(.,
-            rec_catch %>% select(region, area) %>% distinct(),
+            dat %>% select(region, area) %>% distinct(),
             by = "area"
   ) %>%
   mutate(strata = paste(month_n, region, sep = "_"),
-         offset = mean(rec_catch$offset)) %>%
+         offset = mean(dat$offset)) %>%
   # filter(strata %in% comp_strata) %>%
   arrange(region) %>%
   # convoluted to ensure ordering is correct for key
@@ -72,69 +65,18 @@ pred_dat <- group_split(rec_catch, region) %>%
     reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
   select(-order, -reg_month_year, -strata) %>%
-  distinct() 
+  distinct() %>% 
+  # generate predictions only for swiftsure
+  filter(area %in% c("121", "21"))
 
 
-## MGCV VS TMB -----------------------------------------------------------------
 
+## PREP TMB --------------------------------------------------------------------
 
-dat <- rec_catch %>% 
-  filter(
-    !region %in% c("NSoG"),
-  ) %>%
-  droplevels() 
-new_dat <- pred_dat %>% 
-  filter(
-    area %in% dat$area,
-  ) %>% 
-  droplevels()
-
-
-f1a <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = region) +
-  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-  #smooth REs can't be readily passed with Anderson's function; code RIs instead
-  s(year, bs = "re") + 
-  offset(offset)
 f1 <- catch ~ area +
   s(month_n, bs = "tp", k = 4, by = region) +
   s(month_n, by = year, bs = "tp", m = 1, k = 4) +
   offset
-
-
-# fit mgcv for comparison
-m1 <- mgcv::gam(f1a,
-                data = dat,
-                family = mgcv::nb()
-)
-
-preds_m1 <- predict.gam(m1,
-                        new_dat,
-                        # exclude = "s(year)",
-                        se.fit = TRUE)
-
-calc_ribbons <- function(pred_dat, fit_vec, se_vec) {
-  pred_dat %>%
-    mutate(link_fit = as.numeric(fit_vec),
-           link_se_fit = as.numeric(se_vec),
-           link_lo = link_fit + (qnorm(0.025) * link_se_fit),
-           link_up = link_fit + (qnorm(0.975) * link_se_fit),
-           fit = exp(link_fit),
-           fit_lo = exp(link_lo),
-           fit_up = exp(link_up))
-}
-
-pred_dat_m1 <- calc_ribbons(pred_dat = new_dat, fit_vec = preds_m1$fit,
-                            se_vec = preds_m1$se.fit)
-
-ggplot() +
-  geom_line(data = pred_dat_m1, aes(x = month_n, y = fit, colour = year)) +
-  geom_ribbon(data = pred_dat_m1,
-              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
-                  colour = year),
-              alpha = 0.4) +
-  facet_wrap(~area, scales = "free_y") +
-  ggsidekick::theme_sleek()
 
 
 # generate model matrices
@@ -202,35 +144,20 @@ opt <- nlminb(obj$par, obj$fn, obj$gr)
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
-saveRDS(ssdr, here::here("data", "model_fits", "negbin_rsmooths.rds"))
+saveRDS(ssdr, here::here("data", "model_fits", 
+                         "negbin_rsmooths_121_21_only.rds"))
 
 
-tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Estimate"]
-tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Std. Error"]
-
-
-# slight deviation is due to RIs in TMB coded as random walk
-# new_dat %>% 
-#   mutate(tmb = tmb_pred,
-#          gam = as.numeric(preds_m1$fit)
-#          ) %>% 
-#   ggplot(.) +
-#   geom_point(aes(x = tmb, y = gam, col = region)) +
-#   geom_abline(slope = 1, intercept = 0)
-
-
-## look at predictions for areas and regions
-# NOTE that these include predictions from random smooths (e.g. by = year) and
-# random intercepts
-pred_dat_tmb <- calc_ribbons(pred_dat = new_dat, fit_vec = tmb_pred,
-                            se_vec = tmb_pred_se)
-
-ggplot() +
-  geom_line(data = pred_dat_tmb, aes(x = month_n, y = fit, colour = year)) +
-  facet_wrap(~area, scales = "free_y") +
-  ggsidekick::theme_sleek()
-
-
+calc_ribbons <- function(pred_dat, fit_vec, se_vec) {
+  pred_dat %>%
+    mutate(link_fit = as.numeric(fit_vec),
+           link_se_fit = as.numeric(se_vec),
+           link_lo = link_fit + (qnorm(0.025) * link_se_fit),
+           link_up = link_fit + (qnorm(0.975) * link_se_fit),
+           fit = exp(link_fit),
+           fit_lo = exp(link_lo),
+           fit_up = exp(link_up))
+}
 tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Estimate"]
 tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Std. Error"]
 new_dat_region <- new_dat %>% 
@@ -240,12 +167,6 @@ pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region,
                                     fit_vec = tmb_pred_region,
                                     se_vec = tmb_pred_se_region)
 
-ggplot() +
-  geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
-  geom_ribbon(data = pred_dat_tmb_region,
-              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
-                  colour = year),
-              alpha = 0.2) +
-  facet_wrap(~year) +
-  ggsidekick::theme_sleek()
-
+saveRDS(pred_dat_tmb_region, 
+        here::here("data", "model_fits", 
+                   "negbin_rsmooths_121_21_only_pred_abund.rds"))

@@ -3,49 +3,26 @@ title: "Trends in Seasonal Abundance"
 output: pdf_document
 ---
 
-Here we use catch and effort data from recreational fisheries in Juan de Fuca Strait and the southern Strait of Georgia to estimate changes in total Chinook salmon abundance, while accounting for seasonal patterns. By pairing these estimates with stock composition from genetic sampling (2014-2019) we can also estimate stock-specific abundance. To begin a few clarifications.
+Here we use catch and effort data from recreational fisheries in Juan de Fuca Strait to estimate changes in total Chinook salmon abundance, while accounting for seasonal patterns. By pairing these estimates with stock composition from genetic sampling (2014-2019) we can also estimate stock-specific abundance. To begin a few clarifications.
 
-First, the Swiftsure foraging area corresponds to stat areas 121 and 21, while the portion of Haro that is in Canadian waters is 19B and 19C. Unfortunately stratifying GSI samples by stat area (not to mention sub-stat area) reduces the sample size to such an extent that I don't trust the model predictions (mean of <10 samples per month/year/area). For now I've estimated abundance at the stat area level for Swiftsure and applied stock composition estimates for Juan de Fuca as a whole (stat areas 21, 121 and 20), the rationale being that many of the Swiftsure fish will be migrating through Juan de Fuca in the near future so stock composition should be correlated. We can do something similar for area 19, but I'm not sure which areas should be rolled up and have held off for now.
+First, the Swiftsure foraging area corresponds to stat areas 121 and 21, while the portion of Haro that is in Canadian waters is 19B and 19C. Unfortunately stratifying GSI samples by stat area (not to mention sub-stat area) reduces the sample size to such an extent that I don't trust the model predictions (mean of <10 samples per month/year/area). For now I've estimated abundance at the stat area level for areas 121/21 and applied stock composition estimates for Juan de Fuca as a whole (defined here as areas 21, 121 and 20), the rationale being that many of the Swiftsure fish will be migrating through Juan de Fuca in the near future so stock composition should be correlated. We can do something similar for area 19 in the southern Strait of Georgia, but I'm not sure which areas should be rolled up and have held off for now. Also makes it easier to interpret figures.
 
-Second, creel data are limited to June-September for stat areas 121 and 21 so it's not possible to estimate abundance earlier/later in the year. 
+Second, creel data are limited to June-September for stat areas 121 and 21 so it's not possible to estimate abundance earlier/later in the year. For the southern Strait of Georgia it will be May-September. Note that I also haven't pulled new data from Wilf's files yet, which should include 2020 and, hopfully soon, 2021.
 
-Third, the stock groups I've chosen here are somewhat arbitrary. They can be aggregated or split as needed, though generating a large number of stocks will probably give the model some trouble (ratio of parameters to data decreases).
+Third, the stock groups I've chosen here are somewhat arbitrary. For example, Fraser early includes both threatened yearling CUs (spring/summer 4.2s and 5.2s), as well as highly abundant summer 4.1s. The stock groups can be aggregated or split as needed, though generating a large number of stocks will probably give the model some trouble (ratio of parameters to data decreases). 
+
+All this is to say that this is a first pass and that now that the model is built, it will be relatively easy to pass it different data configurations to focus on specific hypotheses.
+
+Ribbons facetted by year and stock.
+Ridgeline plot.
+Heat plot
+
 
 ```{r import_fits, include=FALSE}
-
-ssdr <- readRDS(here::here("data", "model_fits", "combined_mvn.rds"))
-
-## predicted stock composition
-logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-
-link_preds <- data.frame(
-  link_prob_est = logit_pred_ppn[ , "Estimate"],
-  link_prob_se =  logit_pred_ppn[ , "Std. Error"]
-) %>% 
-  mutate(
-    pred_prob_est = plogis(link_prob_est),
-    pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
-    pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
-  ) 
-
-stock_seq <- colnames(obs_comp)
-pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_comp
-  dum$stock <- x
-  return(dum)
-}) %>%
-  bind_rows() %>%
-  cbind(., link_preds) 
-
-p <- ggplot(data = pred_comp, aes(x = month_n)) +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(region~stock) +
-  ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est, colour = year))# +
-  # geom_ribbon(data = pred_comp,
-  #             aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
-  #             alpha = 0.5)
-plot(p)
+stock_preds <- readRDS(here::here("data", "model_fits",
+                                  "combined_mvn_121_21_only_pred_abund.rds"))
+agg_preds <- readRDS(here::here("data", "model_fits", 
+                                "negbin_rsmooths_121_21_only_pred_abund.rds"))
 ```
 
 ## R Markdown
