@@ -1,6 +1,7 @@
 ### Random Splines Neg Binomial + MVN Random Intercepts Dirichlet
 ## Combines neg_bin_explore and dirichlet_explore to generate new combined model
 ## Nov. 29, 2021
+# Updated version in composition_models.R
 
 library(tidyverse)
 library(mgcv)
@@ -10,29 +11,6 @@ library(sdmTMB)
 # utility functions for prepping smooths 
 source(here::here("R", "utils.R"))
 
-
-# use example data from WCVI for initial fitting
-# comp_ex <- stockseasonr::comp_ex %>%
-#   #collapse some stock levels
-#   mutate(
-#     agg2 = case_when(
-#       agg %in% c("PSD", "SOG", "FR-early", "FR-late", "ECVI") ~ "salish",
-#       grepl("CR", agg) ~ "col",
-#       TRUE ~ "other"
-#     )
-#   ) %>%
-#   group_by(
-#     sample_id, region, year, month_n, agg2, nn
-#   ) %>%
-#   summarize(agg_prob2 = sum(agg_prob), .groups = "drop") %>%
-#   rename(agg = agg2, agg_prob = agg_prob2) %>%
-#   ungroup()
-# 
-# catch <- stockseasonr::catch_ex %>% 
-#   filter(
-#     year %in% comp$year,
-#     month_n %in% comp$month_n
-#   )
 
 comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
   filter(!region == "NSoG") %>% 

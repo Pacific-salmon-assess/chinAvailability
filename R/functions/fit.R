@@ -8,12 +8,13 @@
 
 # Dev TO DO:
 # 1) Make aggregate levels flexible (i.e. turn on/off based on input data)
-# 2) Make random effects flexible
+# 2) Make RE intercepts flexible
+# 3) Map 0 observations in composition component
+# 4) Combine cpp scripts into one with conditionals (may not be worthwhile...)
 
 library(tidyverse)
 library(mgcv)
 library(TMB)
-
 
 
 ## MAKE INPUTS  ----------------------------------------------------------------
@@ -156,6 +157,9 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     tmb_random <- c(tmb_random, "A2_hk")
   }
+  
+  list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
+       tmb_random = tmb_random)
 }
 
 ## FIT MODELS  -----------------------------------------------------------------
