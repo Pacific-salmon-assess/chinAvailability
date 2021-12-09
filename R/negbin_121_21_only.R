@@ -5,6 +5,7 @@
 library(tidyverse)
 library(TMB)
 library(sdmTMB)
+library(mgcv)
 
 # utility functions for prepping smooths 
 source(here::here("R", "utils.R"))

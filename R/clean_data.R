@@ -70,16 +70,6 @@ rec <- rec_raw %>%
   mutate(
     temp_strata = paste(month, region, sep = "_"),
     sample_id = paste(temp_strata, jDay, year, sep = "_"),
-    # min_m = case_when(
-    #   region %in% c("N. Strait of Georgia", "S. Strait of Georgia") ~ 5,
-    #   region %in% c("Juan de Fuca Strait",
-    #                 "Queen Charlotte and\nJohnstone Straits") ~ 6
-    # ),
-    # max_m = case_when(
-    #   region %in% c("Juan de Fuca Strait", "N. Strait of Georgia",
-    #                 "S. Strait of Georgia") ~ 9,
-    #   region == "Queen Charlotte and\nJohnstone Straits" ~ 8
-    # ),
     min_m = case_when(
       region %in% c("N. Strait of Georgia", "S. Strait of Georgia") ~ 1,
       region == "Queen Charlotte and\nJohnstone Straits" ~ 6,
@@ -159,3 +149,63 @@ rec_catch %>%
   filter(area %in% c("21", "121", "19")) %>% 
   group_by(area, month) %>% 
   tally()
+
+
+## EXPLORE SIZE DATA -----------------------------------------------------------
+
+size_dat <- rec_raw %>% 
+  select(id, fl, month_n, year, area, region, temp_strata) %>% 
+  distinct() %>% 
+  filter(!is.na(fl)) %>% 
+  mutate(
+    size_bin = cut(
+      fl, 
+      breaks = c(-Inf, 450, 600, 750, 900, Inf), 
+      labels=c("<45", "45-60", "60-75", "75-90", ">90")
+    )
+  ) 
+
+
+# visualize sample coverage through space and time
+size_n <- size_dat %>% 
+  group_by(month_n, year, region, temp_strata) %>% 
+  tally() 
+
+ggplot(size_n) +
+  geom_raster(aes(x = month_n, y = year, fill = n)) +
+  facet_wrap(~region)
+
+
+# visualize changes in size composition
+size_dat %>%
+  group_by(size_bin, year, region) %>%
+  summarize(n = length(unique(id))) %>%
+  group_by(year, region) %>% 
+  mutate(total_n = sum(n),
+            ppn_obs = n / total_n) %>% 
+  ggplot(., aes(x = as.factor(year), y = ppn_obs, fill = size_bin)) +
+  geom_bar(position="stack", stat="identity") +
+  ggsidekick::theme_sleek() +
+  facet_wrap(~region)
+
+
+# identify months/years with sufficient sample sizes
+size_n %>% 
+  group_by(month_n, region, temp_strata) %>% 
+  summarize(max(n)) %>% 
+  arrange(region) %>% 
+  print(n = Inf)
+
+
+# export size data
+rec_size_out <- size_dat %>%
+  mutate(
+    min_m = ifelse(region == "Queen Charlotte and\nJohnstone Straits" , 5, 1),
+    max_m = ifelse(region == "Queen Charlotte and\nJohnstone Straits" , 9, 12),
+  ) %>% 
+  filter(!month_n < min_m,
+         !month_n > max_m) %>%
+  select(-min_m, -max_m) 
+
+
+saveRDS(rec_size_out, here::here("data", "rec", "rec_size.rds"))

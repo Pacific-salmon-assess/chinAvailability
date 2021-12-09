@@ -249,8 +249,8 @@ tmb_random <- c("b_smooth", "a1", "A2_hk")
 
 ## FIT MODEL  ------------------------------------------------------------------
 
-compile(here::here("src", "negbin_dirichlet_mvn_rsplines.cpp"))
-dyn.load(dynlib(here::here("src", "negbin_dirichlet_mvn_rsplines")))
+compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
 # fit first w/out REs
 tmb_map1 <- c(
@@ -268,7 +268,7 @@ obj1 <- TMB::MakeADFun(
   data = data,
   parameters = pars,
   map = tmb_map1,
-  DLL = "negbin_dirichlet_mvn_rsplines"
+  DLL = "negbin_rsplines_dirichlet_mvn"
 )
 opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
                       control = list(eval.max = 1e4, iter.max = 1e4)
