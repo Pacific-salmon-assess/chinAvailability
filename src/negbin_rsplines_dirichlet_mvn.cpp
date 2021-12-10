@@ -288,17 +288,17 @@ Type objective_function<Type>::operator() ()
   
 
   // Combined predictions
-  matrix<Type> pred_abund(n_predX2, n_cat);
+  matrix<Type> pred_mu1_Pi(n_predX2, n_cat);
   
   for (int m = 0; m < n_predX2; m++) {
     for (int k = 0; k < n_cat; k++) {
-      pred_abund(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
+      pred_mu1_Pi(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
     }
   }
-  matrix<Type> log_pred_abund = log(pred_abund.array());
+  matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
   
   // Report
-  ADREPORT(log_pred_abund);
+  ADREPORT(log_pred_mu1_Pi);
 
 
   return jnll;

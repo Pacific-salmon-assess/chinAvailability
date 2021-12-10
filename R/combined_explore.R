@@ -9,7 +9,7 @@ library(TMB)
 library(sdmTMB)
 
 # utility functions for prepping smooths 
-source(here::here("R", "utils.R"))
+source(here::here("R", "functions", "utils.R"))
 
 
 comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
@@ -259,7 +259,7 @@ obj <- TMB::MakeADFun(
   parameters = obj1$env$parList(opt1$par),
   map = tmb_map,
   random = tmb_random,
-  DLL = "negbin_dirichlet_mvn_rsplines"
+  DLL = "negbin_rsplines_dirichlet_mvn"
 )
 opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
                      )
@@ -271,7 +271,7 @@ for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
 
-saveRDS(ssdr, here::here("data", "model_fits", "combined_mvn_121_21_only.rds"))
+saveRDS(ssdr, here::here("data", "model_fits", "combined_mvn_121_21_only_old.rds"))
 
 
 # GENERATE PREDICTIONS ---------------------------------------------------------

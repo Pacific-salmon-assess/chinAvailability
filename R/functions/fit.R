@@ -17,6 +17,22 @@ library(mgcv)
 library(TMB)
 
 
+# abund_formula = catch ~ area + s(month_n, bs = "tp", k = 3
+#                                  # , by = region
+# ) +
+#   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+#   offset
+# abund_dat = catch
+# abund_rint = "year"
+# pred_abund = pred_dat_catch
+# comp_formula = agg ~ region + s(month_n, bs = "cc", k = 4#, 
+#                                 # by = region
+# )
+# comp_dat = comp
+# comp_rint = "year"
+# pred_comp = pred_dat_comp
+# model = "integrated"
+
 ## MAKE INPUTS  ----------------------------------------------------------------
 
 make_inputs <- function(abund_formula = NULL, comp_formula = NULL, 
@@ -159,8 +175,9 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
   }
   
   list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
-       tmb_random = tmb_random)
+       tmb_random = tmb_random, wide_comp_dat = comp_wide)
 }
+
 
 ## FIT MODELS  -----------------------------------------------------------------
 

@@ -154,7 +154,7 @@ rec_catch %>%
 ## EXPLORE SIZE DATA -----------------------------------------------------------
 
 size_dat <- rec_raw %>% 
-  select(id, fl, month_n, year, area, region, temp_strata) %>% 
+  select(id, fl, jDay, month_n, year, area, region, temp_strata) %>% 
   distinct() %>% 
   filter(!is.na(fl)) %>% 
   mutate(
@@ -208,4 +208,15 @@ rec_size_out <- size_dat %>%
   select(-min_m, -max_m) 
 
 
+# export size data as proportions
+rec_size_ppn_out <- size_dat %>%
+  mutate(sample_id = paste(month_n, region, jDay, year, sep = "_"),
+         region_c = region,
+         region = factor(abbreviate(region, minlength = 4)),
+         region = fct_relevel(region, "QCaJS", "JdFS", "NSoG", "SSoG")) %>%  
+  group_by(sample_id, region, region_c, year, month_n, size_bin) %>% 
+  summarize(sum_count = length(unique(id)), .groups = "drop") 
+
+
 saveRDS(rec_size_out, here::here("data", "rec", "rec_size.rds"))
+saveRDS(rec_size_ppn_out, here::here("data", "rec", "rec_size_ppn.rds"))
