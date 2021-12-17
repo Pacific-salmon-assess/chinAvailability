@@ -174,8 +174,13 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     tmb_random <- c(tmb_random, "A2_hk")
   }
   
-  list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
-       tmb_random = tmb_random, wide_comp_dat = comp_wide)
+  out_list <- list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
+       tmb_random = tmb_random)
+  if (model %in% c("dirichlet", "integrated")) {
+    out_list <- c(out_list, wide_comp_dat = comp_wide)
+  }
+  
+  return(out_list)
 }
 
 
