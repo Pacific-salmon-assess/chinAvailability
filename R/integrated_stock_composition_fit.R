@@ -15,10 +15,10 @@ source(here::here("R", "functions", "fit.R"))
 
 
 # relevant TMB models
-compile(here::here("src", "negbin_rsplines.cpp"))
-dyn.load(dynlib(here::here("src", "negbin_rsplines")))
-compile(here::here("src", "dirichlet_mvn.cpp"))
-dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
+# compile(here::here("src", "negbin_rsplines.cpp"))
+# dyn.load(dynlib(here::here("src", "negbin_rsplines")))
+# compile(here::here("src", "dirichlet_mvn.cpp"))
+# dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
 compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
