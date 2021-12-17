@@ -17,21 +17,19 @@ library(mgcv)
 library(TMB)
 
 
-# abund_formula = catch ~ area + s(month_n, bs = "tp", k = 3
-#                                  # , by = region
-# ) +
-#   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-#   offset
-# abund_dat = catch
-# abund_rint = "year"
-# pred_abund = pred_dat_catch
-# comp_formula = agg ~ region + s(month_n, bs = "cc", k = 4#, 
-#                                 # by = region
-# )
-# comp_dat = comp
-# comp_rint = "year"
-# pred_comp = pred_dat_comp
+# abund_formula = catch ~ 0 + area + 
+#   # s(month_n, bs = "tp", by = region) +
+#   # s(month_n, by = year, bs = "tp", m = 1) +
+#   offset;
+# abund_dat = catch;
+# abund_rint = "year";
+# pred_abund = pred_dat_catch;
+# comp_formula = agg ~  region #+ s(month_n, bs = "tp", by = region);
+# comp_dat = stock_comp;
+# comp_rint = "year";
+# pred_comp = pred_dat_stock_comp;
 # model = "integrated"
+
 
 ## MAKE INPUTS  ----------------------------------------------------------------
 
@@ -68,7 +66,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     y_i <- model.response(mf, "numeric")
     
     # random intercepts
-    rfac1 <- as.numeric(as.factor(as.character(abund_dat[[abund_rint]]))) - 1
+    rfac1 <-  as.numeric(as.factor(abund_dat[[abund_rint]])) - 1
     pred_rfac1 <- as.numeric(pred_abund[[abund_rint]]) - 1
     
     # aggregate key for pooling estimates
@@ -177,7 +175,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
   out_list <- list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
        tmb_random = tmb_random)
   if (model %in% c("dirichlet", "integrated")) {
-    out_list <- c(out_list, wide_comp_dat = comp_wide)
+    out_list <- c(out_list, list(wide_comp_dat = comp_wide))
   }
   
   return(out_list)

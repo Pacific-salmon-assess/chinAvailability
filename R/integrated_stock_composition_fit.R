@@ -1,7 +1,6 @@
 ### Integrated stock composition models 
 ## Dec. 8, 2021
 
-
 library(tidyverse)
 library(mgcv)
 library(TMB)
@@ -25,19 +24,23 @@ dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
 # DATA CLEAN -------------------------------------------------------------------
 
-comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
-  filter(region %in% c("SSoG", "JdFS")) %>% 
+stock_comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
+  # filter(region %in% c("SSoG", "JdFS"),
+  #        month %in% c("6", "8"),
+  #        year %in% c("2016", "2018")) %>% 
   droplevels() %>% 
   rename(prob = agg_prob)
 catch <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) %>% 
-  filter(region %in% c("SSoG", "JdFS")) %>% 
+  # filter(region %in% c("SSoG", "JdFS"),
+  #        month %in% c("6", "8"),
+  #        year %in% c("2016", "2018")) %>% 
   droplevels()
 # model predictions are sensitive to regions included because information is 
 # shared among smooths; remove northern regions
 
 
 # prediction datasets 
-pred_dat_comp1 <- group_split(comp, region) %>%
+pred_dat_comp1 <- group_split(stock_comp, region) %>%
   map_dfr(., function(x) {
     expand.grid(
       region = unique(x$region),
@@ -49,7 +52,8 @@ pred_dat_comp1 <- group_split(comp, region) %>%
     )
   }) %>% 
   mutate(
-    reg_month_year = paste(region, month_n, year, sep = "_")
+    reg_month_year = paste(region, month_n, year, sep = "_"),
+    key_var = as.factor(reg_month_year)
   )
 
 pred_dat_catch <- group_split(catch, region) %>%
@@ -89,13 +93,17 @@ pred_dat_catch <- group_split(catch, region) %>%
   ) %>% 
   # generate predictions only for swiftsure
   filter(area %in% c("121", "21")) %>% 
-  rename(key_var = reg_month_year_f)
+  rename(key_var = reg_month_year_f) %>% 
+  droplevels()
 
 
 # subset predicted composition dataset to match pred_dat_catch since fitting 
 # data can be more extensive
-pred_dat_comp <- pred_dat_comp1 %>% 
-  filter(reg_month_year %in% pred_dat_catch$reg_month_year) 
+pred_dat_stock_comp <- pred_dat_comp1 %>% 
+  filter(key_var %in% pred_dat_catch$key_var) %>% 
+  # filter(reg_month_year %in% pred_dat_catch$reg_month_year) %>% 
+  arrange(region, year, month_n) %>% 
+  droplevels()
 
 
 ## FIT -------------------------------------------------------------------------
@@ -109,9 +117,9 @@ comp_inputs <- make_inputs(
   abund_rint = "year",
   pred_abund = pred_dat_catch,
   comp_formula = agg ~  region + s(month_n, bs = "cc", k = 4, by = region),
-  comp_dat = comp,
+  comp_dat = stock_comp,
   comp_rint = "year",
-  pred_comp = pred_dat_comp,
+  pred_comp = pred_dat_stock_comp,
   model = "integrated"
 )
 
@@ -133,10 +141,6 @@ saveRDS(stock_mod$ssdr,
 ssdr <- readRDS(
   here::here("data", "model_fits", "combined_mvn_121_21_only.rds"))
 
-
-ssdr <- stock_mod$ssdr
-
-
 unique(rownames(ssdr))
 
 
@@ -155,7 +159,7 @@ link_preds <- data.frame(
 
 stock_seq <- colnames(comp_inputs$tmb_data$Y2_ik)
 pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_comp
+  dum <- pred_dat_stock_comp
   dum$stock <- x
   return(dum)
 }) %>%
@@ -218,7 +222,7 @@ log_abund_preds <- data.frame(
 stock_seq2 <- c("total", colnames(comp_inputs$tmb_data$Y2_ik))
 
 pred_abund <- purrr::map(stock_seq2, function (x) {
-  dum <- pred_dat_comp
+  dum <- pred_dat_stock_comp
   dum$stock <- x
   return(dum)
 }) %>%
@@ -230,7 +234,6 @@ saveRDS(pred_abund,
         here::here("data", "model_fits", 
                    "combined_mvn_121_21_only_pred_abund.rds"))
 
-
 q <- ggplot(data = pred_abund, aes(x = month_n)) +
   labs(y = "Predicted Abundance Index", x = "Month") +
   facet_wrap(~stock, scales = "free_y") +
@@ -239,6 +242,8 @@ q <- ggplot(data = pred_abund, aes(x = month_n)) +
 q_ribbon <- q + 
   geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
               alpha = 0.5)
+
+
 
 catch %>% 
   group_by(region, month_n, year) %>% 

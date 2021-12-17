@@ -1,7 +1,6 @@
 ### Integrated size composition models 
 ## Dec. 8, 2021
 
-
 library(tidyverse)
 library(mgcv)
 library(TMB)
@@ -34,7 +33,7 @@ size_dat <- readRDS(here::here("data", "rec", "rec_size_ppn.rds")) %>%
   droplevels() %>% 
   rename(prob = sum_count)
 
-catch <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) %>% 
+catch2 <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) %>% 
   filter(region %in% c("SSoG", "JdFS")) %>% 
   droplevels()
 # model predictions are sensitive to regions included because information is 
@@ -54,11 +53,12 @@ pred_dat_comp1 <- group_split(size_dat, region) %>%
     )
   }) %>% 
   mutate(
-    reg_month_year = paste(region, month_n, year, sep = "_")
+    reg_month_year = paste(region, month_n, year, sep = "_"),
+    key_var = as.factor(reg_month_year)
   )
 
 
-pred_dat_catch <- group_split(catch, region) %>%
+pred_dat_catch2 <- group_split(catch2, region) %>%
   map_dfr(., function(x) {
     expand.grid(
       area = unique(x$area),
@@ -70,11 +70,11 @@ pred_dat_catch <- group_split(catch, region) %>%
     )
   }) %>% 
   left_join(.,
-            catch %>% select(region, area) %>% distinct(),
+            catch2 %>% select(region, area) %>% distinct(),
             by = "area"
   ) %>%
   mutate(strata = paste(month_n, region, sep = "_"),
-         offset = mean(catch$offset)) %>%
+         offset = mean(catch2$offset)) %>%
   arrange(region) %>%
   # convoluted to ensure ordering is correct for key
   mutate(
@@ -93,38 +93,42 @@ pred_dat_catch <- group_split(catch, region) %>%
   ) %>% 
   # generate predictions only for swiftsure
   filter(area %in% c("121", "21")) %>% 
-  rename(key_var = reg_month_year_f)
+  rename(key_var = reg_month_year_f) %>% 
+  droplevels()
 
 
 # subset predicted composition dataset to match pred_dat_catch since fitting 
 # data can be more extensive
-pred_dat_comp <- pred_dat_comp1 %>% 
-  filter(reg_month_year %in% pred_dat_catch$reg_month_year) 
+pred_dat_size_comp <- pred_dat_comp1 %>% 
+  filter(key_var %in% pred_dat_catch2$key_var) %>% 
+  # filter(reg_month_year %in% pred_dat_catch$reg_month_year) %>% 
+  arrange(region, year, month_n) %>% 
+  droplevels()
 
 
 ## FIT -------------------------------------------------------------------------
 
-comp_inputs <- make_inputs(
+size_comp_inputs <- make_inputs(
   abund_formula = catch ~ 0 + area +
-    s(month_n, bs = "tp", k = 4, by = region) +
-    s(month_n, by = year, bs = "tp", m = 1, k = 4) +
+    s(month_n, bs = "tp", k = 3, by = region) +
+    s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
-  abund_dat = catch,
+  abund_dat = catch2,
   abund_rint = "year",
-  pred_abund = pred_dat_catch,
-  comp_formula = size_bin ~ region + s(month_n, bs = "tp", k = 3, by = region),
+  pred_abund = pred_dat_catch2,
+  comp_formula = size_bin ~ region + s(month_n, bs = "cc", k = 4, by = region),
   comp_dat = size_dat,
   comp_rint = "year",
-  pred_comp = pred_dat_comp,
+  pred_comp = pred_dat_size_comp,
   model = "integrated"
   # model = "dirichlet"
 )
 
 size_mod <- fit_model(
-  tmb_data = comp_inputs$tmb_data, 
-  tmb_pars = comp_inputs$tmb_pars, 
-  tmb_map = comp_inputs$tmb_map, 
-  tmb_random  = comp_inputs$tmb_random,
+  tmb_data = size_comp_inputs$tmb_data, 
+  tmb_pars = size_comp_inputs$tmb_pars, 
+  tmb_map = size_comp_inputs$tmb_map, 
+  tmb_random  = size_comp_inputs$tmb_random,
   # model = "dirichlet",
   model = "integrated",
   fit_random = TRUE
@@ -139,10 +143,6 @@ saveRDS(size_mod$ssdr,
 
 ssdr <- readRDS(
   here::here("data", "model_fits", "size", "size_combined_mvn_121_21_only.rds"))
-
-
-ssdr <- size_mod$ssdr
-
 
 unique(rownames(ssdr))
 
@@ -160,9 +160,9 @@ link_preds <- data.frame(
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
   ) 
 
-size_seq <- colnames(comp_inputs$tmb_data$Y2_ik)
+size_seq <- colnames(size_comp_inputs$tmb_data$Y2_ik)
 pred_comp <- purrr::map(size_seq, function (x) {
-  dum <- pred_dat_comp
+  dum <- pred_dat_size_comp
   dum$size_bin <- x
   return(dum)
 }) %>%
@@ -184,9 +184,9 @@ p_ribbon <- p +
 
 # generate observed proportions
 # number of samples in an event
-long_dat <- comp_inputs$wide_comp_dat %>%
+long_dat <- size_comp_inputs$wide_comp_dat %>%
   mutate(
-    samp_nn = apply(comp_inputs$tmb_data$Y2_ik, 1, sum)) %>%
+    samp_nn = apply(size_comp_inputs$tmb_data$Y2_ik, 1, sum)) %>%
   pivot_longer(cols = c(`<45`:`>90`), names_to = "size_bin", 
                values_to = "obs_count") %>% 
   mutate(obs_ppn = obs_count / samp_nn,
@@ -223,10 +223,10 @@ log_abund_preds <- data.frame(
     pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
   ) 
 
-size_seq2 <- c("total", colnames(comp_inputs$tmb_data$Y2_ik))
+size_seq2 <- c("total", colnames(size_comp_inputs$tmb_data$Y2_ik))
 
 pred_abund <- purrr::map(size_seq2, function (x) {
-  dum <- pred_dat_comp
+  dum <- pred_dat_size_comp
   dum$size_bin <- x
   return(dum)
 }) %>%
@@ -253,7 +253,7 @@ q_ribbon <- q +
   scale_fill_viridis_d() 
 
 
-catch %>% 
+catch2 %>% 
   group_by(region, month_n, year) %>% 
   summarize(sum_catch = sum(catch),
             sum_eff = sum(eff),
