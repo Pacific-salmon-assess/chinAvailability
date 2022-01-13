@@ -24,21 +24,25 @@ dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
 # DATA CLEAN -------------------------------------------------------------------
 
-# comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
-#   filter(region %in% c("SSoG", "JdFS")) %>% 
-#   droplevels() %>% 
-#   rename(prob = agg_prob)
 size_dat <- readRDS(here::here("data", "rec", "rec_size_ppn.rds")) %>% 
   filter(region %in% c("SSoG", "JdFS")) %>% 
   droplevels() %>% 
   rename(prob = sum_count)
 
-catch2 <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) %>% 
+catch2 <- readRDS(
+  here::here("data", "rec", "month_area_recCatch_clean.rds")
+  ) %>% 
   filter(region %in% c("SSoG", "JdFS")) %>% 
   droplevels()
 # model predictions are sensitive to regions included because information is 
 # shared among smooths; remove northern regions
 
+
+# visualize sampling coverage
+
+
+
+# PREDICTIVE DATASETS ----------------------------------------------------------
 
 # prediction datasets 
 pred_dat_comp1 <- group_split(size_dat, region) %>%
