@@ -59,7 +59,7 @@ dev.off()
 
 
 
-# sample coverage for GSI ------------------------------------------------------
+# sample coverage for size ------------------------------------------------------
 
 area_list_fl <- rec_raw %>%
   filter(!is.na(fl)) %>% 
