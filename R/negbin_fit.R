@@ -131,3 +131,65 @@ ggplot(data = pred_abund, aes(x = month_n)) +
 q + 
   geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
               alpha = 0.5)
+
+
+## EXPLORE DHARMa RESIDUALS ----------------------------------------------------
+
+## presently does not support dirichlet or multinomial so testing negative 
+# binomial independently
+
+library(DHARMa)
+library(mgcViz)
+
+nb_gam <- gam(catch ~ 0 + area + s(month_n, bs = "tp", k = 4, by = region) +
+                s(month_n, by = year, bs = "tp", m = 1, k = 4) +
+                offset + s(year, bs = "re"),
+              data = catch,
+              family = mgcv::nb())
+
+gam.check(nb_gam)
+
+# throws errors (simulate directly)
+# simulationOutput <- simulateResiduals(fittedModel = nb_gam, plot = T)
+# plot(simulationOutput)
+
+#
+simulate_nb_gam <- function(n){
+  pred = predict(nb_gam)
+  nObs = length(pred)
+  sim = matrix(nrow = nObs, ncol = n)
+  for(i in 1:n) sim[,i] = rnbinom(nObs, size = 2.265, mu = 1 / (exp(pred)))
+  return(sim)
+}
+dum <- simulate_nb_gam(n = 100)
+
+rnbinom(nObs, size = 2.265, mu = 1 / (exp(pred)))
+
+
+dum <- simulate(nb_gam, nsim = 50)
+
+DHARMaRes <- createDHARMa(
+  simulatedResponse = dum, observedResponse = catch$catch, 
+  fittedPredictedResponse = as.numeric(predict(nb_gam, type = "response")), 
+  integerResponse = F
+)
+plot(DHARMaRes, quantreg = F)
+
+
+
+testData = createData(sampleSize = 200, overdispersion = 0.5, family = poisson())
+fittedModel <- glm(observedResponse ~ Environment1, family = "poisson", data = testData)
+
+simulatePoissonGLM <- function(fittedModel, n){
+  pred = predict(fittedModel, type = "response")
+  nObs = length(pred)
+  sim = matrix(nrow = nObs, ncol = n)
+  for(i in 1:n) sim[,i] = rpois(nObs, pred)
+  return(sim)
+}
+
+sim = simulatePoissonGLM(fittedModel, 100)
+DHARMaRes = createDHARMa(
+  simulatedResponse = sim, observedResponse = testData$observedResponse, 
+  fittedPredictedResponse = predict(fittedModel), integerResponse = T)
+plot(DHARMaRes, quantreg = F)
