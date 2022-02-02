@@ -61,7 +61,7 @@ clean_comp <- function(grouping_col, raw_data, ...) {
 
 # DATA CLEAN -------------------------------------------------------------------
 
-# recreational composition data
+# recreational composition data through 2019
 rec_raw <- readRDS(here::here("data", "rec", 
                           "recIndProbsLong.rds")) 
 rec <- rec_raw %>% 
@@ -97,6 +97,60 @@ rec <- rec_raw %>%
 
 clean_rec <- rec %>% 
   clean_comp(., grouping_col = "coarse_agg")
+
+
+
+# recreational composition data since through 2021 (clean to match rec_raw)
+rec_raw_new <- read.csv(here::here("data", "rec", "sc_biodata_jul8_21.csv"),
+                        stringsAsFactors = FALSE, na.strings=c("","NA")) %>% 
+  janitor::clean_names(.) 
+
+tt <- rec_raw_new %>% 
+  # change US area 7 (near San Juan island) to SSoG
+  mutate(
+    area = ifelse(area == "US7", "19GST", area),
+    # region = case_when(
+    area_n = as.numeric(str_replace_all(area, "[:letter:]", ""))) %>% 
+  glimpse()
+
+,
+    #   # separate northern areas of 13 (normally in JS) and add to NSoG
+    #   subarea %in% c("13M", "13N") ~ "N. Strait of Georgia",
+    #   area > 124 ~ "NWVI",
+    #   area < 28 & area > 24 ~ "NWVI",
+    #   area %in% c("20", "121", "21") ~ "Juan de Fuca Strait",
+    #   is.na(area) ~ "Juan de Fuca Strait",
+    #   area < 125 & area > 120 ~ "SWVI",
+    #   area < 25 & area > 20 ~ "SWVI",
+    #   area %in% c("14", "15", "16") ~ "N. Strait of Georgia",
+    #   area %in% c("17", "18", "19", "28", "29") ~ "S. Strait of Georgia",
+    #   area %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
+    #   area %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
+    # ),
+    legal_lim = case_when(
+      area < 20 & area > 11 ~ 620,
+      area %in% c("28, 29") ~ 620,
+      TRUE ~ 450
+    ),
+    legal = case_when(
+      length_mm >= legal_lim ~ "legal",
+      length_mm < legal_lim ~ "sublegal",
+      disposition == "Kept" ~ "legal",
+      KEPTREL == "Rel" ~ "sublegal"
+    ),
+  ) %>% 
+  select(
+    id = biokey, region 
+  )
+  
+
+
+# stock key to 
+stockKey <- readRDS(here::here("data", "rec", "finalStockList_Nov2020.rds"))
+
+
+
+
 
 
 # recreational catch data

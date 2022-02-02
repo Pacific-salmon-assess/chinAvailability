@@ -4,7 +4,11 @@
 
 library(tidyverse)
 
+# samples up to 2019 generated in Chinook distribution project
 rec_raw <- readRDS(here::here("data", "rec", "recIndProbsLong.rds"))
+
+
+
 
 
 # sample coverage for GSI ------------------------------------------------------
