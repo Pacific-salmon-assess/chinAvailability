@@ -5,8 +5,11 @@
 library(tidyverse)
 
 # samples up to 2019 generated in Chinook distribution project
-rec_raw <- readRDS(here::here("data", "rec", "recIndProbsLong.rds"))
+# rec_raw <- readRDS(here::here("data", "rec", "recIndProbsLong.rds"))
 
+rec_raw <- readRDS(here::here("data", "rec", "southcoast_ind_data.rds")) %>% 
+  rename(stock_region = region, region = cap_region) %>% 
+  mutate(month_n = lubridate::month(date)) 
 
 
 
@@ -53,11 +56,11 @@ area_coverage <- purrr::map2(
 )
 
 # export
-pdf(here::here("figs", "data_coverage", "gsi_samples_subarea.pdf"))
+pdf(here::here("figs", "data_coverage", "gsi_samples_new_subarea.pdf"))
 subarea_coverage
 dev.off()
 
-pdf(here::here("figs", "data_coverage", "gsi_samples_area.pdf"))
+pdf(here::here("figs", "data_coverage", "gsi_samples_new_area.pdf"))
 area_coverage
 dev.off()
 
@@ -67,7 +70,6 @@ dev.off()
 
 area_list_fl <- rec_raw %>%
   filter(!is.na(fl)) %>% 
-  glimpse()
   group_by(area, region, year, month_n, legal) %>%
   summarize(n = length(unique(id)),
             .groups = "drop") %>%
@@ -86,6 +88,6 @@ area_coverage_fl <- purrr::map2(
   }
 )
 
-pdf(here::here("figs", "data_coverage", "fl_samples_area.pdf"))
+pdf(here::here("figs", "data_coverage", "fl_samples_new_area.pdf"))
 area_coverage_fl
 dev.off()
