@@ -66,7 +66,7 @@ dev.off()
 
 
 
-# sample coverage for size ------------------------------------------------------
+# sample coverage for size -----------------------------------------------------
 
 area_list_fl <- rec_raw %>%
   filter(!is.na(fl)) %>% 
@@ -90,4 +90,38 @@ area_coverage_fl <- purrr::map2(
 
 pdf(here::here("figs", "data_coverage", "fl_samples_new_area.pdf"))
 area_coverage_fl
+dev.off()
+
+
+# coverage for catch/effort ----------------------------------------------------
+
+catch <- readRDS(here::here("data", "rec", "rec_creel.rds"))
+
+
+catch_dist_list <- catch %>%
+  group_by(region, area_n, subarea, month_n, year, effort) %>%
+  summarize(
+    sum_catch = sum(catch),
+    .groups = "drop"
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    samples = case_when(
+      is.na(sum_catch) & is.na(effort) ~ "none",
+      is.na(sum_catch) ~ "effort",
+      is.na(effort) ~ "catch",
+      TRUE ~ "catch & effort"
+    )
+  ) %>% 
+  split(., .$region) %>% 
+  purrr::map(., function (x) {
+    ggplot(x) +
+      geom_tile(aes(x = month_n, y = year, fill = samples)) +
+      facet_wrap(~subarea) +
+      ggsidekick::theme_sleek()
+  })
+
+
+pdf(here::here("figs", "data_coverage", "creel_subarea.pdf"))
+catch_dist_list
 dev.off()

@@ -75,7 +75,6 @@ wide_rec <- rec_raw_new %>%
   # change US area 7 (near San Juan island) to SSoG
   mutate(
     area = ifelse(area == "US7", "19GST", area),
-    # region = case_when(
     area_n = as.numeric(str_replace_all(area, "[:letter:]", "")),
     # separate northern areas of 13 (normally in JS) and add to NSoG
     cap_region = case_when(
@@ -275,35 +274,58 @@ saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
 ## CLEAN CATCH -----------------------------------------------------------------
 
-rec_catch_raw <- read.csv(
-  here::here("data", "rec", "rec_creel_nov15_21.csv"),
+rec_creel_raw <- read.csv(
+  here::here("data", "rec", "rec_creel_aug10_21.csv"),
   stringsAsFactors = FALSE,
-  na.strings=c("","NA"),
-  header = FALSE
+  na.strings=c("","NA")#,
+  # header = FALSE
 )
-rec_catch1 <- rec_catch_raw[5:nrow(rec_catch_raw), ] 
-names(rec_catch1) <- rec_catch_raw[4, ]
-rec_catch1 <- janitor::clean_names(rec_catch1)
+# rec_catch1 <- rec_creel_raw[5:nrow(rec_creel_raw), ] 
+# names(rec_catch1) <- rec_creel_raw[4, ]
+rec_creel_raw <- janitor::clean_names(rec_creel_raw) %>% 
+  #focus only on chinook and effort estimates
+  filter(
+    species %in% c("BOAT TRIPS", "CHINOOK SALMON")
+  )
 
-rec_catch <- rec_catch1 %>% 
+# note that subarea-specific estimates are not always available 
+# (e.g. in 2014 estimates for 125A and 125G available for Jul/Aug,
+# 125 total (?) estimates for June/Sep)
+rec_creel <- rec_creel_raw %>% 
   mutate(
     month = as.factor(month),
     month_n = match(month, month.name),
+    area_n = as.numeric(str_replace_all(pfma, "[:letter:]", "")),
     year = as.numeric(year),
     region = case_when(
-      subarea %in% c("13M", "13N") ~ "N. Strait of Georgia",
+      creel_sub_area %in% c("13M", "13N") ~ "N. Strait of Georgia",
       area_n > 124 ~ "NWVI",
-      area_n < 28 & area > 24 ~ "NWVI",
-      area %in% c("20W", "20E", "20", "121", "21", "19JDF") ~ 
+      area_n < 28 & area_n > 24 ~ "NWVI",
+      area_n %in% c("20", "21") | creel_sub_area == "Area 19 (JDF)" ~ 
         "Juan de Fuca Strait",
       area_n < 125 & area_n > 120 ~ "SWVI",
       area_n < 25 & area_n > 20 ~ "SWVI",
-      area %in% c("14", "15", "16") ~ "N. Strait of Georgia",
-      area %in% c("17", "18", "19", "19GST", "28", "29") ~ 
+      area_n %in% c("14", "15", "16") ~ "N. Strait of Georgia",
+      area_n %in% c("17", "18", "19", "28", "29") ~ 
         "S. Strait of Georgia",
-      area %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
-      area %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
+      area_n %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
+      area_n %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
     ),
+    #is a subarea specific estimate available
+    subarea_est = ifelse(grepl("Area", creel_sub_area), "n", "y")
+  ) 
+  
+
+# separate catch/effort and rejoin
+effort <- rec_creel %>% 
+  filter(species == "BOAT TRIPS",
+         !is.na(estimate)) %>% 
+  mutate(effort = as.numeric(estimate)) %>%
+  select(month, year, subarea = creel_sub_area, effort)
+  
+catch <- rec_creel %>% 
+  filter(species == "CHINOOK SALMON") %>% 
+  mutate(
     legal = ifelse(
       disposition == "Kept" | disposition == "Released Legal",
       "legal",
@@ -312,15 +334,18 @@ rec_catch <- rec_catch1 %>%
     kept_legal = case_when(
       disposition == "Kept" ~ "y",
       disposition == "Released Legal" ~ "n",
-      legal == "sublegal" ~ NA
-    )
+      legal == "sublegal" ~ NA_character_
+    ),
+    catch = as.numeric(estimate)
   ) %>% 
-  select(month, month_n, year, area, subarea, region, legal, kept_legal,
-         adipose_clip)
+  # filter(!is.na(catch)) %>%
+  select(month, month_n, year, area_n, subarea = creel_sub_area, region,
+         subarea_est, legal, kept_legal, adipose_mark, catch) %>% 
+  left_join(., effort, by = c("month", "year", "subarea"))
 
-tst <- match(unique(rec_catch1$month), month.name)
 
-temp <- readRDS(here::here("data", "rec", "month_subarea_recCatch.rds"))
+saveRDS(catch, here::here("data", "rec", "rec_creel.rds"))
+
 
 ## OLD VERSIONS ----------------------------------------------------------------
 
