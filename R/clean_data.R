@@ -344,7 +344,28 @@ catch <- rec_creel %>%
   left_join(., effort, by = c("month", "year", "subarea"))
 
 
-saveRDS(catch, here::here("data", "rec", "rec_creel.rds"))
+saveRDS(catch, here::here("data", "rec", "rec_creel_subarea.rds"))
+
+
+# calculate area totals; effort replicated among catch categories so first
+# calculate total area effort by summing subarea effort
+catch_month <- catch %>% 
+  group_by(month, month_n, year, area_n, region, legal, kept_legal,
+           adipose_mark) %>% 
+  summarize(
+    catch = sum(catch, na.rm = T),
+    effort = sum(effort, na.rm = T),
+    .groups = "drop"
+  ) %>% 
+  # next calculate total catch of legal and sublegal fish
+  group_by(month, month_n, year, area_n, region, legal, effort) %>% 
+  summarize(
+    catch = sum(catch, na.rm = T),
+    .groups = "drop"
+  ) %>% 
+  glimpse()
+
+saveRDS(catch_month, here::here("data", "rec", "rec_creel_area.rds"))
 
 
 ## OLD VERSIONS ----------------------------------------------------------------
