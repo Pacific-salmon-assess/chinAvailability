@@ -113,11 +113,12 @@ catch_dist_list <- catch %>%
     )
   ) %>% 
   split(., .$region) %>% 
-  purrr::map(., function (x) {
+  purrr::map2(., names(.), function (x, y) {
     ggplot(x) +
       geom_tile(aes(x = month_n, y = year, fill = samples)) +
       facet_wrap(~subarea) +
-      ggsidekick::theme_sleek()
+      ggsidekick::theme_sleek() +
+      labs(x = "Year", y = "Samples", title = y)
   })
 
 
@@ -144,11 +145,12 @@ catch_dist_list <- catch2 %>%
     )
   ) %>% 
   split(., .$region) %>% 
-  purrr::map(., function (x) {
+  purrr::map2(., names(.), function (x, y) {
     ggplot(x) +
       geom_tile(aes(x = month_n, y = year, fill = samples)) +
       facet_wrap(~area_n) +
-      ggsidekick::theme_sleek()
+      ggsidekick::theme_sleek() +
+      labs(x = "Year", y = "Samples", title = y)
   })
 
 

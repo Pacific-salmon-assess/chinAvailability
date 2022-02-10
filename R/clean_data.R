@@ -200,7 +200,8 @@ long_rec <- wide_rec2_trim %>%
   mutate(
     stock = toupper(stock)
   ) %>% 
-  filter(!is.na(stock)) %>% 
+  filter(!is.na(stock),
+         !is.na(prob)) %>% 
   left_join(., stock_key, by = "stock") 
 
 # stocks_to_add <- long_dat %>% 
@@ -217,7 +218,7 @@ long_rec <- wide_rec2_trim %>%
 
 
 ## export
-saveRDS(long_dat, here::here("data", "rec", "rec_gsi.rds"))
+saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
 
 ## CLEAN SIZE ------------------------------------------------------------------
@@ -301,12 +302,14 @@ rec_creel <- rec_creel_raw %>%
       creel_sub_area %in% c("13M", "13N") ~ "N. Strait of Georgia",
       area_n > 124 ~ "NWVI",
       area_n < 28 & area_n > 24 ~ "NWVI",
-      area_n %in% c("20", "21") | creel_sub_area == "Area 19 (JDF)" ~ 
+      area_n %in% c("20", "21", "22", "121") | 
+        creel_sub_area %in% c("Area 19 (JDF)", "19D", "19E", "19C") ~ 
         "Juan de Fuca Strait",
       area_n < 125 & area_n > 120 ~ "SWVI",
       area_n < 25 & area_n > 20 ~ "SWVI",
       area_n %in% c("14", "15", "16") ~ "N. Strait of Georgia",
-      area_n %in% c("17", "18", "19", "28", "29") ~ 
+      area_n %in% c("17", "18", "28", "29") | 
+        creel_sub_area %in% c("19A", "19B", "Area 19 (GS)") ~ 
         "S. Strait of Georgia",
       area_n %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
       area_n %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
@@ -362,8 +365,7 @@ catch_month <- catch %>%
   summarize(
     catch = sum(catch, na.rm = T),
     .groups = "drop"
-  ) %>% 
-  glimpse()
+  ) 
 
 saveRDS(catch_month, here::here("data", "rec", "rec_creel_area.rds"))
 

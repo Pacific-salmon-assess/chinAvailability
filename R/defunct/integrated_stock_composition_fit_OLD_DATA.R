@@ -1,5 +1,4 @@
 ### Integrated stock composition models 
-## Updated with new data pull Feb 10; originals saved in /defunct
 ## Dec. 8, 2021
 
 library(tidyverse)
@@ -25,50 +24,19 @@ dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
 # DATA CLEAN -------------------------------------------------------------------
 
-# old data using in chin dist analysis
-# stock_comp <- readRDS(here::here("data", "rec", "old", "coarse_rec_comp.rds")) %>% 
-#   # filter(region %in% c("SSoG", "JdFS"),
-#   #        month %in% c("6", "8"),
-#   #        year %in% c("2016", "2018")) %>% 
-#   droplevels() %>% 
-#   rename(prob = agg_prob)
-# 
-# catch <- readRDS(here::here("data", "rec", "old", "month_area_recCatch_clean.rds")) %>% 
-#   # filter(region %in% c("SSoG", "JdFS"),
-#   #        month %in% c("6", "8"),
-#   #        year %in% c("2016", "2018")) %>% 
-#   droplevels()
+stock_comp <- readRDS(here::here("data", "rec", "coarse_rec_comp.rds")) %>% 
+  # filter(region %in% c("SSoG", "JdFS"),
+  #        month %in% c("6", "8"),
+  #        year %in% c("2016", "2018")) %>% 
+  droplevels() %>% 
+  rename(prob = agg_prob)
+catch <- readRDS(here::here("data", "rec", "month_area_recCatch_clean.rds")) %>% 
+  # filter(region %in% c("SSoG", "JdFS"),
+  #        month %in% c("6", "8"),
+  #        year %in% c("2016", "2018")) %>% 
+  droplevels()
 # model predictions are sensitive to regions included because information is 
 # shared among smooths; remove northern regions
-
-
-# pre-cleaning: aggregate at PST, remove sublegals
-comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
-  filter(!legal == "sublegal") %>% 
-  mutate(reg = abbreviate(cap_region, minlength = 4),
-         yday = lubridate::yday(date),
-         month_n = lubridate::month(date),
-         sample_id = paste(month_n, reg, yday, year, sep = "_")) %>% 
-  group_by(sample_id) %>% 
-  mutate(
-    nn = length(unique(id))
-  ) %>% 
-  ungroup()
-stock_comp <- comp1 %>%  
-  group_by(sample_id, reg, reg_c = cap_region, month, month_n, year, nn, 
-           pst_agg) %>% 
-  summarize(prob = sum(prob), .groups = "drop") %>% 
-  ungroup() %>% 
-  droplevels()
-
-# filter to SSoG and JdF
-
-
-catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
-  filter(!legal == "sublegal") %>% 
-  mutate(offset = log(effort))
-
-
 
 
 # prediction datasets 
