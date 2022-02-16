@@ -1,13 +1,13 @@
 ## Sample Coverage
-# Use GSI samples through 2019 to explore composition coverage and determine
-# spatial scale of models
+# Use GSI samples through 2020 to explore composition coverage and determine
+# spatial scale of models; equivalent process with creel data
 
 library(tidyverse)
 
 # samples up to 2019 generated in Chinook distribution project
 # rec_raw <- readRDS(here::here("data", "rec", "recIndProbsLong.rds"))
 
-rec_raw <- readRDS(here::here("data", "rec", "southcoast_ind_data.rds")) %>% 
+rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   rename(stock_region = region, region = cap_region) %>% 
   mutate(month_n = lubridate::month(date)) 
 
@@ -62,6 +62,58 @@ dev.off()
 
 pdf(here::here("figs", "data_coverage", "gsi_samples_new_area.pdf"))
 area_coverage
+dev.off()
+
+
+# visualize seasonal changes in composition by area
+stock_comp_dat <- rec_raw %>% 
+  group_by(area, month) %>% 
+  mutate(total_samples = sum(prob)) %>% 
+  group_by(area, region, month, month_n, total_samples, pst_agg) %>% 
+  summarize(
+    agg_prob = sum(prob),
+    agg_ppn = agg_prob / total_samples,
+    .groups = "drop"
+  ) %>%  
+  distinct() 
+stock_comp_list <- split(stock_comp_dat, stock_comp_dat$region)
+
+seasonal_stock_comp <- purrr::map2(
+  stock_comp_list, names(stock_comp_list),
+  function (x, y) {
+    p <- ggplot(x, aes(fill = pst_agg, y = agg_ppn, x = month_n)) + 
+      geom_bar(position="stack", stat="identity") +
+      scale_fill_viridis_d() +
+      facet_wrap(~area) +
+      labs(x = "Month", y = "Agg Probability", 
+           title = y) +
+      ggsidekick::theme_sleek()
+    print(p)
+  }
+)
+
+
+
+# subset to focus on areas of interest
+subset_stock_comp <- stock_comp_dat %>% 
+  filter(
+    area %in% c("121", "21", "20E", "20W", "19JDF", "19GST", "18", "123")
+  ) %>% 
+  mutate(
+    reg = abbreviate(region, minlength = 4),
+    area = paste(reg, area, sep = "_")
+  ) %>% 
+  ggplot(., aes(fill = pst_agg, y = agg_ppn, x = month_n)) + 
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_viridis_d() +
+  facet_wrap(~area) +
+  labs(x = "Month", y = "Agg Probability", title = "Core Study Area") +
+  ggsidekick::theme_sleek()
+
+
+pdf(here::here("figs", "data_coverage", "mean_monthly_stock_comp.pdf"))
+seasonal_stock_comp
+subset_stock_comp
 dev.off()
 
 
