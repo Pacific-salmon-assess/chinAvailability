@@ -65,8 +65,10 @@ area_coverage
 dev.off()
 
 
-# visualize seasonal changes in composition by area
-stock_comp_dat <- rec_raw %>% 
+# visualize seasonal changes in composition by area (NOTE excludes sublegal
+# samples)
+stock_comp_dat <- rec_raw %>%
+  filter(legal == "legal") %>% 
   group_by(area, month) %>% 
   mutate(total_samples = sum(prob)) %>% 
   group_by(area, region, month, month_n, total_samples, pst_agg) %>% 
@@ -92,8 +94,6 @@ seasonal_stock_comp <- purrr::map2(
   }
 )
 
-
-
 # subset to focus on areas of interest
 subset_stock_comp <- stock_comp_dat %>% 
   filter(
@@ -115,7 +115,6 @@ pdf(here::here("figs", "data_coverage", "mean_monthly_stock_comp.pdf"))
 seasonal_stock_comp
 subset_stock_comp
 dev.off()
-
 
 
 # sample coverage for size -----------------------------------------------------

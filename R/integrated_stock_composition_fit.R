@@ -148,7 +148,7 @@ comp_inputs <- make_inputs(
   abund_dat = catch,
   abund_rint = "year",
   pred_abund = pred_dat_catch,
-  comp_formula = agg ~  region + s(month_n, bs = "cc", k = 4, by = region),
+  comp_formula = agg ~ region + s(month_n, bs = "cc", k = 4, by = region),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
