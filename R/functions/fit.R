@@ -16,18 +16,19 @@ library(tidyverse)
 library(mgcv)
 library(TMB)
 
-
+# 
 # abund_formula = catch ~ 0 + area + 
-#   s(month_n, bs = "tp", k = 3, by = reg) +
+#   s(month_n, bs = "tp", k = 3, by = area) +
 #   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-#   offset;
-# abund_dat = catch;
-# abund_rint = "year";
-# pred_abund = pred_dat_catch;
-# comp_formula = agg ~ reg + s(month_n, bs = "cc", k = 4, by = reg);
-# comp_dat = stock_comp;
-# comp_rint = "year";
-# pred_comp = pred_dat_stock_comp;
+#   offset
+# abund_dat = catch
+# abund_rint = "year"
+# pred_abund = pred_dat_catch
+# comp_formula = coarse_agg ~  s(month_n, bs = "cc", k = 4#, by = reg
+# )
+# comp_dat = stock_comp
+# comp_rint = "year"
+# pred_comp = pred_dat_stock_comp
 # model = "integrated"
 
 
@@ -56,6 +57,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     formula_no_sm <- remove_s_and_t2(abund_formula)
     X_ij <- model.matrix(formula_no_sm, data = abund_dat)
     sm <- parse_smoothers(abund_formula, data = abund_dat)
+    pred_X_ij <- predict(gam(formula_no_sm, data = abund_dat), 
+                         pred_abund, type = "lpmatrix")
     pred_X_ij <- predict(gam(formula_no_sm, data = abund_dat), 
                          pred_abund, type = "lpmatrix")
     sm_pred <- parse_smoothers(abund_formula, data = abund_dat, 

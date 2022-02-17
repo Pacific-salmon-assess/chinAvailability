@@ -80,12 +80,15 @@ stock_comp_dat <- rec_raw %>%
   distinct() 
 stock_comp_list <- split(stock_comp_dat, stock_comp_dat$region)
 
+  
+stock_pal <- disco::disco("rainbow", n = length(unique(stock_comp_dat$pst_agg)))
+  
 seasonal_stock_comp <- purrr::map2(
   stock_comp_list, names(stock_comp_list),
   function (x, y) {
     p <- ggplot(x, aes(fill = pst_agg, y = agg_ppn, x = month_n)) + 
       geom_bar(position="stack", stat="identity") +
-      scale_fill_viridis_d() +
+      scale_fill_manual(name = "Stock", values = stock_pal) +
       facet_wrap(~area) +
       labs(x = "Month", y = "Agg Probability", 
            title = y) +
@@ -105,7 +108,7 @@ subset_stock_comp <- stock_comp_dat %>%
   ) %>% 
   ggplot(., aes(fill = pst_agg, y = agg_ppn, x = month_n)) + 
   geom_bar(position="stack", stat="identity") +
-  scale_fill_viridis_d() +
+  scale_fill_manual(name = "Stock", values = stock_pal) +
   facet_wrap(~area) +
   labs(x = "Month", y = "Agg Probability", title = "Core Study Area") +
   ggsidekick::theme_sleek()
