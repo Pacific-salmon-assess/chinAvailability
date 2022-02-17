@@ -11,44 +11,24 @@ library(sdmTMB)
 source(here::here("R", "utils.R"))
 
 
-rec_catch <- readRDS(here::here("data", "rec", "month_area_recCatch.rds")) %>% 
-  # identify months to exclude based on minimal catch or comp estimates 
-  #(make region specific)
-  mutate(
-    min_m = case_when(
-      region %in% c("NSoG", "SSoG") ~ 5,
-      region %in% c("JdFS", "QCaJS") ~ 6
-    ),
-    max_m = case_when(
-      region == "QCaJS" ~ 8, 
-      region %in% c("JdFS", "NSoG", "SSoG")  ~ 9
-    ),
-    region = fct_relevel(region, "QCaJS", "JdFS", "NSoG", "SSoG")
-  ) %>% 
-  # drop areas with fewer than 10 datapoints (month-year-area observation = 1)
-  group_by(area_n) %>% 
-  filter(!month_n < min_m,
-         !month_n > max_m) %>% 
-  add_tally() %>% 
-  ungroup() %>% 
-  filter(!n < 10) %>%
-  droplevels() #%>% 
-  # group by region for now
-  # group_by(region, region_c, month, month_n, year) %>%
-  # summarize(catch = sum(catch),
-  #           eff = sum(eff),
-  #           offset = log(eff)) %>%
-  # ungroup()
+rec_catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
+  filter(!legal == "sublegal",
+         reg %in% c("JdFS"#, "SSoG"
+         ),
+         month_n > 4 & month_n < 10) %>% 
+  mutate(year = as.factor(year),
+         area = as.factor(area),
+         reg = as.factor(reg),
+         offset = log(effort))
 
 
 ## predicted dataset
-mean_eff <- rec_catch %>% 
-  group_by(month, area) %>% 
-  summarize(offset = log(mean(eff)))
-pred_dat <- group_split(rec_catch, region) %>%
+# mean_eff <- rec_catch %>% 
+#   group_by(month, area) %>% 
+#   summarize(offset = log(mean(effort)))
+pred_dat <- group_split(rec_catch, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
-      # region = unique(x$region),
       area = unique(x$area),
       month_n = seq(min(x$month_n),
                     max(x$month_n),
@@ -58,20 +38,20 @@ pred_dat <- group_split(rec_catch, region) %>%
     )
   }) %>% 
   left_join(.,
-            rec_catch %>% select(region, area) %>% distinct(),
+            rec_catch %>% select(reg, area) %>% distinct(),
             by = "area"
   ) %>%
-  mutate(strata = paste(month_n, region, sep = "_"),
+  mutate(strata = paste(month_n, reg, sep = "_"),
          offset = mean(rec_catch$offset)
          ) %>%
-  arrange(region) %>%
+  arrange(reg) %>%
   # convoluted to ensure ordering is correct for key
   mutate(
     month = as.factor(round(month_n, 0)),
     order = row_number(),
     # year is necessary regardless of whether RIs are inlcuded because of year-
     # specific smooths 
-    reg_month_year = paste(region, month_n, year, sep = "_"),
+    reg_month_year = paste(reg, month_n, year, sep = "_"),
     reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
   # left_join(., mean_eff, by = c("month", "area")) %>% 
@@ -80,21 +60,15 @@ pred_dat <- group_split(rec_catch, region) %>%
 
 
 obs_cpue <- dat %>% 
-  group_by(region, month_n, year) %>% 
+  group_by(reg, month_n, year) %>% 
   summarize(sum_catch = sum(catch),
-            sum_eff = sum(eff),
+            sum_eff = sum(effort),
             ln_cpue = log(sum_catch / sum_eff),
             .groups = "drop")
 
 
 ## MGCV VS TMB -----------------------------------------------------------------
 
-
-dat <- rec_catch %>% 
-  filter(
-    !region %in% c("NSoG"),
-  ) %>%
-  droplevels() 
 new_dat <- pred_dat %>% 
   filter(
     area %in% dat$area,
@@ -103,19 +77,19 @@ new_dat <- pred_dat %>%
 
 
 f1a <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = region) +
+  s(month_n, bs = "tp", k = 3, by = area) +
   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
   #smooth REs can't be readily passed with Anderson's function; code RIs instead
   s(year, bs = "re") + 
   offset(offset)
 f1 <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = region) +
+  s(month_n, bs = "tp", k = 3, by = area) +
   s(month_n, by = year, bs = "tp", k = 3, m = 1) +
   offset
 
 
 # fit mgcv for comparison
-m1 <- mgcv::gam(f1a,
+m1 <- mgcv::gam(f1,
                 data = dat,
                 family = mgcv::nb()
 )
@@ -127,7 +101,7 @@ preds_m1a <- predict.gam(m1,
                          se.fit = TRUE)
 dat$pred_mean <- preds_m1a$fit %>% as.numeric()
 dat$pred_se <- preds_m1a$se.fit %>% as.numeric()
-dat$ln_cpue <- log(dat$catch / dat$eff)
+dat$ln_cpue <- log(dat$catch / dat$effort)
   
 pred_plot <- ggplot() +
   geom_abline() +

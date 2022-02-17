@@ -1,47 +1,38 @@
-### Integrated stock composition models 
-## Updated with new data pull Feb 10; originals saved in /defunct
-## Dec. 8, 2021
+## Fit stock-comp model to generate area-level predictions assuming 
+# homogeneous composition within a region
+# Feb 17, 2022
 
 library(tidyverse)
-library(mgcv)
-library(TMB)
-library(sdmTMB)
+
+## simulate data to check indexing
+dum_c <- data.frame(
+  strata = c("x", "y", "z"),
+  stock_a = c(0.3, 0.2, 0.7)
+) %>% 
+  mutate(
+    stock_b = 1 - a
+  )
+dum_a <- expand.grid(
+  strata = dum_c$strata,
+  substrata = c(1, 2, 3)
+) %>% 
+  mutate(substrata = paste(strata, substrata, sep = "_")) %>% 
+  arrange(strata)
+dum_a$catch <- exp(rnorm(nrow(dum_a), 0, 1))
+key <- as.numeric(dum_a$strata)
+
+dum <- matrix(NA, nrow = nrow(dum_a), ncol = 2)
+for (i in 1:nrow(dum)) {
+  for(j in 1:ncol(dum)) {
+    dum[i, j] <- dum_a$catch[i] * dum_c[key[i], j + 1]
+  }
+}
 
 
-# utility functions for prepping smooths 
-source(here::here("R", "functions", "utils.R"))
-# data prep and model fitting functions
-source(here::here("R", "functions", "fit.R"))
+## example with subsetted data
 
-
-# relevant TMB models
-# compile(here::here("src", "negbin_rsplines.cpp"))
-# dyn.load(dynlib(here::here("src", "negbin_rsplines")))
-# compile(here::here("src", "dirichlet_mvn.cpp"))
-# dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
 compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
-
-
-# DATA CLEAN -------------------------------------------------------------------
-
-# old data using in chin dist analysis
-# stock_comp_old <- readRDS(
-#   here::here("data", "rec", "old", "coarse_rec_comp.rds")) %>%
-  # filter(region %in% c("SSoG", "JdFS"),
-  #        month %in% c("6", "8"),
-  #        year %in% c("2016", "2018")) %>%
-  # droplevels() %>%
-  # rename(prob = agg_prob)
-
-# catch_old <- readRDS(
-#   here::here("data", "rec", "old", "month_area_recCatch_clean.rds")) %>%
-  # filter(region %in% c("SSoG", "JdFS"),
-  #        month %in% c("6", "8"),
-  #        year %in% c("2016", "2018")) %>%
-  # droplevels()
-# model predictions are sensitive to regions included because information is 
-# shared among smooths; remove northern regions
 
 
 # pre-cleaning: aggregate at PST, remove sublegals
@@ -53,16 +44,20 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          sample_id = paste(month_n, reg, yday, year, sep = "_")) %>% 
   group_by(sample_id) %>% 
   mutate(
-    nn = length(unique(id))
+    nn = length(unique(id)),
+    coarse_agg = ifelse(pst_agg %in% c("PSD", "CR-lower_fa", "FR-late", 
+                                       "FR-early", "SOG"),
+                        "dom", "weak")
   ) %>% 
   ungroup()
 stock_comp <- comp1 %>%  
   group_by(sample_id, reg, reg_c = cap_region, month, month_n, year, nn, 
-           pst_agg) %>% 
+           coarse_agg) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
-  filter(reg %in% c("JdFS", "SSoG")) %>% 
+  filter(reg %in% c("JdFS"#, "SSoG"
+                    )) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg))
 
@@ -70,8 +65,11 @@ stock_comp <- comp1 %>%
 # creel coverage patchy so constrain input data to reasonable months
 catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
   filter(!legal == "sublegal",
-         reg %in% c("JdFS", "SSoG"),
-         month_n > 4 & month_n < 10) %>% 
+         reg %in% c("JdFS"#, "SSoG"
+                    ),
+         month_n > 4 & month_n < 10#,
+         # area %in% c("121")
+         ) %>% 
   mutate(year = as.factor(year),
          area = as.factor(area),
          reg = as.factor(reg),
@@ -143,25 +141,43 @@ pred_dat_stock_comp <- pred_dat_comp1 %>%
   arrange(reg, year, month_n) %>% 
   droplevels()
 
-
-## FIT -------------------------------------------------------------------------
+pred_dat_catch_obs <- catch %>% 
+  arrange(reg) %>%
+  mutate(
+    month = as.factor(month_n),
+    order = row_number(),
+    reg_month_year = paste(reg, month_n, year, sep = "_"),
+    key_var = fct_reorder(factor(reg_month_year), order)
+  )
 
 model_inputs <- make_inputs(
   abund_formula = catch ~ 0 + area + 
-    s(month_n, bs = "tp", k = 3, by = reg) +
+    # s(month_n, bs = "tp", k = 4) +
+    s(month_n, by = area, bs = "tp", m = 2, k = 3) +
     s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  pred_abund = pred_dat_catch,
-  comp_formula = pst_agg ~ reg + s(month_n, bs = "cc", k = 4, by = reg),
+  pred_abund = pred_dat_catch_obs,#pred_dat_catch,
+  comp_formula = coarse_agg ~ #reg + 
+    s(month_n, bs = "cc", k = 4#, by = reg
+                                      ),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
   model = "integrated"
 )
 
-stock_mod <- fit_model(
+## check 
+# names(model_inputs$tmb_data)
+# model_inputs$tmb_data$pred_X1_ij %>% dim()
+# model_inputs$tmb_data$pred_Zs[[1]] %>% dim
+# model_inputs$tmb_data$pred_X2_ij %>% dim()
+# model_inputs$tmb_data$pred_rfac_agg %>% unique() %>% length
+# model_inputs$tmb_data$pred_rfac_agg_levels %>% length
+
+
+mod <- fit_model(
   tmb_data = model_inputs$tmb_data, 
   tmb_pars = model_inputs$tmb_pars, 
   tmb_map = model_inputs$tmb_map, 
@@ -170,20 +186,11 @@ stock_mod <- fit_model(
   fit_random = FALSE
 )
 
-saveRDS(stock_mod$ssdr, 
-        here::here("data", "model_fits", "combined_mvn_mig_corridor.rds"))
+ssdr <- mod$ssdr
 
 
-## EVALUATE MODEL PREDS --------------------------------------------------------
+## composition -----------------------------------------------------------------
 
-ssdr <- stock_mod$ssdr
-ssdr <- readRDS(
-  here::here("data", "model_fits", "combined_mvn_mig_corridor.rds"))
-
-unique(rownames(ssdr))
-
-
-## Stock Composition
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 
 link_preds <- data.frame(
@@ -206,52 +213,44 @@ pred_comp <- purrr::map(stock_seq, function (x) {
   cbind(., link_preds) %>% 
   split(., .$reg)
 
-comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
-  p <- ggplot(data = x, aes(x = month_n)) +
+
+# compare to observed composition
+obs_comp <- stock_comp %>% 
+  group_by(reg, month) %>% 
+  mutate(total_samples = sum(prob)) %>% 
+  group_by(reg, month_n, total_samples, coarse_agg) %>% 
+  summarize(
+    agg_prob = sum(prob),
+    agg_ppn = agg_prob / total_samples,
+    .groups = "drop"
+  ) %>%  
+  distinct() %>% 
+  rename(stock = coarse_agg)
+
+purrr::map2(pred_comp, names(pred_comp), function (x, y) {
+  ggplot(data = x, aes(x = month_n)) +
     labs(y = "Predicted Stock Proportion", x = "Month") +
     facet_wrap(~stock) +
     ggsidekick::theme_sleek() +
     geom_line(aes(y = pred_prob_est, colour = year)) +
-    labs(title = y)
-  
-  p_ribbon <- p +
+    labs(title = y) +
     geom_ribbon(data = x,
                 aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
-                alpha = 0.2)
-  
-  list(p, p_ribbon)
+                alpha = 0.2) +
+    geom_point(data = obs_comp %>% filter(reg == y),
+               aes(y = agg_ppn, x = month_n))
 })
 
 
-##### TO BE CORRECTED #####
-
-# generate observed proportions
-# number of samples in an event
-long_dat <- model_inputs$wide_comp_dat %>%
-  mutate(
-    samp_nn = apply(model_inputs$tmb_data$Y2_ik, 1, sum)) %>%
-  pivot_longer(cols = c(PSD:CA_ORCST), names_to = "stock", 
-               values_to = "obs_count") %>% 
-  mutate(obs_ppn = obs_count / samp_nn) 
-mean_long_dat <- long_dat %>%
-  group_by(month_n, year, region, stock) %>%
-  summarize(obs_ppn = mean(obs_ppn), .groups = "drop")
-
-p_obs <- p + 
-  geom_jitter(data = long_dat, aes(x = month_n, y = obs_ppn, colour = year,
-                                  alpha = sample_size_bin)) +
-  scale_alpha_discrete()
+## abundance -------------------------------------------------------------------
 
 
-## Predicted Abundance
+## Area abundance 
+log_abund <- ssdr[rownames(ssdr) == "ln_pred_mu1", ]
 
-## aggregate (i.e. total)
-log_agg_abund <- ssdr[rownames(ssdr) == "ln_pred_mu1_cumsum", ]
-log_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
-
-log_abund_preds <- data.frame(
-  link_abund_est = c(log_agg_abund[ , "Estimate"], log_abund[ , "Estimate"]),
-  link_abund_se =  c(log_agg_abund[ , "Std. Error"], log_abund[ , "Std. Error"])
+log_abund_preds_area <- data.frame(
+  link_abund_est = log_abund[ , "Estimate"],
+  link_abund_se =  log_abund[ , "Std. Error"]
 ) %>% 
   mutate(
     pred_abund_est = exp(link_abund_est),
@@ -259,44 +258,50 @@ log_abund_preds <- data.frame(
     pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
   ) 
 
-stock_seq2 <- c("total", colnames(model_inputs$tmb_data$Y2_ik))
 
-pred_abund <- purrr::map(stock_seq2, function (x) {
-  dum <- pred_dat_stock_comp
-  dum$stock <- x
-  return(dum)
-}) %>%
-  bind_rows() %>%
-  cbind(., log_abund_preds) %>% 
-  mutate(stock = fct_reorder(factor(stock), -pred_abund_est)) %>% 
-  split(., .$reg)
-
-saveRDS(pred_abund, 
-        here::here("data", "model_fits", 
-                   "combined_mvn_mig_corridor_pred_abund.rds"))
+plot(log_abund_preds_area$link_abund_est ~ log(catch$catch))
+abline(1, 1)
 
 
-abund_plots <- purrr::map2(pred_abund, names(pred_abund), function (x, y) {
-  q <- ggplot(data = x, aes(x = month_n)) +
-    labs(y = "Predicted Abundance Index", x = "Month") +
-    facet_wrap(~stock, scales = "free_y") +
-    ggsidekick::theme_sleek() +
-    geom_line(aes(y = pred_abund_est, colour = year)) +
-    labs(title = y)
-  q_ribbon <- q + 
-    geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
-                alpha = 0.5)
-
-  list(q, q_ribbon)  
-})
+m1 <- mgcv::gam(catch ~ 0 + area + 
+                  s(month_n, by = area, bs = "tp", m = 2, k = 3) +
+                  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+                  offset,
+                data = catch,
+                family = mgcv::nb()
+)
 
 
-## EXPORT FIGS -----------------------------------------------------------------
+# first check against observed
+preds_m1 <- predict.gam(m1,
+                         se.fit = TRUE)
+pred_gam <- preds_m1$fit %>% as.numeric()
 
-pdf(here::here("figs", "jdf_area_preds", "stock_comp_2regions_fe.pdf"))
-comp_plots
-dev.off()
+plot(pred_gam ~ log(catch$catch))
+abline(1, 1)
 
-pdf(here::here("figs", "jdf_area_preds", "abundance_2regions_fe.pdf"))
-abund_plots
-dev.off()
+
+
+pred_dat_catch %>%
+  cbind(., log_abund_preds_area) %>% 
+  ggplot(data = ., aes(x = month_n)) +
+  labs(y = "Predicted Abundance Index", x = "Month") +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_abund_est, colour = year)) +
+  facet_wrap(~area) #+ 
+  # geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
+  #             alpha = 0.5)
+
+
+catch %>% 
+  mutate(
+    cpue = catch / effort
+  ) %>% 
+  group_by(year, reg, area, month_n) %>% 
+  summarize(
+    mean_cpue = mean(cpue)
+  ) %>% 
+  ggplot(data = ., aes(x = month_n, y = mean_cpue, color = year)) +
+  geom_point() +
+  facet_wrap(~area)
+  

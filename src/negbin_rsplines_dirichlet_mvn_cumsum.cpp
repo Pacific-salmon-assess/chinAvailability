@@ -234,22 +234,22 @@ Type objective_function<Type>::operator() ()
 
 
   // Predicted aggregate abundance
-  // vector<Type> pred_mu1_cumsum(n_predX2);
-  // vector<Type> ln_pred_mu1_cumsum(n_predX2);
-  // vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
+  vector<Type> pred_mu1_cumsum(n_predX2);
+  vector<Type> ln_pred_mu1_cumsum(n_predX2);
+  vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
 
 
-  // for (int i = 0; i < n_predX1; i++) {
-  //   for (int m = 0; m < n_predX2; m++) {
-  //     if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
-  //       pred_mu1_cumsum(m) += exp_pred_mu1(i);
-  //       ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
-  //     }
-  //   }
-  // }
+  for (int i = 0; i < n_predX1; i++) {
+    for (int m = 0; m < n_predX2; m++) {
+      if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
+        pred_mu1_cumsum(m) += exp_pred_mu1(i);
+        ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
+      }
+    }
+  }
 
-  // ADREPORT(pred_mu1_cumsum);
-  // ADREPORT(ln_pred_mu1_cumsum);
+  ADREPORT(pred_mu1_cumsum);
+  ADREPORT(ln_pred_mu1_cumsum);
 
 
   // Predicted composition 
@@ -291,27 +291,15 @@ Type objective_function<Type>::operator() ()
   
 
   // Combined predictions
-  // matrix<Type> pred_mu1_Pi(n_predX2, n_cat);
+  matrix<Type> pred_mu1_Pi(n_predX2, n_cat);
   
-  // for (int m = 0; m < n_predX2; m++) {
-  //   for (int k = 0; k < n_cat; k++) {
-  //     pred_mu1_Pi(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
-  //   }
-  // }
-  // matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
-  
-  matrix<Type> pred_mu1_Pi(n_predX1, n_cat);
-  
-  // multiply each area-specific prediction by the associated region-specific 
-  // comp prediction
-  for (int i = 0; i < n_predX1; i++) {
+  for (int m = 0; m < n_predX2; m++) {
     for (int k = 0; k < n_cat; k++) {
-      pred_mu1_Pi(i, k) = pred_mu1(i) * pred_Pi_prop(pred_rfac_agg(i), k);
+      pred_mu1_Pi(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
     }
   }
   matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
   
-
   // Report
   ADREPORT(log_pred_mu1_Pi);
 
