@@ -67,9 +67,11 @@ stock_comp <- comp1 %>%
          reg = as.factor(reg))
 
 
+# creel coverage patchy so constrain input data to reasonable months
 catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
   filter(!legal == "sublegal",
-         reg %in% c("JdFS", "SSoG")) %>% 
+         reg %in% c("JdFS", "SSoG"),
+         month_n > 4 & month_n < 10) %>% 
   mutate(year = as.factor(year),
          area = as.factor(area),
          reg = as.factor(reg),
@@ -165,7 +167,7 @@ stock_mod <- fit_model(
   tmb_map = model_inputs$tmb_map, 
   tmb_random  = model_inputs$tmb_random,
   model = "integrated",
-  fit_random = TRUE
+  fit_random = FALSE
 )
 
 saveRDS(stock_mod$ssdr, 
@@ -174,6 +176,7 @@ saveRDS(stock_mod$ssdr,
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 
+ssdr <- stock_mod$ssdr
 ssdr <- readRDS(
   here::here("data", "model_fits", "combined_mvn_mig_corridor.rds"))
 
@@ -200,18 +203,24 @@ pred_comp <- purrr::map(stock_seq, function (x) {
   return(dum)
 }) %>%
   bind_rows() %>%
-  cbind(., link_preds) 
+  cbind(., link_preds) %>% 
+  split(., .$reg)
 
-p <- ggplot(data = pred_comp, aes(x = month_n)) +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_wrap(~stock) +
-  ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est, colour = year)) 
-
-p_ribbon <- p +
-  geom_ribbon(data = pred_comp,
-              aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
-              alpha = 0.2)
+comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
+  p <- ggplot(data = x, aes(x = month_n)) +
+    labs(y = "Predicted Stock Proportion", x = "Month") +
+    facet_wrap(reg~stock) +
+    ggsidekick::theme_sleek() +
+    geom_line(aes(y = pred_prob_est, colour = year)) +
+    labs(title = y)
+  
+  p_ribbon <- p +
+    geom_ribbon(data = x,
+                aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
+                alpha = 0.2)
+  
+  list(p, p_ribbon)
+})
 
 
 ##### TO BE CORRECTED #####
@@ -221,19 +230,12 @@ p_ribbon <- p +
 long_dat <- model_inputs$wide_comp_dat %>%
   mutate(
     samp_nn = apply(model_inputs$tmb_data$Y2_ik, 1, sum)) %>%
-  pivot_longer(cols = c(PSD:`FR-early`), names_to = "stock", 
+  pivot_longer(cols = c(PSD:CA_ORCST), names_to = "stock", 
                values_to = "obs_count") %>% 
-  mutate(obs_ppn = obs_count / samp_nn,
-         sample_size_bin = cut(
-           samp_nn, 
-           breaks = c(-Inf, 5, 15, 25, Inf), 
-           labels=c("<6", "6-15", "16-25", ">25")
-         )
-         ) %>% 
-  filter(region == "JdFS") 
-# mean_long_dat <- long_dat %>% 
-#   group_by(month_n, year, region, stock) %>% 
-#   summarize(obs_ppn = mean(obs_ppn), .groups = "drop")
+  mutate(obs_ppn = obs_count / samp_nn) 
+mean_long_dat <- long_dat %>%
+  group_by(month_n, year, region, stock) %>%
+  summarize(obs_ppn = mean(obs_ppn), .groups = "drop")
 
 p_obs <- p + 
   geom_jitter(data = long_dat, aes(x = month_n, y = obs_ppn, colour = year,
@@ -259,8 +261,6 @@ log_abund_preds <- data.frame(
 
 stock_seq2 <- c("total", colnames(model_inputs$tmb_data$Y2_ik))
 
-### CHECK BUGGY ###
-
 pred_abund <- purrr::map(stock_seq2, function (x) {
   dum <- pred_dat_stock_comp
   dum$stock <- x
@@ -268,35 +268,27 @@ pred_abund <- purrr::map(stock_seq2, function (x) {
 }) %>%
   bind_rows() %>%
   cbind(., log_abund_preds) %>% 
-  mutate(stock = fct_reorder(factor(stock), -pred_abund_est))
+  mutate(stock = fct_reorder(factor(stock), -pred_abund_est)) %>% 
+  split(., .$reg)
 
 saveRDS(pred_abund, 
         here::here("data", "model_fits", 
-                   "combined_mvn_mig_corridor.rds"))
-
-q <- ggplot(data = pred_abund, aes(x = month_n)) +
-  labs(y = "Predicted Abundance Index", x = "Month") +
-  facet_wrap(~stock, scales = "free_y") +
-  ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_abund_est, colour = year)) 
-q_ribbon <- q + 
-  geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
-              alpha = 0.5)
+                   "combined_mvn_mig_corridor_pred_abund.rds"))
 
 
+abund_plots <- purrr::map2(pred_abund, names(pred_abund), function (x, y) {
+  q <- ggplot(data = x, aes(x = month_n)) +
+    labs(y = "Predicted Abundance Index", x = "Month") +
+    facet_wrap(~stock, scales = "free_y") +
+    ggsidekick::theme_sleek() +
+    geom_line(aes(y = pred_abund_est, colour = year)) +
+    labs(title = y)
+  q_ribbon <- q + 
+    geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
+                alpha = 0.5)
 
-catch %>% 
-  group_by(region, month_n, year) %>% 
-  summarize(sum_catch = sum(catch),
-            sum_eff = sum(eff),
-            cpue = sum_catch / sum_eff,
-            .groups = "drop") %>% 
-  ggplot(., aes(x = month_n)) +
-  labs(y = "CPUE", x = "Month") +
-  facet_grid(region~year, scales = "free_y") +
-  ggsidekick::theme_sleek() +
-  geom_bar(aes(y = cpue), stat = "identity") 
-
+  list(q, q_ribbon)  
+})
 
 
 ## EXPORT FIGS -----------------------------------------------------------------

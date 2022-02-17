@@ -1,0 +1,8 @@
+Notes for Chinook availability project
+
+Feb. 16, 2022
+
+- Considerable variation in stock composition among areas within region, as well as variation in temporal sampling coverage (see figs/data_coverage/ directory). Ideally model with hierarchical GAMs. Alternatively consider restratifying to "subregions" using cluster analysis.
+- Coverage at beginning/end of the year very sparse; consider truncating to March-Sep for SSoG and JdFS if convergence issues pronounced
+- Issues with estimating abundance at year end; restrict catch data to be only in peak periods (non-cyclic); similarly for GSI, fit model to full dataset but constrain predictions to months with catch data
+
