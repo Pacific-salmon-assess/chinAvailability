@@ -351,6 +351,7 @@ catch_subarea <- rec_creel %>%
          subarea_est, legal, kept_legal, adipose_mark, catch) %>% 
   left_join(., effort_subarea, by = c("month", "year", "subarea", "area"))
 
+
 # check no duplicates
 catch_subarea %>% 
   group_by(kept_legal, legal, adipose_mark, subarea, month, year) %>% 
@@ -370,7 +371,8 @@ effort_area <- effort_subarea %>%
 sum(effort_area$effort) == sum(effort_subarea$effort)
   
 catch_area <- catch_subarea %>% 
-  group_by(month, month_n, year, area, region, legal) %>% 
+  mutate(reg = abbreviate(region, 4)) %>% 
+  group_by(month, month_n, year, area, reg, region, legal) %>% 
   summarize(
     catch = sum(catch, na.rm = T),
     .groups = "drop"

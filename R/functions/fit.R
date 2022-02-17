@@ -18,13 +18,13 @@ library(TMB)
 
 
 # abund_formula = catch ~ 0 + area + 
-#   # s(month_n, bs = "tp", by = region) +
-#   # s(month_n, by = year, bs = "tp", m = 1) +
+#   s(month_n, bs = "tp", k = 3, by = reg) +
+#   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
 #   offset;
 # abund_dat = catch;
 # abund_rint = "year";
 # pred_abund = pred_dat_catch;
-# comp_formula = agg ~  region #+ s(month_n, bs = "tp", by = region);
+# comp_formula = agg ~ reg + s(month_n, bs = "cc", k = 4, by = reg);
 # comp_dat = stock_comp;
 # comp_rint = "year";
 # pred_comp = pred_dat_stock_comp;

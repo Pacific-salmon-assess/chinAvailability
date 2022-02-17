@@ -26,18 +26,20 @@ dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 # DATA CLEAN -------------------------------------------------------------------
 
 # old data using in chin dist analysis
-# stock_comp <- readRDS(here::here("data", "rec", "old", "coarse_rec_comp.rds")) %>% 
-#   # filter(region %in% c("SSoG", "JdFS"),
-#   #        month %in% c("6", "8"),
-#   #        year %in% c("2016", "2018")) %>% 
-#   droplevels() %>% 
-#   rename(prob = agg_prob)
-# 
-# catch <- readRDS(here::here("data", "rec", "old", "month_area_recCatch_clean.rds")) %>% 
-#   # filter(region %in% c("SSoG", "JdFS"),
-#   #        month %in% c("6", "8"),
-#   #        year %in% c("2016", "2018")) %>% 
-#   droplevels()
+# stock_comp_old <- readRDS(
+#   here::here("data", "rec", "old", "coarse_rec_comp.rds")) %>%
+  # filter(region %in% c("SSoG", "JdFS"),
+  #        month %in% c("6", "8"),
+  #        year %in% c("2016", "2018")) %>%
+  # droplevels() %>%
+  # rename(prob = agg_prob)
+
+# catch_old <- readRDS(
+#   here::here("data", "rec", "old", "month_area_recCatch_clean.rds")) %>%
+  # filter(region %in% c("SSoG", "JdFS"),
+  #        month %in% c("6", "8"),
+  #        year %in% c("2016", "2018")) %>%
+  # droplevels()
 # model predictions are sensitive to regions included because information is 
 # shared among smooths; remove northern regions
 
@@ -59,23 +61,26 @@ stock_comp <- comp1 %>%
            pst_agg) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
-  droplevels()
-
-# filter to SSoG and JdF
+  droplevels() %>% 
+  filter(reg %in% c("JdFS", "SSoG")) %>% 
+  mutate(year = as.factor(year),
+         reg = as.factor(reg))
 
 
 catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
-  filter(!legal == "sublegal") %>% 
-  mutate(offset = log(effort))
-
-
+  filter(!legal == "sublegal",
+         reg %in% c("JdFS", "SSoG")) %>% 
+  mutate(year = as.factor(year),
+         area = as.factor(area),
+         reg = as.factor(reg),
+         offset = log(effort))
 
 
 # prediction datasets 
-pred_dat_comp1 <- group_split(stock_comp, region) %>%
+pred_dat_comp1 <- group_split(stock_comp, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
-      region = unique(x$region),
+      reg = unique(x$reg),
       month_n = seq(min(x$month_n),
                     max(x$month_n),
                     by = 0.1
@@ -84,14 +89,13 @@ pred_dat_comp1 <- group_split(stock_comp, region) %>%
     )
   }) %>% 
   mutate(
-    reg_month_year = paste(region, month_n, year, sep = "_"),
+    reg_month_year = paste(reg, month_n, year, sep = "_"),
     key_var = as.factor(reg_month_year)
   )
 
-pred_dat_catch <- group_split(catch, region) %>%
+pred_dat_catch <- group_split(catch, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
-      # region = unique(x$region),
       area = unique(x$area),
       month_n = seq(min(x$month_n),
                     max(x$month_n),
@@ -100,31 +104,31 @@ pred_dat_catch <- group_split(catch, region) %>%
       year = unique(x$year)
     )
   }) %>% 
+  # add region IDs back in
   left_join(.,
-            catch %>% select(region, area) %>% distinct(),
+            catch %>% select(reg, area) %>% distinct(),
             by = "area"
   ) %>%
-  mutate(strata = paste(month_n, region, sep = "_"),
+  mutate(strata = paste(month_n, reg, sep = "_"),
          offset = mean(catch$offset)) %>%
-  # filter(strata %in% comp_strata) %>%
-  arrange(region) %>%
-  # convoluted to ensure ordering is correct for key
+  arrange(reg) %>%
+  # convoluted to ensure ordering is correct for key passed to TMB
   mutate(
     month = as.factor(month_n),
     order = row_number(),
     # year is necessary regardless of whether RIs are included because of year-
     # specific smooths 
-    reg_month_year = paste(region, month_n, year, sep = "_"),
+    reg_month_year = paste(reg, month_n, year, sep = "_"),
     reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
   select(-order, -strata) %>%
   distinct() %>% 
   # remove years that lack gsi data
   filter(
-    year %in% pred_dat_comp1$year
+    year %in% pred_dat_comp1$year,
+    area %in% c("121", "21", "20", "19_JdFS", "19_SSoG", "18")
   ) %>% 
   # generate predictions only for swiftsure
-  filter(area %in% c("121", "21")) %>% 
   rename(key_var = reg_month_year_f) %>% 
   droplevels()
 
@@ -134,21 +138,21 @@ pred_dat_catch <- group_split(catch, region) %>%
 pred_dat_stock_comp <- pred_dat_comp1 %>% 
   filter(key_var %in% pred_dat_catch$key_var) %>% 
   # filter(reg_month_year %in% pred_dat_catch$reg_month_year) %>% 
-  arrange(region, year, month_n) %>% 
+  arrange(reg, year, month_n) %>% 
   droplevels()
 
 
 ## FIT -------------------------------------------------------------------------
 
-comp_inputs <- make_inputs(
+model_inputs <- make_inputs(
   abund_formula = catch ~ 0 + area + 
-    s(month_n, bs = "tp", k = 3, by = region) +
+    s(month_n, bs = "tp", k = 3, by = reg) +
     s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
   pred_abund = pred_dat_catch,
-  comp_formula = agg ~ region + s(month_n, bs = "cc", k = 4, by = region),
+  comp_formula = pst_agg ~ reg + s(month_n, bs = "cc", k = 4, by = reg),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
@@ -156,22 +160,22 @@ comp_inputs <- make_inputs(
 )
 
 stock_mod <- fit_model(
-  tmb_data = comp_inputs$tmb_data, 
-  tmb_pars = comp_inputs$tmb_pars, 
-  tmb_map = comp_inputs$tmb_map, 
-  tmb_random  = comp_inputs$tmb_random,
+  tmb_data = model_inputs$tmb_data, 
+  tmb_pars = model_inputs$tmb_pars, 
+  tmb_map = model_inputs$tmb_map, 
+  tmb_random  = model_inputs$tmb_random,
   model = "integrated",
   fit_random = TRUE
 )
 
 saveRDS(stock_mod$ssdr, 
-        here::here("data", "model_fits", "combined_mvn_121_21_only.rds"))
+        here::here("data", "model_fits", "combined_mvn_mig_corridor.rds"))
 
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 
 ssdr <- readRDS(
-  here::here("data", "model_fits", "combined_mvn_121_21_only.rds"))
+  here::here("data", "model_fits", "combined_mvn_mig_corridor.rds"))
 
 unique(rownames(ssdr))
 
@@ -189,7 +193,7 @@ link_preds <- data.frame(
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
   ) 
 
-stock_seq <- colnames(comp_inputs$tmb_data$Y2_ik)
+stock_seq <- colnames(model_inputs$tmb_data$Y2_ik)
 pred_comp <- purrr::map(stock_seq, function (x) {
   dum <- pred_dat_stock_comp
   dum$stock <- x
@@ -210,11 +214,13 @@ p_ribbon <- p +
               alpha = 0.2)
 
 
+##### TO BE CORRECTED #####
+
 # generate observed proportions
 # number of samples in an event
-long_dat <- comp_inputs$wide_comp_dat %>%
+long_dat <- model_inputs$wide_comp_dat %>%
   mutate(
-    samp_nn = apply(comp_inputs$tmb_data$Y2_ik, 1, sum)) %>%
+    samp_nn = apply(model_inputs$tmb_data$Y2_ik, 1, sum)) %>%
   pivot_longer(cols = c(PSD:`FR-early`), names_to = "stock", 
                values_to = "obs_count") %>% 
   mutate(obs_ppn = obs_count / samp_nn,
@@ -251,7 +257,9 @@ log_abund_preds <- data.frame(
     pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
   ) 
 
-stock_seq2 <- c("total", colnames(comp_inputs$tmb_data$Y2_ik))
+stock_seq2 <- c("total", colnames(model_inputs$tmb_data$Y2_ik))
+
+### CHECK BUGGY ###
 
 pred_abund <- purrr::map(stock_seq2, function (x) {
   dum <- pred_dat_stock_comp
@@ -264,7 +272,7 @@ pred_abund <- purrr::map(stock_seq2, function (x) {
 
 saveRDS(pred_abund, 
         here::here("data", "model_fits", 
-                   "combined_mvn_121_21_only_pred_abund.rds"))
+                   "combined_mvn_mig_corridor.rds"))
 
 q <- ggplot(data = pred_abund, aes(x = month_n)) +
   labs(y = "Predicted Abundance Index", x = "Month") +
