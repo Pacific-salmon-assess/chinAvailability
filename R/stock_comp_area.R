@@ -68,7 +68,7 @@ stock_comp <- comp1 %>%
   droplevels() %>% 
   filter(reg %in% c("JdFS", "SSoG"
                     ),
-         month_n > 3 & month_n < 11) %>% 
+         month_n > 5 & month_n < 10) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg))
 
@@ -78,7 +78,7 @@ catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>%
   filter(!legal == "sublegal",
          reg %in% c("JdFS", "SSoG"
                     ),
-         month_n > 3 & month_n < 11
+         month_n > 5 & month_n < 10
          ) %>% 
   mutate(year = as.factor(year),
          area = as.factor(area),
@@ -186,16 +186,50 @@ model_inputs <- make_inputs(
 # model_inputs$tmb_data$pred_rfac_agg_levels %>% length
 
 
-mod <- fit_model(
-  tmb_data = model_inputs$tmb_data, 
-  tmb_pars = model_inputs$tmb_pars, 
-  tmb_map = model_inputs$tmb_map, 
-  tmb_random  = model_inputs$tmb_random,
-  model = "integrated",
-  fit_random = FALSE
-)
+# mod <- fit_model(
+#   tmb_data = model_inputs$tmb_data, 
+#   tmb_pars = model_inputs$tmb_pars, 
+#   tmb_map = model_inputs$tmb_map, 
+#   tmb_random  = model_inputs$tmb_random,
+#   model = "integrated",
+#   fit_random = TRUE
+# )
+# 
+# ssdr <- mod$ssdr
 
-ssdr <- mod$ssdr
+
+new_map_list <- model_inputs$tmb_pars[names(model_inputs$tmb_pars) %in% model_inputs$tmb_random]
+tmb_map_random <- c(model_inputs$tmb_map, 
+                    map(new_map_list, function (x) factor(rep(NA, length(x))))
+)
+# fit
+# obj1 <- TMB::MakeADFun(
+#   data = tmb_data,
+#   parameters = tmb_pars,
+#   map = tmb_map_random,
+#   DLL = tmb_model
+# )
+# opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
+#                       control = list(eval.max = 1e4, iter.max = 1e4)
+# )
+# sdr <- sdreport(obj1)
+obj <- TMB::MakeADFun(
+  data = model_inputs$tmb_data,
+  # pass parameter inits from above
+  parameters = model_inputs$tmb_pars,#obj1$env$parList(opt1$par),
+  map = model_inputs$tmb_map,
+  random = model_inputs$tmb_random,
+  DLL = "negbin_rsplines_dirichlet_mvn"
+)
+opt <- stats::nlminb(obj$par, obj$fn, obj$gr)
+nlminb_loops = 2
+for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
+  opt <- stats::nlminb(opt$par, obj$fn, obj$gr)
+}
+
+sdr <- sdreport(obj)
+ssdr <- summary(sdr)
+
 
 
 ## total abundance -------------------------------------------------------------
@@ -241,6 +275,7 @@ catch %>%
 ## composition -----------------------------------------------------------------
 
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
+
 
 link_preds <- data.frame(
   link_prob_est = logit_pred_ppn[ , "Estimate"],
