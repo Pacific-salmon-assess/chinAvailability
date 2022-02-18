@@ -4,7 +4,9 @@
 
 library(tidyverse)
 
-## simulate data to check indexing
+
+## SIMULATE --------------------------------------------------------------------
+## simulate data to check indexing 
 dum_c <- data.frame(
   strata = c("x", "y", "z"),
   stock_a = c(0.3, 0.2, 0.7)
@@ -29,10 +31,18 @@ for (i in 1:nrow(dum)) {
 }
 
 
-## example with subsetted data
+## FIT TO JDF ------------------------------------------------------------------
 
+
+# tmb models
 compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
+
+
+# utility functions for prepping smooths 
+source(here::here("R", "functions", "utils.R"))
+# data prep and model fitting functions
+source(here::here("R", "functions", "fit.R"))
 
 
 # pre-cleaning: aggregate at PST, remove sublegals
@@ -56,8 +66,9 @@ stock_comp <- comp1 %>%
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
-  filter(reg %in% c("JdFS"#, "SSoG"
-                    )) %>% 
+  filter(reg %in% c("JdFS", "SSoG"
+                    ),
+         month_n > 3 & month_n < 11) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg))
 
@@ -65,16 +76,14 @@ stock_comp <- comp1 %>%
 # creel coverage patchy so constrain input data to reasonable months
 catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
   filter(!legal == "sublegal",
-         reg %in% c("JdFS"#, "SSoG"
+         reg %in% c("JdFS", "SSoG"
                     ),
-         month_n > 4 & month_n < 10#,
-         # area %in% c("121")
+         month_n > 3 & month_n < 11
          ) %>% 
   mutate(year = as.factor(year),
          area = as.factor(area),
          reg = as.factor(reg),
          offset = log(effort))
-
 
 # prediction datasets 
 pred_dat_comp1 <- group_split(stock_comp, reg) %>%
@@ -152,16 +161,16 @@ pred_dat_catch_obs <- catch %>%
 
 model_inputs <- make_inputs(
   abund_formula = catch ~ 0 + area + 
-    # s(month_n, bs = "tp", k = 4) +
-    s(month_n, by = area, bs = "tp", m = 2, k = 3) +
+    s(month_n, bs = "tp", k = 3) +
+    s(month_n, by = area, bs = "tp", m = 1, k = 3) +
     s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  pred_abund = pred_dat_catch_obs,#pred_dat_catch,
-  comp_formula = coarse_agg ~ #reg + 
-    s(month_n, bs = "cc", k = 4#, by = reg
-                                      ),
+  pred_abund = pred_dat_catch,
+  comp_formula = coarse_agg ~ reg + 
+    s(month_n, bs = "tp", k = 3, by = reg),
+    # s(month_n, bs = "cc", k = 4, by = reg),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
@@ -187,6 +196,46 @@ mod <- fit_model(
 )
 
 ssdr <- mod$ssdr
+
+
+## total abundance -------------------------------------------------------------
+
+# Area abundance 
+log_abund <- ssdr[rownames(ssdr) == "pred_mu1", ]
+
+log_abund_preds_area <- data.frame(
+  link_abund_est = log_abund[ , "Estimate"],
+  link_abund_se =  log_abund[ , "Std. Error"]
+) %>% 
+  mutate(
+    pred_abund_est = exp(link_abund_est),
+    pred_abund_low = exp(link_abund_est + (qnorm(0.025) * link_abund_se)),
+    pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
+  ) 
+
+
+pred_dat_catch %>%
+  cbind(., log_abund_preds_area) %>% 
+  ggplot(data = ., aes(x = month_n)) +
+  labs(y = "Predicted Abundance Index", x = "Month") +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_abund_est, colour = year)) +
+  facet_wrap(~area) #+ 
+  # geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
+  #           alpha = 0.5)
+
+
+catch %>% 
+  mutate(
+    cpue = catch / effort
+  ) %>% 
+  group_by(year, reg, area, month_n) %>% 
+  summarize(
+    mean_cpue = mean(cpue)
+  ) %>% 
+  ggplot(data = ., aes(x = month_n, y = mean_cpue, color = year)) +
+  geom_point() +
+  facet_wrap(~area)
 
 
 ## composition -----------------------------------------------------------------
@@ -244,11 +293,9 @@ purrr::map2(pred_comp, names(pred_comp), function (x, y) {
 
 ## abundance -------------------------------------------------------------------
 
+log_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
 
-## Area abundance 
-log_abund <- ssdr[rownames(ssdr) == "ln_pred_mu1", ]
-
-log_abund_preds_area <- data.frame(
+log_abund_preds <- data.frame(
   link_abund_est = log_abund[ , "Estimate"],
   link_abund_se =  log_abund[ , "Std. Error"]
 ) %>% 
@@ -258,50 +305,21 @@ log_abund_preds_area <- data.frame(
     pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
   ) 
 
+stock_seq2 <- colnames(model_inputs$tmb_data$Y2_ik)
 
-plot(log_abund_preds_area$link_abund_est ~ log(catch$catch))
-abline(1, 1)
-
-
-m1 <- mgcv::gam(catch ~ 0 + area + 
-                  s(month_n, by = area, bs = "tp", m = 2, k = 3) +
-                  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-                  offset,
-                data = catch,
-                family = mgcv::nb()
-)
+pred_abund <- purrr::map(stock_seq2, function (x) {
+  dum <- pred_dat_catch
+  dum$stock <- x
+  return(dum)
+}) %>%
+  bind_rows() %>% 
+  cbind(., log_abund_preds) 
 
 
-# first check against observed
-preds_m1 <- predict.gam(m1,
-                         se.fit = TRUE)
-pred_gam <- preds_m1$fit %>% as.numeric()
-
-plot(pred_gam ~ log(catch$catch))
-abline(1, 1)
-
-
-
-pred_dat_catch %>%
-  cbind(., log_abund_preds_area) %>% 
-  ggplot(data = ., aes(x = month_n)) +
-  labs(y = "Predicted Abundance Index", x = "Month") +
-  ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_abund_est, colour = year)) +
-  facet_wrap(~area) #+ 
-  # geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
-  #             alpha = 0.5)
-
-
-catch %>% 
-  mutate(
-    cpue = catch / effort
-  ) %>% 
-  group_by(year, reg, area, month_n) %>% 
-  summarize(
-    mean_cpue = mean(cpue)
-  ) %>% 
-  ggplot(data = ., aes(x = month_n, y = mean_cpue, color = year)) +
-  geom_point() +
-  facet_wrap(~area)
-  
+ggplot(data = pred_abund, aes(x = month_n)) +
+    labs(y = "Predicted Abundance Index", x = "Month") +
+    facet_grid(area~stock, scales = "free_y") +
+    ggsidekick::theme_sleek() +
+    geom_line(aes(y = pred_abund_est, colour = year))# +
+    # geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
+    #             alpha = 0.5)

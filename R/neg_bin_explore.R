@@ -1,6 +1,7 @@
 ### Random Splines Neg Binomial
 ## Adapt stockseasonr model to account for varying splines among REs 
-## Nov. 12, 2021
+## Feb 18, 2022
+# Updated to focus on area-specific estimates of abundance
 
 library(tidyverse)
 library(mgcv)
@@ -8,25 +9,27 @@ library(TMB)
 library(sdmTMB)
 
 # utility functions for prepping smooths 
-source(here::here("R", "utils.R"))
+source(here::here("R", "functions", "utils.R"))
 
 
-rec_catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
+dat <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
   filter(!legal == "sublegal",
          reg %in% c("JdFS"#, "SSoG"
          ),
          month_n > 4 & month_n < 10) %>% 
-  mutate(year = as.factor(year),
+  mutate(month = as.factor(round(month_n, 0)),
+         year = as.factor(year),
          area = as.factor(area),
          reg = as.factor(reg),
-         offset = log(effort))
+         offset = log(effort),)
 
+mean_eff <- dat %>% 
+  group_by(area, month) %>% 
+  summarize(offset = mean(offset, na.rm = T),
+            .groups = "drop")
 
 ## predicted dataset
-# mean_eff <- rec_catch %>% 
-#   group_by(month, area) %>% 
-#   summarize(offset = log(mean(effort)))
-pred_dat <- group_split(rec_catch, reg) %>%
+new_dat <- group_split(dat, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
       area = unique(x$area),
@@ -38,11 +41,11 @@ pred_dat <- group_split(rec_catch, reg) %>%
     )
   }) %>% 
   left_join(.,
-            rec_catch %>% select(reg, area) %>% distinct(),
+            dat %>% select(reg, area) %>% distinct(),
             by = "area"
   ) %>%
   mutate(strata = paste(month_n, reg, sep = "_"),
-         offset = mean(rec_catch$offset)
+         offset = mean(dat$offset)
          ) %>%
   arrange(reg) %>%
   # convoluted to ensure ordering is correct for key
@@ -54,7 +57,7 @@ pred_dat <- group_split(rec_catch, reg) %>%
     reg_month_year = paste(reg, month_n, year, sep = "_"),
     reg_month_year_f = fct_reorder(factor(reg_month_year), order)
   ) %>%
-  # left_join(., mean_eff, by = c("month", "area")) %>% 
+  # left_join(., mean_eff, by = c("month", "area")) %>%
   select(-order, -reg_month_year, -strata) %>%
   distinct() 
 
@@ -69,67 +72,55 @@ obs_cpue <- dat %>%
 
 ## MGCV VS TMB -----------------------------------------------------------------
 
-new_dat <- pred_dat %>% 
-  filter(
-    area %in% dat$area,
-  ) %>% 
-  droplevels()
-
 
 f1a <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = area) +
+  s(month_n, bs = "tp", k = 3) +
+  s(month_n, bs = "tp", k = 3, by = area, m =  1) +
   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
   #smooth REs can't be readily passed with Anderson's function; code RIs instead
   s(year, bs = "re") + 
   offset(offset)
 f1 <- catch ~ area +
-  s(month_n, bs = "tp", k = 3, by = area) +
+  s(month_n, bs = "tp", k = 3) +
+  s(month_n, bs = "tp", k = 3, by = area, m = 1) +
   s(month_n, by = year, bs = "tp", k = 3, m = 1) +
   offset
 
 
 # fit mgcv for comparison
-m1 <- mgcv::gam(f1,
-                data = dat,
+# m1 <- mgcv::gam(f1,
+#                 data = rec_catch,
+#                 family = mgcv::nb()
+# )
+m1a <- mgcv::gam(f1a,
+                data = rec_catch,
                 family = mgcv::nb()
 )
 
 
 # first check against observed
 preds_m1a <- predict.gam(m1,
-                         # exclude = "s(year)",
+                         exclude = "s(year)",
                          se.fit = TRUE)
 dat$pred_mean <- preds_m1a$fit %>% as.numeric()
 dat$pred_se <- preds_m1a$se.fit %>% as.numeric()
 dat$ln_cpue <- log(dat$catch / dat$effort)
   
-pred_plot <- ggplot() +
+ggplot() +
   geom_abline() +
   facet_wrap(~area) +
-  ggsidekick::theme_sleek()
-pred_plot +
-  geom_point(data = dat, aes(x = ln_cpue, y = pred_mean - offset, 
-                             colour = year))
-pred_plot +
+  ggsidekick::theme_sleek() +
   geom_point(data = dat, aes(x = log(catch), y = pred_mean, 
                              colour = year))
-
-dat %>% 
-  group_by(region, month_n, year) %>% 
-  summarize(sum_catch = sum(catch),
-            sum_eff = sum(eff),
-            ln_cpue = log(sum_catch / sum_eff),
-            sum_pred_catch = sum(exp(pred_mean)),
-            ln_pred_cpue = log(sum_pred_catch / sum_eff),
-            .groups = "drop") %>% 
-  ggplot(.) +
-  geom_point(aes(x = month_n, y = ln_cpue), colour = "black") +
-  geom_point(aes(x = month_n, y = ln_pred_cpue), colour = "red") +
-  facet_grid(year~region) +
+ggplot(dat) +
+  geom_point(aes(x = month_n, y = log(catch)), colour = "black") +
+  geom_point(aes(x = month_n, y = pred_mean), colour = "red") +
+  facet_grid(year~area) +
   ggsidekick::theme_sleek()
 
-# 
-preds_m1 <- predict.gam(m1,
+## MGCV has good performance
+
+preds_m1 <- predict.gam(m1a,
                         new_dat,
                         # exclude = "s(year)",
                         se.fit = TRUE)
@@ -156,6 +147,7 @@ ggplot() +
   ggsidekick::theme_sleek()
 
 
+##
 # generate model matrices
 formula_no_sm <- remove_s_and_t2(f1)
 X_ij <- model.matrix(formula_no_sm, data = dat)
@@ -210,13 +202,13 @@ tmb_map <- list(b1_j = as.factor(b1_j_map))
 # define random parameters
 tmb_random <- c("b_smooth", "a1")
 
-compile(here::here("src", "negbin_rsplines_rint_v1.cpp"))
-dyn.load(dynlib(here::here("src", "negbin_rsplines_rint_v1")))
+compile(here::here("src", "negbin_rsplines.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines")))
 
 obj <- MakeADFun(data, pars, 
                  map = tmb_map,
                  random = tmb_random,
-                 DLL = "negbin_rsplines_rint_v1")
+                 DLL = "negbin_rsplines")
 opt <- nlminb(obj$par, obj$fn, obj$gr)
 sdr <- sdreport(obj)
 ssdr <- summary(sdr)
@@ -224,18 +216,18 @@ ssdr <- summary(sdr)
 saveRDS(ssdr, here::here("data", "model_fits", "negbin_rsmooths.rds"))
 
 
-tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Estimate"]
-tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_eff"), "Std. Error"]
+tmb_pred <- ssdr[rownames(ssdr) %in% c("pred_mu1"), "Estimate"]
+tmb_pred_se <- ssdr[rownames(ssdr) %in% c("pred_mu1"), "Std. Error"]
 
 
 # slight deviation is due to RIs in TMB coded as random walk
-# new_dat %>% 
-#   mutate(tmb = tmb_pred,
-#          gam = as.numeric(preds_m1$fit)
-#          ) %>% 
-#   ggplot(.) +
-#   geom_point(aes(x = tmb, y = gam, col = region)) +
-#   geom_abline(slope = 1, intercept = 0)
+new_dat %>%
+  mutate(tmb = tmb_pred,
+         gam = as.numeric(preds_m1$fit)
+         ) %>%
+  ggplot(.) +
+  geom_point(aes(x = tmb, y = gam, col = area)) +
+  geom_abline(slope = 1, intercept = 0)
 
 
 ## look at predictions for areas and regions
@@ -250,43 +242,43 @@ ggplot() +
   ggsidekick::theme_sleek()
 
 
-tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Estimate"]
-tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Std. Error"]
-new_dat_region <- new_dat %>% 
-  select(month_n, region, year, offset, month, reg_month_year_f) %>% 
-  distinct()
-pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region, 
-                                    fit_vec = tmb_pred_region,
-                                    se_vec = tmb_pred_se_region)
-
-ggplot() +
-  geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
-  geom_ribbon(data = pred_dat_tmb_region,
-              aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
-                  colour = year),
-              alpha = 0.2) +
-  facet_wrap(~region) +
-  ggsidekick::theme_sleek()
-
-
-
-
-ggplot() +
-  geom_line(data = pred_dat_tmb_region, 
-            aes(x = month_n, y = link_fit - unique(pred_dat$offset), 
-                colour = year)) +
-  geom_point(data = obs_cpue,
-              aes(x = month_n, y = ln_cpue, colour = year),
-              alpha = 0.4) +
-  facet_wrap(~region) +
-  ggsidekick::theme_sleek()
-
-
-
-dat %>% 
-  mutate(cpue = catch / eff) %>% 
-  ggplot(., aes(x = month_n)) +
-  labs(y = "CPUE", x = "Month") +
-  facet_grid(area~year, scales = "free_y") +
-  ggsidekick::theme_sleek() +
-  geom_bar(aes(y = cpue, fill = region), stat = "identity") 
+# tmb_pred_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Estimate"]
+# tmb_pred_se_region <- ssdr[rownames(ssdr) %in% c("ln_pred_eff_cumsum"), "Std. Error"]
+# new_dat_region <- new_dat %>% 
+#   select(month_n, region, year, offset, month, reg_month_year_f) %>% 
+#   distinct()
+# pred_dat_tmb_region <- calc_ribbons(pred_dat = new_dat_region, 
+#                                     fit_vec = tmb_pred_region,
+#                                     se_vec = tmb_pred_se_region)
+# 
+# ggplot() +
+#   geom_line(data = pred_dat_tmb_region, aes(x = month_n, y = fit, colour = year)) +
+#   geom_ribbon(data = pred_dat_tmb_region,
+#               aes(x = month_n, ymin = fit_lo, ymax = fit_up, fill = year,
+#                   colour = year),
+#               alpha = 0.2) +
+#   facet_wrap(~region) +
+#   ggsidekick::theme_sleek()
+# 
+# 
+# 
+# 
+# ggplot() +
+#   geom_line(data = pred_dat_tmb_region, 
+#             aes(x = month_n, y = link_fit - unique(pred_dat$offset), 
+#                 colour = year)) +
+#   geom_point(data = obs_cpue,
+#               aes(x = month_n, y = ln_cpue, colour = year),
+#               alpha = 0.4) +
+#   facet_wrap(~region) +
+#   ggsidekick::theme_sleek()
+# 
+# 
+# 
+# dat %>% 
+#   mutate(cpue = catch / eff) %>% 
+#   ggplot(., aes(x = month_n)) +
+#   labs(y = "CPUE", x = "Month") +
+#   facet_grid(area~year, scales = "free_y") +
+#   ggsidekick::theme_sleek() +
+#   geom_bar(aes(y = cpue, fill = region), stat = "identity") 

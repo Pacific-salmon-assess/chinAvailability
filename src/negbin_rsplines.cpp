@@ -121,7 +121,6 @@ Type objective_function<Type>::operator() ()
   // PREDICTIONS ---------------------------------------------------------------
 
   vector<Type> pred_mu1 = pred_X1_ij * b1_j;
-  vector<Type> ln_pred_mu1(n_predX1);
 
   // smoothers
   vector<Type> pred_smooth_i(n_predX1);
@@ -144,12 +143,10 @@ Type objective_function<Type>::operator() ()
   // add random intercepts 
   for (int i = 0; i < n_predX1; i++) {
     pred_mu1(i) += a1(pred_rfac1(i));
-    ln_pred_mu1(i) = log(pred_mu1(i));
   }
 
   REPORT(pred_mu1);
   ADREPORT(pred_mu1);
-  ADREPORT(ln_pred_mu1);
 
 
   // Calculate predicted abundance based on higher level groupings

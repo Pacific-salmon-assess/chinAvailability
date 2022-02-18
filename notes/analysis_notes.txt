@@ -1,15 +1,17 @@
 Notes for Chinook availability project
 
 Feb. 16, 2022
-
 - Considerable variation in stock composition among areas within region, as well as variation in temporal sampling coverage (see figs/data_coverage/ directory). Ideally model with hierarchical GAMs. Alternatively consider restratifying to "subregions" using cluster analysis.
 - Coverage at beginning/end of the year very sparse; consider truncating to March-Sep for SSoG and JdFS if convergence issues pronounced
 - Issues with estimating abundance at year end; restrict catch data to be only in peak periods (non-cyclic); similarly for GSI, fit model to full dataset but constrain predictions to months with catch data
 
 
 Feb. 17, 2022
-
 - Why does fit random = FALSE still produce interannual variability in predictions?
 - Switch model from summing aggregates to flexibly producing predictions based on minimum scale of data (original is negbin_rsplines_dirichlet_mvn_cumsum)
 - Issues with negbin component when generating area predictions
+
+
+Feb. 18, 2022
+-Confirmed negbin component functional with areas; bug due to double-logging predictions; remember moderate differences between mgcv expected due to RIs being fit!
 

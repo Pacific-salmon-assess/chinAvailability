@@ -202,7 +202,6 @@ Type objective_function<Type>::operator() ()
 
   // Predicted abundance
   vector<Type> pred_mu1 = pred_X1_ij * b1_j;
-  vector<Type> ln_pred_mu1(n_predX1);
 
   // smoothers
   vector<Type> pred_smooth_i(n_predX1);
@@ -225,12 +224,10 @@ Type objective_function<Type>::operator() ()
   // add random intercepts 
   for (int i = 0; i < n_predX1; i++) {
     pred_mu1(i) += a1(pred_rfac1(i));
-    ln_pred_mu1(i) = log(pred_mu1(i));
   }
 
   REPORT(pred_mu1);
   ADREPORT(pred_mu1);
-  ADREPORT(ln_pred_mu1);
 
 
   // Predicted aggregate abundance
@@ -299,14 +296,15 @@ Type objective_function<Type>::operator() ()
   //   }
   // }
   // matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
-  
+
+  vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
   matrix<Type> pred_mu1_Pi(n_predX1, n_cat);
   
   // multiply each area-specific prediction by the associated region-specific 
   // comp prediction
   for (int i = 0; i < n_predX1; i++) {
     for (int k = 0; k < n_cat; k++) {
-      pred_mu1_Pi(i, k) = pred_mu1(i) * pred_Pi_prop(pred_rfac_agg(i), k);
+      pred_mu1_Pi(i, k) = exp_pred_mu1(i) * pred_Pi_prop(pred_rfac_agg(i), k);
     }
   }
   matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
