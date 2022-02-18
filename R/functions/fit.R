@@ -189,7 +189,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       model = c("negbin", "dirichlet", "integrated"),
-                      fit_random = TRUE) {
+                      fit_random = TRUE, ignore_fix = FALSE) {
   
   if (model == "negbin") tmb_model <- "negbin_rsplines"
   if (model == "dirichlet") tmb_model <- "dirichlet_mvn"
@@ -197,28 +197,37 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
   
   ## fit fixed effects only 
   # map random effects
-  new_map_list <- tmb_pars[names(tmb_pars) %in% tmb_random]
-  tmb_map_random <- c(tmb_map, 
-                      map(new_map_list, function (x) factor(rep(NA, length(x))))
-  )
-  # fit
-  obj1 <- TMB::MakeADFun(
-    data = tmb_data,
-    parameters = tmb_pars,
-    map = tmb_map_random,
-    DLL = tmb_model
-  )
-  opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
-                        control = list(eval.max = 1e4, iter.max = 1e4)
-  )
-  sdr <- sdreport(obj1)
+  if (ignore_fix == FALSE) {
+    new_map_list <- tmb_pars[names(tmb_pars) %in% tmb_random]
+    tmb_map_random <- c(tmb_map, 
+                        map(new_map_list, function (x) factor(rep(NA, length(x))))
+    )
+    # fit
+    obj1 <- TMB::MakeADFun(
+      data = tmb_data,
+      parameters = tmb_pars,
+      map = tmb_map_random,
+      DLL = tmb_model
+    )
+    opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
+                          control = list(eval.max = 1e4, iter.max = 1e4)
+    )
+    sdr <- sdreport(obj1)
+  }
   
   ## fit with random effects 
   if (fit_random) {
+
+    # pass parameter inits from above unless specified otherwise
+    if (ignore_fix == TRUE) {
+      pars_in <- tmb_pars   
+    } else {
+      pars_in <- obj1$env$parList(opt1$par)
+    } 
+    
     obj <- TMB::MakeADFun(
       data = tmb_data,
-      # pass parameter inits from above
-      parameters = obj1$env$parList(opt1$par),
+      parameters = pars_in,#obj1$env$parList(opt1$par),
       map = tmb_map,
       random = tmb_random,
       DLL = tmb_model
@@ -237,4 +246,3 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
   
   return(list(sdr = sdr, ssdr = ssdr))
 }
-
