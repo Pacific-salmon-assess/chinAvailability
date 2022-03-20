@@ -25,46 +25,35 @@ dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
 # DATA CLEAN -------------------------------------------------------------------
 
-# old data using in chin dist analysis
-# stock_comp_old <- readRDS(
-#   here::here("data", "rec", "old", "coarse_rec_comp.rds")) %>%
-  # filter(region %in% c("SSoG", "JdFS"),
-  #        month %in% c("6", "8"),
-  #        year %in% c("2016", "2018")) %>%
-  # droplevels() %>%
-  # rename(prob = agg_prob)
-
-# catch_old <- readRDS(
-#   here::here("data", "rec", "old", "month_area_recCatch_clean.rds")) %>%
-  # filter(region %in% c("SSoG", "JdFS"),
-  #        month %in% c("6", "8"),
-  #        year %in% c("2016", "2018")) %>%
-  # droplevels()
-# model predictions are sensitive to regions included because information is 
-# shared among smooths; remove northern regions
-
-
 # pre-cleaning: aggregate at PST, remove sublegals
 comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   filter(!legal == "sublegal") %>% 
-  mutate(reg = abbreviate(cap_region, minlength = 4),
-         yday = lubridate::yday(date),
-         month_n = lubridate::month(date),
-         sample_id = paste(month_n, reg, yday, year, sep = "_")) %>% 
+  mutate(
+    reg = abbreviate(cap_region, minlength = 4),
+    yday = lubridate::yday(date),
+    month_n = lubridate::month(date),
+    sample_id = paste(month_n, reg, yday, year, sep = "_"),
+    pst_agg = case_when(
+      pst_agg %in% c("CA_ORCST", "CR-lower_sp", "CR-upper_sp", "CR-upper_su/fa",
+                     "NBC_SEAK", "WACST") ~ "other",
+      TRUE ~ pst_agg
+    )
+  ) %>% 
   group_by(sample_id) %>% 
   mutate(
     nn = length(unique(id))
   ) %>% 
   ungroup()
 stock_comp <- comp1 %>%  
-  group_by(sample_id, reg, reg_c = cap_region, month, month_n, year, nn, 
+  group_by(sample_id, area, reg, reg_c = cap_region, month, month_n, year, nn, 
            pst_agg) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
   filter(reg %in% c("JdFS", "SSoG")) %>% 
   mutate(year = as.factor(year),
-         reg = as.factor(reg))
+         reg = as.factor(reg),
+         area = as.factor(area))
 
 
 # creel coverage patchy so constrain input data to reasonable months
@@ -79,6 +68,10 @@ catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>%
 
 
 # prediction datasets 
+area_key <- stock_comp %>% 
+  select(area, reg) %>% 
+  distinct()
+
 pred_dat_comp1 <- group_split(stock_comp, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
@@ -94,6 +87,8 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
     reg_month_year = paste(reg, month_n, year, sep = "_"),
     key_var = as.factor(reg_month_year)
   )
+
+
 
 pred_dat_catch <- group_split(catch, reg) %>%
   map_dfr(., function(x) {
@@ -134,9 +129,9 @@ pred_dat_catch <- group_split(catch, reg) %>%
   rename(key_var = reg_month_year_f) %>% 
   droplevels()
 
-ggplot(pred_dat_catch) +
-  geom_point(aes(x = month_n, y = area)) +
-  facet_wrap(~reg)
+# ggplot(pred_dat_catch) +
+#   geom_point(aes(x = month_n, y = area)) +
+#   facet_wrap(~reg)
 
 # subset predicted composition dataset to match pred_dat_catch since fitting 
 # data can be more extensive
@@ -146,18 +141,36 @@ pred_dat_stock_comp <- pred_dat_comp1 %>%
   arrange(reg, year, month_n) %>% 
   droplevels()
 
+stock_comp %>% 
+  group_by(reg) %>% 
+  summarize(
+    min_m = min(month_n),
+    max_m = max(month_n)
+  )
+
+
+
+## RAW OBSERVATIONS ------------------------------------------------------------
+
+catch %>% 
+  mutate(cpue = catch / effort) %>% 
+  ggplot(.) +
+  geom_point(aes(x = month, y = cpue, fill = region), shape = 21) +
+  facet_wrap(~area, scales = "free_y")
+
 
 ## FIT -------------------------------------------------------------------------
 
 model_inputs <- make_inputs(
   abund_formula = catch ~ 0 + area + 
-    s(month_n, bs = "tp", k = 3, by = reg) +
+    s(month_n, bs = "tp", k = 3, by = area) +
     s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
   pred_abund = pred_dat_catch,
-  comp_formula = pst_agg ~ reg + s(month_n, bs = "cc", k = 4, by = reg),
+  comp_formula = pst_agg ~ area + 
+    s(month_n, bs = "cc", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
@@ -285,7 +298,7 @@ saveRDS(pred_abund,
 abund_plots <- purrr::map2(pred_abund, names(pred_abund), function (x, y) {
   q <- ggplot(data = x, aes(x = month_n)) +
     labs(y = "Predicted Abundance Index", x = "Month") +
-    facet_wrap(~stock, scales = "free_y") +
+    facet_grid(area~stock, scales = "free_y") +
     ggsidekick::theme_sleek() +
     geom_line(aes(y = pred_abund_est, colour = year)) +
     labs(title = y)

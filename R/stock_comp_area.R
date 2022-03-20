@@ -1,6 +1,7 @@
 ## Fit stock-comp model to generate area-level predictions assuming 
 # homogeneous composition within a region
 # Feb 17, 2022
+# DEFUNCT NOW THAT RIs FOR AREA ESTIMATED (see dirichlet_explore.R for details)
 
 library(tidyverse)
 library(TMB)
