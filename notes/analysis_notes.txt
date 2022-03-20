@@ -13,5 +13,6 @@ Feb. 17, 2022
 
 
 Feb. 18, 2022
--Confirmed negbin component functional with areas; bug due to double-logging predictions; remember moderate differences between mgcv expected due to RIs being fit!
+- Confirmed negbin component functional with areas; bug due to double-logging predictions; remember moderate differences between mgcv expected due to RIs being fit
+- Rediscovered issue where convergence fails when fixed effects used as inits; adjust model_fit function accordingly
 

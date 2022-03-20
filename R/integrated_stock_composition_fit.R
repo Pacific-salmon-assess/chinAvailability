@@ -134,6 +134,9 @@ pred_dat_catch <- group_split(catch, reg) %>%
   rename(key_var = reg_month_year_f) %>% 
   droplevels()
 
+ggplot(pred_dat_catch) +
+  geom_point(aes(x = month_n, y = area)) +
+  facet_wrap(~reg)
 
 # subset predicted composition dataset to match pred_dat_catch since fitting 
 # data can be more extensive
@@ -246,12 +249,14 @@ p_obs <- p +
 ## Predicted Abundance
 
 ## aggregate (i.e. total)
-log_agg_abund <- ssdr[rownames(ssdr) == "ln_pred_mu1_cumsum", ]
+# log_agg_abund <- ssdr[rownames(ssdr) == "ln_pred_mu1_cumsum", ]
 log_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
 
 log_abund_preds <- data.frame(
-  link_abund_est = c(log_agg_abund[ , "Estimate"], log_abund[ , "Estimate"]),
-  link_abund_se =  c(log_agg_abund[ , "Std. Error"], log_abund[ , "Std. Error"])
+  link_abund_est = c(#log_agg_abund[ , "Estimate"], 
+    log_abund[ , "Estimate"]),
+  link_abund_se =  c(#log_agg_abund[ , "Std. Error"], 
+    log_abund[ , "Std. Error"])
 ) %>% 
   mutate(
     pred_abund_est = exp(link_abund_est),
@@ -259,10 +264,11 @@ log_abund_preds <- data.frame(
     pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
   ) 
 
-stock_seq2 <- c("total", colnames(model_inputs$tmb_data$Y2_ik))
+stock_seq2 <- c(#"total", 
+  colnames(model_inputs$tmb_data$Y2_ik))
 
 pred_abund <- purrr::map(stock_seq2, function (x) {
-  dum <- pred_dat_stock_comp
+  dum <- pred_dat_catch
   dum$stock <- x
   return(dum)
 }) %>%

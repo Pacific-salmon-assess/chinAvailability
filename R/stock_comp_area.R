@@ -172,7 +172,6 @@ model_inputs <- make_inputs(
   pred_abund = pred_dat_catch,
   comp_formula = pst_agg ~ reg + 
     s(month_n, bs = "tp", k = 4, by = reg),
-    # s(month_n, bs = "cc", k = 4, by = reg),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
