@@ -22,3 +22,5 @@ March 20, 2022
 - Composition component may require pooling less common stocks for convergence (see dirichlet_explore.R)
 - Compositon fits look reasonable (note that predictions include a subset of data and are influenced by full dataset, hence why full 12 month cycle can be estimated)
 
+March 28, 2022 
+- Shift development to cam-dev branch of stockseasonr

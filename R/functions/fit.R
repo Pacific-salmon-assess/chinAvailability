@@ -8,7 +8,7 @@
 
 # Dev TO DO:
 # 1) Make aggregate levels flexible (i.e. turn on/off based on input data)
-# 2) Make RE intercepts flexible
+# 2) Make RE intercepts flexible (i.e. turn on/off or remove MVN component)
 # 3) Map 0 observations in composition component
 # 4) Combine cpp scripts into one with conditionals (may not be worthwhile...)
 

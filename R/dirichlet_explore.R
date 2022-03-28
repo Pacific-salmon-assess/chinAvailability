@@ -75,27 +75,24 @@ area_key <- stock_comp %>%
   select(area, reg) %>% 
   distinct()
 
-# subset predicted composition dataset to match pred_dat_catch since fitting 
-# data can be more extensive
+# subset predicted composition dataset
 pred_dat_stock_comp <- pred_dat_comp1 %>% 
   arrange(reg, year, month_n) %>% 
-  droplevels() %>% 
-  left_join(., area_key, by = "reg") %>%
-  filter(area %in% c("121", "21", "20", "19JdF", "19GST", "20W", "18"),
-         month_n < 9.1 & month_n > 4.9) 
+  droplevels() #%>% 
+  # left_join(., area_key, by = "reg") %>%
+  # filter(area %in% c("121", "21", "20", "19JdF", "19GST", "20W", "18"),
+  #        month_n < 9.1 & month_n > 4.9) 
 
+# pred_dat_stock_comp2 <- pred_dat_stock_comp %>% 
+#   mutate(key_var = paste(reg, month_n, sep = "_")) %>% 
+#   select(-c(year, reg_month_year)) %>% 
+#   distinct() %>% 
+#   glimpse()
 
 ## FIT MODEL -------------------------------------------------------------------
 
 model_inputs <- make_inputs(
-  # abund_formula = catch ~ 0 + area + 
-  #   s(month_n, bs = "tp", k = 3, by = area) +
-  #   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-  #   offset,
-  # abund_dat = catch,
-  # abund_rint = "year",
-  # pred_abund = pred_dat_catch,
-  comp_formula = pst_agg ~ area + 
+  comp_formula = pst_agg ~ reg + 
     s(month_n, bs = "cc", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
@@ -117,12 +114,32 @@ saveRDS(stock_mod$ssdr,
         here::here("data", "model_fits", 
                    "dirichlet_area_int_mvn_mig_corridor.rds"))
 
+# fit second model without RE predictions for comparison
+# model_inputs2 <- make_inputs(
+#   comp_formula = pst_agg ~ reg + 
+#     s(month_n, bs = "cc", k = 4, by = reg, m = 2),
+#   comp_dat = stock_comp,
+#   comp_rint = "year",
+#   pred_comp = pred_dat_stock_comp2,
+#   model = "dirichlet"
+# )
+# 
+# stock_mod2 <- fit_model(
+#   tmb_data = model_inputs2$tmb_data, 
+#   tmb_pars = model_inputs2$tmb_pars, 
+#   tmb_map = model_inputs2$tmb_map, 
+#   tmb_random  = model_inputs2$tmb_random,
+#   model = "dirichlet",
+#   fit_random = TRUE,
+#   ignore_fix = TRUE
+# )
+
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 
 ssdr <- stock_mod$ssdr
-ssdr <- readRDS(
-  here::here("data", "model_fits", "dirichlet_mvn_mig_corridor.rds"))
+# ssdr <- readRDS(
+#   here::here("data", "model_fits", "dirichlet_mvn_mig_corridor.rds"))
 
 unique(rownames(ssdr))
 
