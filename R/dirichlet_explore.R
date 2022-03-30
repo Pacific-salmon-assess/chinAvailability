@@ -9,11 +9,12 @@ library(tidyverse)
 library(TMB)
 
 
-# tmb models
-# compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
-# dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
+# tmb models - use MVN if time-varying predictions are required, use RI if 
+# generating predictions for "average" year
 compile(here::here("src", "dirichlet_mvn.cpp"))
 dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
+compile(here::here("src", "dirichlet_ri.cpp"))
+dyn.load(dynlib(here::here("src", "dirichlet_ri")))
 
 
 # utility functions for prepping smooths 
@@ -31,9 +32,17 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     month_n = lubridate::month(date),
     sample_id = paste(month_n, reg, yday, year, sep = "_"),
     pst_agg = case_when(
-      pst_agg %in% c("CA_ORCST", "CR-lower_sp", "CR-upper_sp", "CR-upper_su/fa",
+      pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa") ~ "CR-fa",
+      pst_agg %in% c("CA_ORCST", "CR-lower_sp", "CR-upper_sp", 
                      "NBC_SEAK", "WACST") ~ "other",
       TRUE ~ pst_agg
+    ),
+    #rename specific areas to match catch data
+    area = case_when(
+      area %in% c("20E", "20W") ~ "20",
+      area == "19JDF" ~ "19_JdFS",
+      area == "19GST" ~ "19_SSoG",
+      TRUE ~ area
     )
   ) %>% 
   group_by(sample_id) %>% 
@@ -45,7 +54,8 @@ stock_comp <- comp1 %>%
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
-  filter(reg %in% c("JdFS", "SSoG")) %>% 
+  filter(reg %in% c("JdFS", "SSoG"),
+         month_n < 10.1 & month_n > 1.9) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg),
          area = as.factor(area),
@@ -63,11 +73,11 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
       ),
       year = unique(x$year)
     )
-  }) %>% 
-  mutate(
-    reg_month_year = paste(reg, month_n, year, sep = "_"),
-    key_var = as.factor(reg_month_year)
-  )
+  }) #%>% 
+  # mutate(
+  #   reg_month_year = paste(reg, month_n, year, sep = "_"),
+  #   key_var = as.factor(reg_month_year)
+  # )
 
 
 # add areas to composition dataset
@@ -77,27 +87,37 @@ area_key <- stock_comp %>%
 
 # subset predicted composition dataset
 pred_dat_stock_comp <- pred_dat_comp1 %>% 
-  arrange(reg, year, month_n) %>% 
-  droplevels() #%>% 
-  # left_join(., area_key, by = "reg") %>%
-  # filter(area %in% c("121", "21", "20", "19JdF", "19GST", "20W", "18"),
-  #        month_n < 9.1 & month_n > 4.9) 
+  # arrange(reg, year, month_n) %>% 
+  # droplevels() #%>% 
+  left_join(., area_key, by = "reg") %>%
+  filter(area %in% c("121", "21", "20", "19_JdFS", "19_SSoG", "18"),
+         month_n < 9.1 & month_n > 4.9)
 
-# pred_dat_stock_comp2 <- pred_dat_stock_comp %>% 
-#   mutate(key_var = paste(reg, month_n, sep = "_")) %>% 
-#   select(-c(year, reg_month_year)) %>% 
-#   distinct() %>% 
+# pred_dat_stock_comp2 <- pred_dat_stock_comp %>%
+#   mutate(key_var = paste(reg, month_n, sep = "_")) %>%
+#   select(-c(year, reg_month_year)) %>%
+#   distinct() %>%
 #   glimpse()
+
+stock_comp %>% 
+  select(sample_id, year, reg, area, month_n, nn) %>% 
+  distinct() %>% 
+  ggplot() +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg),
+              alpha = 0.3, width = 0.25) +
+  facet_wrap(~area)
+
 
 ## FIT MODEL -------------------------------------------------------------------
 
 model_inputs <- make_inputs(
-  comp_formula = pst_agg ~ reg + 
-    s(month_n, bs = "cc", k = 4, by = reg, m = 2),
+  comp_formula = pst_agg ~ area + 
+    s(month_n, bs = "tp", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_comp = pred_dat_stock_comp,
-  model = "dirichlet"
+  model = "dirichlet",
+  include_re_preds = TRUE
 )
 
 stock_mod <- fit_model(
@@ -107,12 +127,13 @@ stock_mod <- fit_model(
   tmb_random  = model_inputs$tmb_random,
   model = "dirichlet",
   fit_random = TRUE,
-  ignore_fix = TRUE
+  ignore_fix = TRUE,
+  include_re_preds = TRUE
 )
 
 saveRDS(stock_mod$ssdr, 
         here::here("data", "model_fits", 
-                   "dirichlet_area_int_mvn_mig_corridor.rds"))
+                   "dirichlet_area_mvn_mig_corridor.rds"))
 
 # fit second model without RE predictions for comparison
 # model_inputs2 <- make_inputs(
@@ -165,23 +186,24 @@ pred_comp <- purrr::map(stock_seq, function (x) {
 }) %>%
   bind_rows() %>%
   cbind(., link_preds) %>% 
-  split(., .$reg)
+  # split(., .$reg)
+  mutate(area_f = fct_reorder(as.factor(area), as.numeric(reg)))
 
-comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
-  p <- ggplot(data = x, aes(x = month_n)) +
+# comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
+  p <- ggplot(data = pred_comp, aes(x = month_n)) +
     labs(y = "Predicted Stock Proportion", x = "Month") +
-    facet_grid(area~stock) +
+    facet_grid(area_f~stock) +
     ggsidekick::theme_sleek() +
-    geom_line(aes(y = pred_prob_est, colour = year)) +
-    labs(title = y)
+    geom_line(aes(y = pred_prob_est, colour = year)) #+
+    # labs(title = y)
   
   p_ribbon <- p +
-    geom_ribbon(data = x,
+    geom_ribbon(data = pred_comp,
                 aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
                 alpha = 0.2)
   
-  list(p, p_ribbon)
-})
+  # list(p, p_ribbon)
+# })
 
 pdf(here::here("figs", "jdf_area_preds", "stock_comp_area_preds.pdf"))
 comp_plots

@@ -38,12 +38,18 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
                         abund_dat = NULL, comp_dat = NULL,
                         abund_rint = NULL, comp_rint = NULL,
                         pred_abund = NULL, pred_comp = NULL,
-                        model = c("negbin", "dirichlet", "integrated")) {
+                        model = c("negbin", "dirichlet", "integrated"),
+                        include_re_preds = FALSE) {
   
   # make sure necessary components are present
   if (model %in% c("dirichlet", "integrated") & is.null(comp_dat) | 
       model %in% c("dirichlet", "integrated") & is.null(pred_comp)) {
     stop("Missing model inputs to fit integrated model")
+  }
+  
+  if (model %in% c("dirichlet", "integrated") & is.null(comp_dat$prob)) {
+    stop("Composition data not identified. Name vector in comp_dat 'prob' to 
+         indicate proportions data.")
   }
   
   # initialize empty lists to fill with data and initial parameters
@@ -145,7 +151,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     # NOTE: REPLACE WITH FLEXIBLE STRUCTURE WHEN NULL
     rfac2 <- as.numeric(as.factor(as.character(comp_wide[[comp_rint]]))) - 1
     n_rint2 <- length(unique(rfac2))
-    pred_rfac2 <- as.numeric(pred_comp[[comp_rint]]) - 1
     
     #make composition tmb inputs 
     comp_tmb_data <- list(
@@ -153,8 +158,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       X2_ij = X2_ij,
       rfac2 = rfac2,
       n_rfac2 = n_rint2,
-      pred_X2_ij = pred_X2_ij,
-      pred_rfac2 = pred_rfac2
+      pred_X2_ij = pred_X2_ij
     )
     tmb_data <- c(tmb_data, comp_tmb_data)
     
@@ -163,20 +167,39 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
                      nrow = ncol(X2_ij),
                      ncol = ncol(obs_comp)
       ),
-      # mvn matrix of REs
-      A2_hk = matrix(rnorm(n_rint2 * ncol(obs_comp), 0, 0.5), 
-                     nrow = n_rint2,
-                     ncol = ncol(obs_comp)
-      ),
       ln_sigma_A2 = log(0.25)
     )
     tmb_pars <- c(tmb_pars, comp_tmb_pars)
     
-    tmb_random <- c(tmb_random, "A2_hk")
+    # adjust data and paramets when RI predictions being made
+    if (include_re_preds == TRUE) {
+      #vector of predicted random intercepts
+      pred_rand_ints <- list(
+        pred_rfac2 = as.numeric(pred_comp[[comp_rint]]) - 1
+      )
+      # mvn matrix of REs
+      mvn_rand_inits <- list(
+        A2_hk = matrix(rnorm(n_rint2 * ncol(obs_comp), 0, 0.5), 
+                       nrow = n_rint2,
+                       ncol = ncol(obs_comp))
+      )
+      
+      tmb_data <- c(tmb_data, pred_rand_ints)
+      tmb_pars <- c(tmb_pars, mvn_rand_inits)
+      tmb_random <- c(tmb_random, "A2_hk")
+    } else if (include_re_preds == FALSE) {
+      # vector of random intercepts
+      rand_inits <- list(
+        A2_h = rnorm(n_rint2, 0, 0.5)
+      )
+      
+      tmb_pars <- c(tmb_pars, rand_inits)
+      tmb_random <- c(tmb_random, "A2_h")
+    }
   }
   
   out_list <- list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
-       tmb_random = tmb_random)
+                   tmb_random = tmb_random)
   if (model %in% c("dirichlet", "integrated")) {
     out_list <- c(out_list, list(wide_comp_dat = comp_wide))
   }
@@ -189,18 +212,28 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       model = c("negbin", "dirichlet", "integrated"),
-                      fit_random = TRUE, ignore_fix = FALSE) {
+                      fit_random = TRUE, ignore_fix = FALSE,
+                      include_re_preds = FALSE) {
   
   if (model == "negbin") tmb_model <- "negbin_rsplines"
-  if (model == "dirichlet") tmb_model <- "dirichlet_mvn"
-  if (model == "integrated") tmb_model <- "negbin_rsplines_dirichlet_mvn"
-  
+  # use MVN model if random effects predictions necessary
+  if (model == "dirichlet") {
+    tmb_model <- ifelse(include_re_preds == FALSE,
+                        "dirichlet_ri",
+                        "dirichlet_mvn")
+  }
+  if (model == "integrated") {
+    tmb_model <- ifelse(include_re_preds == FALSE,
+                        "negbin_rsplines_dirichlet_ri",
+                        "negbin_rsplines_dirichlet_mvn")
+  }
   ## fit fixed effects only 
   # map random effects
   if (ignore_fix == FALSE) {
     new_map_list <- tmb_pars[names(tmb_pars) %in% tmb_random]
-    tmb_map_random <- c(tmb_map, 
-                        map(new_map_list, function (x) factor(rep(NA, length(x))))
+    tmb_map_random <- c(
+      tmb_map,
+      map(new_map_list, function (x) factor(rep(NA, length(x))))
     )
     # fit
     obj1 <- TMB::MakeADFun(
@@ -217,7 +250,6 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
   
   ## fit with random effects 
   if (fit_random) {
-
     # pass parameter inits from above unless specified otherwise
     if (ignore_fix == TRUE) {
       pars_in <- tmb_pars   
