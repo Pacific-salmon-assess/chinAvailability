@@ -15,10 +15,6 @@ source(here::here("R", "functions", "fit.R"))
 
 
 # relevant TMB models
-# compile(here::here("src", "negbin_rsplines.cpp"))
-# dyn.load(dynlib(here::here("src", "negbin_rsplines")))
-compile(here::here("src", "dirichlet_mvn.cpp"))
-dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
 compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 
@@ -34,7 +30,8 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     month_n = lubridate::month(date),
     sample_id = paste(month_n, reg, yday, year, sep = "_"),
     pst_agg = case_when(
-      pst_agg %in% c("CA_ORCST", "CR-lower_sp", "CR-upper_sp", "CR-upper_su/fa",
+      pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa") ~ "CR-fa",
+      pst_agg %in% c("CA_ORCST", "CR-lower_sp", "CR-upper_sp", 
                      "NBC_SEAK", "WACST") ~ "other",
       TRUE ~ pst_agg
     ),
@@ -47,9 +44,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     )
   ) %>% 
   group_by(sample_id) %>% 
-  mutate(
-    nn = length(unique(id))
-  ) %>% 
+  mutate(nn = length(unique(id))) %>% 
   ungroup()
 stock_comp <- comp1 %>%  
   group_by(sample_id, area, reg, reg_c = cap_region, month, month_n, year, nn, 
@@ -57,11 +52,12 @@ stock_comp <- comp1 %>%
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
-  filter(reg %in% c("JdFS", "SSoG")) %>% 
+  filter(reg %in% c("JdFS", "SSoG"),
+         month_n < 10.1 & month_n > 1.9) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg),
-         area = as.factor(area))
-
+         area = as.factor(area),
+  )
 
 # creel coverage patchy so constrain input data to reasonable months
 catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
@@ -74,87 +70,21 @@ catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>%
          offset = log(effort))
 
 
-# prediction datasets 
+# prediction dataset
 area_key <- stock_comp %>% 
   select(area, reg) %>% 
   distinct()
 
-pred_dat_comp1 <- group_split(stock_comp, reg) %>%
-  map_dfr(., function(x) {
-    expand.grid(
-      reg = unique(x$reg),
-      month_n = seq(min(x$month_n),
-                    max(x$month_n),
-                    by = 0.1
-      ),
-      year = unique(x$year)
-    )
-  }) %>% 
-  left_join(., area_key, by = "reg") %>% 
-  mutate(
-    # reg_month_year = paste(reg, month_n, year, sep = "_"),
-    area_month_year = paste(area, month_n, year, sep = "_"),
-    key_var = as.factor(area_month_year)
-  )
+# generate predictive dataframe constrained to variables common to both
+# datasets
+pred_dat <- expand.grid(
+  years = unique(stock_comp$year[stock_comp$year %in% catch$year]),
+  area = unique(stock_comp$area[stock_comp$area %in% catch$area]),
+  month_seq = seq(5, 10, by = 0.1)
+) %>% 
+  left_join(., area_key, by = "area")
+pred_dat$offset <- mean(catch$offset)
 
-
-pred_dat_catch <- group_split(catch, reg) %>%
-  map_dfr(., function(x) {
-    expand.grid(
-      area = unique(x$area),
-      month_n = seq(min(x$month_n),
-                    max(x$month_n),
-                    by = 0.1
-      ),
-      year = unique(x$year)
-    )
-  }) %>% 
-  # add region IDs back in
-  left_join(.,
-            catch %>% select(reg, area) %>% distinct(),
-            by = "area"
-  ) %>%
-  mutate(strata = paste(month_n, reg, sep = "_"),
-         offset = mean(catch$offset)) %>%
-  arrange(reg, area) %>%
-  # convoluted to ensure ordering is correct for key passed to TMB
-  mutate(
-    month = as.factor(month_n),
-    order = row_number(),
-    # year is necessary regardless of whether RIs are included because of year-
-    # specific smooths 
-    # reg_month_year = paste(reg, month_n, year, sep = "_"),
-    # reg_month_year_f = fct_reorder(factor(reg_month_year), order)
-    area_month_year = paste(area, month_n, year, sep = "_"),
-    area_month_year_f = fct_reorder(factor(area_month_year), order)
-  ) %>%
-  select(-order, -strata) %>%
-  distinct() %>% 
-  # remove years that lack gsi data
-  filter(
-    year %in% pred_dat_comp1$year,
-    area %in% c("121", "21", "20", "19_JdFS", "19_SSoG", "18")
-  ) %>% 
-  # generate predictions only for swiftsure
-  rename(key_var = area_month_year_f) %>% 
-  droplevels()
-
-# ggplot(pred_dat_catch) +
-#   geom_point(aes(x = month_n, y = area)) +
-#   facet_wrap(~reg)
-
-# subset predicted composition dataset to match pred_dat_catch since fitting 
-# data can be more extensive
-pred_dat_stock_comp <- pred_dat_comp1 %>% 
-  filter(key_var %in% pred_dat_catch$key_var) %>% 
-  # filter(reg_month_year %in% pred_dat_catch$reg_month_year) %>% 
-  # arrange(reg, year, month_n) %>% 
-  arrange(reg, area, year) %>% 
-  droplevels()
-
-
-length(unique(pred_dat_stock_comp$key_var))
-length(unique(pred_dat_catch$key_var))
 
 
 ## RAW OBSERVATIONS ------------------------------------------------------------
@@ -175,11 +105,10 @@ model_inputs <- make_inputs(
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  pred_abund = pred_dat_catch,
-  comp_formula = pst_agg ~ area + s(month_n, bs = "cc", k = 4, by = reg, m = 2),
+  comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
-  pred_comp = pred_dat_stock_comp,
+  pred_dat = pred_dat,
   model = "integrated"
 )
 

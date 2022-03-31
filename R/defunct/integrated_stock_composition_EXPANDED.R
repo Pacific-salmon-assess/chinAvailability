@@ -1,5 +1,8 @@
 ### Integrated stock composition models 
 ## Updated with new data pull Feb 10; originals saved in /defunct
+## NOTE: this model structure is more complex because predictions are scaled
+## differently for abundance and composition component; this functionality has 
+## been removed from default fit utility functions (saved as fit_EXPANDED.R)
 ## Dec. 8, 2021
 
 library(tidyverse)
@@ -19,8 +22,8 @@ source(here::here("R", "functions", "fit.R"))
 # dyn.load(dynlib(here::here("src", "negbin_rsplines")))
 # compile(here::here("src", "dirichlet_mvn.cpp"))
 # dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
-compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
-dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
+compile(here::here("src", "negbin_rsplines_dirichlet_mvn_EXPANDED.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn_EXPANDED")))
 
 
 # DATA CLEAN -------------------------------------------------------------------

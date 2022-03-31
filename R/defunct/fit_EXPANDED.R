@@ -17,17 +17,19 @@ library(mgcv)
 library(TMB)
 
 # 
-abund_formula = catch ~ 0 + area + 
-  s(month_n, bs = "tp", k = 3, by = area) +
-  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-  offset;
-abund_dat = catch;
-abund_rint = "year";
-comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2);
-comp_dat = stock_comp;
-comp_rint = "year";
-pred_dat = pred_dat;
-model = "integrated"
+# abund_formula = catch ~ 0 + area + 
+#   s(month_n, bs = "tp", k = 3, by = area) +
+#   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+#   offset
+# abund_dat = catch
+# abund_rint = "year"
+# pred_abund = pred_dat_catch
+# comp_formula = coarse_agg ~  s(month_n, bs = "cc", k = 4#, by = reg
+# )
+# comp_dat = stock_comp
+# comp_rint = "year"
+# pred_comp = pred_dat_stock_comp
+# model = "integrated"
 
 
 ## MAKE INPUTS  ----------------------------------------------------------------
@@ -35,13 +37,13 @@ model = "integrated"
 make_inputs <- function(abund_formula = NULL, comp_formula = NULL, 
                         abund_dat = NULL, comp_dat = NULL,
                         abund_rint = NULL, comp_rint = NULL,
-                        pred_dat = NULL,
-                        # pred_abund = NULL, #pred_comp = NULL,
+                        pred_abund = NULL, pred_comp = NULL,
                         model = c("negbin", "dirichlet", "integrated"),
                         include_re_preds = FALSE) {
   
   # make sure necessary components are present
-  if (model %in% c("dirichlet", "integrated") & is.null(comp_dat)) {
+  if (model %in% c("dirichlet", "integrated") & is.null(comp_dat) | 
+      model %in% c("dirichlet", "integrated") & is.null(pred_comp)) {
     stop("Missing model inputs to fit integrated model")
   }
   
@@ -62,11 +64,11 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     X_ij <- model.matrix(formula_no_sm, data = abund_dat)
     sm <- parse_smoothers(abund_formula, data = abund_dat)
     pred_X_ij <- predict(gam(formula_no_sm, data = abund_dat), 
-                         pred_dat, type = "lpmatrix")
+                         pred_abund, type = "lpmatrix")
     pred_X_ij <- predict(gam(formula_no_sm, data = abund_dat), 
-                         pred_dat, type = "lpmatrix")
+                         pred_abund, type = "lpmatrix")
     sm_pred <- parse_smoothers(abund_formula, data = abund_dat, 
-                               newdata = pred_dat)
+                               newdata = pred_abund)
     
     # identify response
     mf <- model.frame(formula_no_sm, abund_dat)
@@ -74,12 +76,12 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # random intercepts
     rfac1 <-  as.numeric(as.factor(abund_dat[[abund_rint]])) - 1
-    # pred_rfac1 <- as.numeric(pred_dat[[abund_rint]]) - 1
+    # pred_rfac1 <- as.numeric(pred_abund[[abund_rint]]) - 1
     
     # aggregate key for pooling estimates
     # NOTE -- CHANGE TO MAKE FLEXIBLE (e.g conditional that changes key variable
     # to default stratification when missing)
-    # pred_rfac_agg <- as.numeric(pred_dat$key_var) - 1
+    # pred_rfac_agg <- as.numeric(pred_abund$key_var) - 1
     # pred_rfac_agg_levels <- unique(pred_rfac_agg)
     
     # make abundance tmb inputs
@@ -104,9 +106,9 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     if (include_re_preds == TRUE) {
       #vector of predicted random intercepts
       pred_rand_ints <- list(
-        pred_rfac1 = as.numeric(pred_dat[[abund_rint]]) - 1#,
-        # pred_rfac_agg = as.numeric(pred_dat$key_var) - 1,
-        # pred_rfac_agg_levels = unique(pred_rfac_agg)
+        pred_rfac1 = as.numeric(pred_abund[[abund_rint]]) - 1,
+        pred_rfac_agg = as.numeric(pred_abund$key_var) - 1,
+        pred_rfac_agg_levels = unique(pred_rfac_agg)
       )
       
       tmb_data <- c(tmb_data, pred_rand_ints)
@@ -153,15 +155,10 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # dummy model
     dummy_comp <- mgcv::gam(comp_formula_new, data = comp_wide)
-    X2_ij <- predict(dummy_comp, type = "lpmatrix")
-    pred_X2_ij <- predict(dummy_comp, pred_dat, type = "lpmatrix")
     
-    # check to make sure predictive dataframes for composition and abundance
-    # are same length
-    if (model == "integrated" & nrow(pred_X2_ij) != nrow(pred_X_ij)) {
-      stop("Dimensions of abundance and composition predictions are not
-           compatible.")
-    }
+    
+    X2_ij <- predict(dummy_comp, type = "lpmatrix")
+    pred_X2_ij <- predict(dummy_comp, pred_comp, type = "lpmatrix")
     
     # NOTE: REPLACE WITH FLEXIBLE STRUCTURE WHEN NULL
     rfac2 <- as.numeric(as.factor(as.character(comp_wide[[comp_rint]]))) - 1
@@ -189,14 +186,9 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     # adjust data and parameters when RI predictions being made
     if (include_re_preds == TRUE) {
       #vector of predicted random intercepts
-      #only added for dirichlet because generated in neg bin component for 
-      #integrated model
-      if (model == "dirichlet") {
-        pred_rand_ints <- list(
-          pred_rfac1 = as.numeric(pred_dat[[comp_rint]]) - 1
-        )
-        tmb_data <- c(tmb_data, pred_rand_ints)
-      }
+      pred_rand_ints <- list(
+        pred_rfac2 = as.numeric(pred_comp[[comp_rint]]) - 1
+      )
       # mvn matrix of REs
       mvn_rand_inits <- list(
         A2_hk = matrix(rnorm(n_rint2 * ncol(obs_comp), 0, 0.5), 
@@ -204,6 +196,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
                        ncol = ncol(obs_comp))
       )
       
+      tmb_data <- c(tmb_data, pred_rand_ints)
       tmb_pars <- c(tmb_pars, mvn_rand_inits)
       tmb_random <- c(tmb_random, "A2_hk")
     } else if (include_re_preds == FALSE) {

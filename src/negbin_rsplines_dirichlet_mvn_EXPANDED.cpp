@@ -43,12 +43,12 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(pred_rfac1);
   // vector of higher level aggregates used to generate predictions; length
   // is equal to the number of predictions made
-  // DATA_IVECTOR(pred_rfac_agg);
-  // DATA_IVECTOR(pred_rfac_agg_levels);
+  DATA_IVECTOR(pred_rfac_agg);
+  DATA_IVECTOR(pred_rfac_agg_levels);
   
   // Composition predictions
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
-  // DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
+  DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
 
 
   // PARAMETERS ----------------------------------------------------------------
@@ -74,8 +74,8 @@ Type objective_function<Type>::operator() ()
   int n1 = y1_i.size();
   int n2 = Y2_ik.rows();         // number of observations
   int n_cat = Y2_ik.cols();         // number of categories
-  int n_predX1 = pred_X1_ij.rows(); // number of predictions  
-  // int n_predX2 = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
+  int n_predX1 = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
+  int n_predX2 = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
   
   // Matrix for intermediate objects
   matrix<Type> Mu2_ik(n2, n_cat); // matrix of combined fixed/random eff
@@ -217,47 +217,66 @@ Type objective_function<Type>::operator() ()
   pred_smooth_i += pred_Xs * bs;
   
   // combine fixed and smoothed predictions
-  for (int m = 0; m < n_predX1; m++) {
-    pred_mu1(m) += pred_smooth_i(m);
+  for (int i = 0; i < n_predX1; i++) {
+    pred_mu1(i) += pred_smooth_i(i);
   }
 
   // add random intercepts 
-  for (int m = 0; m < n_predX1; m++) {
-    pred_mu1(m) += a1(pred_rfac1(m));
+  for (int i = 0; i < n_predX1; i++) {
+    pred_mu1(i) += a1(pred_rfac1(i));
   }
 
   REPORT(pred_mu1);
   ADREPORT(pred_mu1);
 
 
+  // Predicted aggregate abundance
+  // vector<Type> pred_mu1_cumsum(n_predX2);
+  // vector<Type> ln_pred_mu1_cumsum(n_predX2);
+  // vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
+
+
+  // for (int i = 0; i < n_predX1; i++) {
+  //   for (int m = 0; m < n_predX2; m++) {
+  //     if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
+  //       pred_mu1_cumsum(m) += exp_pred_mu1(i);
+  //       ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
+  //     }
+  //   }
+  // }
+
+  // ADREPORT(pred_mu1_cumsum);
+  // ADREPORT(ln_pred_mu1_cumsum);
+
+
   // Predicted composition 
-  matrix<Type> pred_Mu2_fx(n_predX1, n_cat);    //pred fixed effects on log scale
-  matrix<Type> pred_Mu2(n_predX1, n_cat);    //pred FE + RE on log scale
-  matrix<Type> pred_Gamma(n_predX1, n_cat);  //transformed pred effects 
-  vector<Type> pred_Gamma_plus(n_predX1);        
-  vector<Type> pred_theta(n_predX1); 
-  matrix<Type> pred_Pi(n_predX1, n_cat);      // predicted counts in real 
-  vector<Type> pred_n_plus(n_predX1); 
-  matrix<Type> pred_Pi_prop(n_predX1, n_cat); // predicted counts as ppn.
-  matrix<Type> logit_pred_Pi_prop(n_predX1, n_cat); 
+  matrix<Type> pred_Mu2_fx(n_predX2, n_cat);    //pred fixed effects on log scale
+  matrix<Type> pred_Mu2(n_predX2, n_cat);    //pred FE + RE on log scale
+  matrix<Type> pred_Gamma(n_predX2, n_cat);  //transformed pred effects 
+  vector<Type> pred_Gamma_plus(n_predX2);        
+  vector<Type> pred_theta(n_predX2); 
+  matrix<Type> pred_Pi(n_predX2, n_cat);      // predicted counts in real 
+  vector<Type> pred_n_plus(n_predX2); 
+  matrix<Type> pred_Pi_prop(n_predX2, n_cat); // predicted counts as ppn.
+  matrix<Type> logit_pred_Pi_prop(n_predX2, n_cat); 
 
   pred_Mu2_fx = pred_X2_ij * B2_jk; 
 
-  for (int m = 0; m < n_predX1; m++) {
+  for (int m = 0; m < n_predX2; m++) {
     for(int k = 0; k < n_cat; k++) {
-      pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac1(m), k);
+      pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac2(m), k);
     }
   }
   pred_Gamma = exp(pred_Mu2.array());
   pred_Gamma_plus = pred_Gamma.rowwise().sum();
   pred_theta = 1 / (pred_Gamma_plus + 1);
-  for(int m = 0; m < n_predX1; m++) {
+  for(int m = 0; m < n_predX2; m++) {
     for(int k = 0; k < n_cat; k++) {
       pred_Pi(m, k) = pred_Gamma(m, k) / pred_theta(m);
     }
   }
   pred_n_plus = pred_Pi.rowwise().sum();
-  for(int m = 0; m < n_predX1; m++) {
+  for(int m = 0; m < n_predX2; m++) {
     for(int k = 0; k < n_cat; k++) {
       pred_Pi_prop(m, k) = pred_Pi(m, k) / pred_n_plus(m);
       logit_pred_Pi_prop(m, k) = logit(pred_Pi_prop(m, k));
@@ -267,13 +286,25 @@ Type objective_function<Type>::operator() ()
   ADREPORT(pred_Mu2);
   ADREPORT(logit_pred_Pi_prop);
   
+
+  // Combined predictions
+  // matrix<Type> pred_mu1_Pi(n_predX2, n_cat);
+  
+  // for (int m = 0; m < n_predX2; m++) {
+  //   for (int k = 0; k < n_cat; k++) {
+  //     pred_mu1_Pi(m, k) = pred_mu1_cumsum(m) * pred_Pi_prop(m, k);
+  //   }
+  // }
+  // matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
+
   vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
   matrix<Type> pred_mu1_Pi(n_predX1, n_cat);
   
-  // multiply abundance and composition predictions
-  for (int m = 0; m < n_predX1; m++) {
+  // multiply each area-specific prediction by the associated region-specific 
+  // comp prediction
+  for (int i = 0; i < n_predX1; i++) {
     for (int k = 0; k < n_cat; k++) {
-      pred_mu1_Pi(m, k) = exp_pred_mu1(m) * pred_Pi_prop(m, k);
+      pred_mu1_Pi(i, k) = exp_pred_mu1(i) * pred_Pi_prop(pred_rfac_agg(i), k);
     }
   }
   matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
