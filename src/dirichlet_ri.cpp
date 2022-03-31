@@ -91,12 +91,6 @@ Type objective_function<Type>::operator() ()
 
   pred_Mu2 = pred_X2_ij * B2_jk; 
 
-  // for (int m = 0; m < n_predX2; m++) {
-  //   for(int k = 0; k < n_cat; k++) {
-  //     pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac2(m), k);
-  //   }
-  // }
-
   pred_Gamma = exp(pred_Mu2.array());
   pred_Gamma_plus = pred_Gamma.rowwise().sum();
   pred_theta = 1 / (pred_Gamma_plus + 1);
