@@ -17,6 +17,8 @@ source(here::here("R", "functions", "fit.R"))
 # relevant TMB models
 compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
+compile(here::here("src", "negbin_rsplines_dirichlet_ri.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_ri")))
 
 
 # DATA CLEAN -------------------------------------------------------------------
@@ -78,9 +80,9 @@ area_key <- stock_comp %>%
 # generate predictive dataframe constrained to variables common to both
 # datasets
 pred_dat <- expand.grid(
-  years = unique(stock_comp$year[stock_comp$year %in% catch$year]),
+  year = unique(stock_comp$year[stock_comp$year %in% catch$year]),
   area = unique(stock_comp$area[stock_comp$area %in% catch$area]),
-  month_seq = seq(5, 10, by = 0.1)
+  month_n = seq(5, 10, by = 0.1)
 ) %>% 
   left_join(., area_key, by = "area")
 pred_dat$offset <- mean(catch$offset)
@@ -100,17 +102,29 @@ catch %>%
 
 model_inputs <- make_inputs(
   abund_formula = catch ~ 0 + area + 
-    s(month_n, bs = "tp", k = 3, by = area) +
+    s(month_n, bs = "tp", k = 3, by = reg) +
     s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
+  # comp_formula = pst_agg ~ area,
   comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat,
-  model = "integrated"
+  model = "integrated",
+  include_re_preds = FALSE
+  # include_re_preds = TRUE
 )
+
+head(model_inputs$tmb_data$X1_ij)
+glimpse(model_inputs$tmb_data$Zs)
+head(model_inputs$tmb_data$X2_ij)
+
+head(model_inputs$tmb_data$pred_X1_ij)
+glimpse(model_inputs$tmb_data$pred_Xs)
+glimpse(model_inputs$tmb_data$pred_Zs)
+head(model_inputs$tmb_data$pred_X2_ij)
 
 stock_mod <- fit_model(
   tmb_data = model_inputs$tmb_data, 
@@ -118,8 +132,9 @@ stock_mod <- fit_model(
   tmb_map = model_inputs$tmb_map, 
   tmb_random  = model_inputs$tmb_random,
   model = "integrated",
-  fit_random = TRUE,
-  ignore_fix = TRUE
+  fit_random = FALSE,
+  # ignore_fix = TRUE,
+  include_re_preds = TRUE
 )
 
 saveRDS(stock_mod$ssdr, 

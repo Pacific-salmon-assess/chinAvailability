@@ -7,7 +7,6 @@
 # data may be differently stratified
 
 # Dev TO DO:
-# 1) Make aggregate levels flexible (i.e. turn on/off based on input data)
 # 2) Make RE intercepts flexible (i.e. turn on/off or remove MVN component)
 # 3) Map 0 observations in composition component
 # 4) Combine cpp scripts into one with conditionals (may not be worthwhile...)
@@ -17,17 +16,18 @@ library(mgcv)
 library(TMB)
 
 # 
-abund_formula = catch ~ 0 + area + 
-  s(month_n, bs = "tp", k = 3, by = area) +
-  s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-  offset;
-abund_dat = catch;
-abund_rint = "year";
-comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2);
-comp_dat = stock_comp;
-comp_rint = "year";
-pred_dat = pred_dat;
-model = "integrated"
+# abund_formula = catch ~ 0 + area + 
+#   s(month_n, bs = "tp", k = 3, m = 2, by = area) +
+#   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+#   offset;
+# abund_dat = catch;
+# abund_rint = "year";
+# comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2);
+# comp_dat = stock_comp;
+# comp_rint = "year";
+# pred_dat = pred_dat;
+# model = "integrated";
+# include_re_preds = TRUE
 
 
 ## MAKE INPUTS  ----------------------------------------------------------------
@@ -118,8 +118,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       bs = rep(0, ncol(sm$Xs)),
       ln_smooth_sigma = rnorm(length(sm$sm_dims), 0, 0.5), 
       b_smooth = rnorm(sum(sm$sm_dims), 0, 0.5),
-      a1 = rnorm(length(unique(rfac1)), 0, 0.5),
-      ln_sigma_a1 = log(0.25)
+      ln_sigma_a1 = log(0.25),
+      a1 = rnorm(length(unique(rfac1)), 0, 0.5)
     )
     tmb_pars <- c(tmb_pars, abund_tmb_pars)
     
@@ -228,6 +228,14 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 
 ## FIT MODELS  -----------------------------------------------------------------
+tmb_data = model_inputs$tmb_data;
+tmb_pars = model_inputs$tmb_pars;
+tmb_map = model_inputs$tmb_map;
+tmb_random  = model_inputs$tmb_random;
+model = "integrated";
+fit_random = FALSE;
+ignore_fix = FALSE;
+include_re_preds = FALSE
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       model = c("negbin", "dirichlet", "integrated"),
@@ -248,7 +256,7 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
   }
   ## fit fixed effects only 
   # map random effects
-  if (ignore_fix == FALSE) {
+  if (fit_random == FALSE | ignore_fix == FALSE) {
     new_map_list <- tmb_pars[names(tmb_pars) %in% tmb_random]
     tmb_map_random <- c(
       tmb_map,
