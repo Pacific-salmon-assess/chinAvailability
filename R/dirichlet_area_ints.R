@@ -116,7 +116,7 @@ model_inputs <- make_inputs(
     s(month_n, bs = "tp", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
-  pred_comp = pred_dat_stock_comp,
+  pred_dat = pred_dat_stock_comp,
   model = "dirichlet",
   include_re_preds = TRUE
 )

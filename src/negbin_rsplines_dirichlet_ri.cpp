@@ -40,11 +40,9 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
   DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
-  // DATA_IVECTOR(pred_rfac1);
-  
+
   // Composition predictions
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
-  // DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
 
 
   // PARAMETERS ----------------------------------------------------------------
@@ -71,7 +69,6 @@ Type objective_function<Type>::operator() ()
   int n2 = Y2_ik.rows();         // number of observations
   int n_cat = Y2_ik.cols();         // number of categories
   int n_predX1 = pred_X1_ij.rows(); // number of predictions  
-  // int n_predX2 = pred_X2_ij.rows();   // number of aggregate predictions (abundance and composition)
   
   // Matrix for intermediate objects
   matrix<Type> Mu2_ik(n2, n_cat); // matrix of combined fixed/random eff
@@ -182,7 +179,7 @@ Type objective_function<Type>::operator() ()
 
   // PREDICTIONS ---------------------------------------------------------------
 
-  // Predicted abundance
+  Predicted abundance
   vector<Type> pred_mu1 = pred_X1_ij * b1_j;
 
   // smoothers
@@ -203,11 +200,6 @@ Type objective_function<Type>::operator() ()
     pred_mu1(m) += pred_smooth_i(m);
   }
 
-  // add random intercepts 
-  // for (int m = 0; m < n_predX1; m++) {
-  //   pred_mu1(m) += a1(pred_rfac1(m));
-  // }
-
   REPORT(pred_mu1);
   ADREPORT(pred_mu1);
 
@@ -225,11 +217,6 @@ Type objective_function<Type>::operator() ()
 
   pred_Mu2 = pred_X2_ij * B2_jk; 
 
-  // for (int m = 0; m < n_predX1; m++) {
-  //   for(int k = 0; k < n_cat; k++) {
-  //     pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac1(m), k);
-  //   }
-  // }
   pred_Gamma = exp(pred_Mu2.array());
   pred_Gamma_plus = pred_Gamma.rowwise().sum();
   pred_theta = 1 / (pred_Gamma_plus + 1);

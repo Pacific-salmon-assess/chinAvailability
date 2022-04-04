@@ -14,7 +14,7 @@ Type objective_function<Type>::operator() ()
   
   //predictions
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
-  DATA_IVECTOR(pred_rfac2); // vector of predicted random intercepts
+  DATA_IVECTOR(pred_rfac1); // vector of predicted random intercepts
 
 
   // PARAMETERS ----------------------------------------------------------------
@@ -107,7 +107,7 @@ Type objective_function<Type>::operator() ()
 
   for (int m = 0; m < n_predX2; m++) {
     for(int k = 0; k < n_cat; k++) {
-      pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac2(m), k);
+      pred_Mu2(m, k) = pred_Mu2_fx(m, k) + A2_hk(pred_rfac1(m), k);
     }
   }
   pred_Gamma = exp(pred_Mu2.array());

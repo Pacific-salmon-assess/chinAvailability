@@ -16,18 +16,18 @@ library(mgcv)
 library(TMB)
 
 # 
-# abund_formula = catch ~ 0 + area + 
+# abund_formula = catch ~ 0 + area +
 #   s(month_n, bs = "tp", k = 3, m = 2, by = area) +
 #   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
 #   offset;
 # abund_dat = catch;
 # abund_rint = "year";
-# comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2);
-# comp_dat = stock_comp;
-# comp_rint = "year";
-# pred_dat = pred_dat;
-# model = "integrated";
-# include_re_preds = TRUE
+# # comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2);
+# # comp_dat = stock_comp;
+# # comp_rint = "year";
+# # pred_dat = pred_dat;
+# model = "negbin";
+# include_re_preds = FALSE
 
 
 ## MAKE INPUTS  ----------------------------------------------------------------
@@ -41,15 +41,16 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
                         include_re_preds = FALSE) {
   
   # make sure necessary components are present
-  if (model %in% c("dirichlet", "integrated") & is.null(comp_dat)) {
-    stop("Missing model inputs to fit integrated model")
-  }
-  
-  if (model %in% c("dirichlet", "integrated") & is.null(comp_dat$prob)) {
-    stop("Composition data not identified. Name vector in comp_dat 'prob' to 
+  if (model %in% c("dirichlet", "integrated")) {
+    if (is.null(comp_dat)) {
+      stop("Missing model inputs to fit integrated model")
+    }
+    if (is.null(comp_dat$prob)) {
+      stop("Composition data not identified. Name vector in comp_dat 'prob' to 
          indicate proportions data.")
+    }
   }
-  
+
   # initialize empty lists to fill with data and initial parameters
   tmb_data <- list()
   tmb_pars <- list()
@@ -158,10 +159,11 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # check to make sure predictive dataframes for composition and abundance
     # are same length
-    if (model == "integrated" & nrow(pred_X2_ij) != nrow(pred_X_ij)) {
+    if (model == "integrated"){
+      if (nrow(pred_X2_ij) != nrow(pred_X_ij)) {
       stop("Dimensions of abundance and composition predictions are not
            compatible.")
-    }
+    }}
     
     # NOTE: REPLACE WITH FLEXIBLE STRUCTURE WHEN NULL
     rfac2 <- as.numeric(as.factor(as.character(comp_wide[[comp_rint]]))) - 1
@@ -228,14 +230,14 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 
 ## FIT MODELS  -----------------------------------------------------------------
-tmb_data = model_inputs$tmb_data;
-tmb_pars = model_inputs$tmb_pars;
-tmb_map = model_inputs$tmb_map;
-tmb_random  = model_inputs$tmb_random;
-model = "integrated";
-fit_random = FALSE;
-ignore_fix = FALSE;
-include_re_preds = FALSE
+# tmb_data = model_inputs$tmb_data;
+# tmb_pars = model_inputs$tmb_pars;
+# tmb_map = model_inputs$tmb_map;
+# tmb_random  = model_inputs$tmb_random;
+# model = "dirichlet";
+# fit_random = FALSE;
+# ignore_fix = FALSE;
+# include_re_preds = FALSE
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       model = c("negbin", "dirichlet", "integrated"),

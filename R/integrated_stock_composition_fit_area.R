@@ -20,6 +20,9 @@ dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 compile(here::here("src", "negbin_rsplines_dirichlet_ri.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_ri")))
 
+compile(here::here("src", "dirichlet_mvn.cpp"))
+dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
+
 
 # DATA CLEAN -------------------------------------------------------------------
 
@@ -55,7 +58,7 @@ stock_comp <- comp1 %>%
   ungroup() %>% 
   droplevels() %>% 
   filter(reg %in% c("JdFS", "SSoG"),
-         month_n < 10.1 & month_n > 1.9) %>% 
+         month_n < 10 & month_n > 1.9) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg),
          area = as.factor(area),
@@ -82,7 +85,7 @@ area_key <- stock_comp %>%
 pred_dat <- expand.grid(
   year = unique(stock_comp$year[stock_comp$year %in% catch$year]),
   area = unique(stock_comp$area[stock_comp$area %in% catch$area]),
-  month_n = seq(5, 10, by = 0.1)
+  month_n = seq(5, 9, by = 0.1)
 ) %>% 
   left_join(., area_key, by = "area")
 pred_dat$offset <- mean(catch$offset)
@@ -97,24 +100,34 @@ catch %>%
   geom_point(aes(x = month, y = cpue, fill = region), shape = 21) +
   facet_wrap(~area, scales = "free_y")
 
+stock_comp %>% 
+  select(sample_id, year, reg, area, month_n, nn) %>% 
+  distinct() %>% 
+  ggplot() +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg),
+              alpha = 0.3, width = 0.25) +
+  facet_wrap(~area)
+
+unique(catch$area)
+unique(stock_comp$area)
+
 
 ## FIT -------------------------------------------------------------------------
 
 model_inputs <- make_inputs(
-  abund_formula = catch ~ 0 + area + 
+  abund_formula = catch ~ 0 + reg +
     s(month_n, bs = "tp", k = 3, by = reg) +
-    s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+    # s(month_n, by = year, bs = "tp", m = 1, k = 3) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  # comp_formula = pst_agg ~ area,
-  comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2),
+  comp_formula = pst_agg ~ area + 
+    s(month_n, bs = "tp", k = 3, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat,
-  model = "integrated",
-  include_re_preds = FALSE
-  # include_re_preds = TRUE
+  model = "dirichlet",
+  include_re_preds = TRUE
 )
 
 head(model_inputs$tmb_data$X1_ij)
@@ -131,9 +144,9 @@ stock_mod <- fit_model(
   tmb_pars = model_inputs$tmb_pars, 
   tmb_map = model_inputs$tmb_map, 
   tmb_random  = model_inputs$tmb_random,
-  model = "integrated",
-  fit_random = FALSE,
-  # ignore_fix = TRUE,
+  model = "dirichlet",
+  fit_random = TRUE,
+  ignore_fix = TRUE,
   include_re_preds = TRUE
 )
 

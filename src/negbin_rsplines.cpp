@@ -31,11 +31,7 @@ Type objective_function<Type>::operator() ()
   DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
   DATA_IVECTOR(pred_rfac1);
-  // vector of higher level aggregates used to generate predictions; length
-  // is equal to the number of predictions made
-  DATA_IVECTOR(pred_rfac_agg);
-  DATA_IVECTOR(pred_rfac_agg_levels);
-  
+   
 
   // PARAMETERS ----------------------------------------------------------------
   
@@ -53,7 +49,6 @@ Type objective_function<Type>::operator() ()
 
   int n1 = y1_i.size();
   int n_predX1 = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
-  int n_predX2 = pred_rfac_agg_levels.size();
 
   Type jnll = 0.0; // initialize joint negative log likelihood
 
@@ -147,27 +142,6 @@ Type objective_function<Type>::operator() ()
 
   REPORT(pred_mu1);
   ADREPORT(pred_mu1);
-
-
-  // Calculate predicted abundance based on higher level groupings
-  
-  vector<Type> pred_mu1_cumsum(n_predX2);
-  vector<Type> ln_pred_mu1_cumsum(n_predX2);
-  vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
-
-
-  for (int i = 0; i < n_predX1; i++) {
-    for (int m = 0; m < n_predX2; m++) {
-      if (pred_rfac_agg(i) == pred_rfac_agg_levels(m)) {
-        pred_mu1_cumsum(m) += exp_pred_mu1(i);
-        ln_pred_mu1_cumsum(m) = log(pred_mu1_cumsum(m));
-      }
-    }
-  }
-
-  ADREPORT(pred_mu1_cumsum);
-  ADREPORT(ln_pred_mu1_cumsum);
-
 
   return jnll;
 }
