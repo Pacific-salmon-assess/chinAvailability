@@ -28,4 +28,9 @@ March 28, 2022
 March 31, 2022
 - Removed Jan/Nov/Dec data and switched composition component to agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2); alternatives that used hierarchical smooths for area or include bs = "cc" were unstable
 - Simplify integrated model to include single set of predictions for composition and abundance portion of the model; save original formulation and utility functions as "integrated_stock_composition_EXPANDED.R" and "negbin_rsplines_dirichlet_MVN_EXPANDED.cpp"
-	- TO RESOLVE: bugs in fit.R (first up parse_smoothers in utils.R)
+
+April 1, 2022
+- Convergence issues with integrated model (vector memory exhausted)
+
+
+
