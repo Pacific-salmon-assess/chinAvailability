@@ -174,12 +174,13 @@ Type objective_function<Type>::operator() ()
   }
 
   Type sigma_rfac2 = exp(ln_sigma_A2);
-  ADREPORT(sigma_rfac2);
+  REPORT(sigma_rfac2);
+  // ADREPORT(sigma_rfac2);
   
 
   // PREDICTIONS ---------------------------------------------------------------
 
-  Predicted abundance
+  // Predicted abundance
   vector<Type> pred_mu1 = pred_X1_ij * b1_j;
 
   // smoothers
@@ -200,8 +201,8 @@ Type objective_function<Type>::operator() ()
     pred_mu1(m) += pred_smooth_i(m);
   }
 
-  REPORT(pred_mu1);
-  ADREPORT(pred_mu1);
+  // REPORT(pred_mu1);
+  // ADREPORT(pred_mu1);
 
 
   // Predicted composition 
@@ -233,9 +234,6 @@ Type objective_function<Type>::operator() ()
     }
   }
 
-  ADREPORT(pred_Mu2);
-  ADREPORT(logit_pred_Pi_prop);
-  
   vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
   matrix<Type> pred_mu1_Pi(n_predX1, n_cat);
   
@@ -249,6 +247,8 @@ Type objective_function<Type>::operator() ()
   
 
   // Report
+  // ADREPORT(pred_Mu2);
+  // ADREPORT(logit_pred_Pi_prop);
   ADREPORT(log_pred_mu1_Pi);
 
 

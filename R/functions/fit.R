@@ -234,10 +234,10 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 # tmb_pars = model_inputs$tmb_pars;
 # tmb_map = model_inputs$tmb_map;
 # tmb_random  = model_inputs$tmb_random;
-# model = "dirichlet";
+# model = "integrated";
 # fit_random = FALSE;
 # ignore_fix = FALSE;
-# include_re_preds = FALSE
+# include_re_preds = TRUE
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       model = c("negbin", "dirichlet", "integrated"),
@@ -274,7 +274,10 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
     opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
                           control = list(eval.max = 1e4, iter.max = 1e4)
     )
-    sdr <- sdreport(obj1)
+    # no need to sdreport if just passing to random effects
+    if (fit_random == FALSE) {
+      sdr <- sdreport(obj1)
+    }
   }
   
   ## fit with random effects 
@@ -288,7 +291,7 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
     
     obj <- TMB::MakeADFun(
       data = tmb_data,
-      parameters = pars_in,#obj1$env$parList(opt1$par),
+      parameters = pars_in,
       map = tmb_map,
       random = tmb_random,
       DLL = tmb_model

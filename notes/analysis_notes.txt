@@ -32,5 +32,6 @@ March 31, 2022
 April 1, 2022
 - Convergence issues with integrated model (vector memory exhausted)
 
-
+April 5, 2022
+- Address vector memory issues by removing non-essential ADREPORT from integrated model
 

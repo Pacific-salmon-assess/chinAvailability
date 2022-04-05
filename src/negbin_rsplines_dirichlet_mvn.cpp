@@ -226,10 +226,6 @@ Type objective_function<Type>::operator() ()
     pred_mu1(m) += a1(pred_rfac1(m));
   }
 
-  REPORT(pred_mu1);
-  ADREPORT(pred_mu1);
-
-
   // Predicted composition 
   matrix<Type> pred_Mu2_fx(n_predX1, n_cat);    //pred fixed effects on log scale
   matrix<Type> pred_Mu2(n_predX1, n_cat);    //pred FE + RE on log scale
@@ -264,9 +260,6 @@ Type objective_function<Type>::operator() ()
     }
   }
 
-  ADREPORT(pred_Mu2);
-  ADREPORT(logit_pred_Pi_prop);
-  
   vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
   matrix<Type> pred_mu1_Pi(n_predX1, n_cat);
   
@@ -280,6 +273,9 @@ Type objective_function<Type>::operator() ()
   
 
   // Report
+  // REPORT(pred_mu1);
+  // ADREPORT(pred_Mu2);
+  // ADREPORT(logit_pred_Pi_prop);
   ADREPORT(log_pred_mu1_Pi);
 
 

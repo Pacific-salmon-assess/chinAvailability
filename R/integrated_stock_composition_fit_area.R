@@ -58,7 +58,8 @@ stock_comp <- comp1 %>%
   ungroup() %>% 
   droplevels() %>% 
   filter(reg %in% c("JdFS", "SSoG"),
-         month_n < 10 & month_n > 1.9) %>% 
+         month_n < 10 & month_n > 1.9
+         ) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg),
          area = as.factor(area),
@@ -91,7 +92,6 @@ pred_dat <- expand.grid(
 pred_dat$offset <- mean(catch$offset)
 
 
-
 ## RAW OBSERVATIONS ------------------------------------------------------------
 
 catch %>% 
@@ -115,23 +115,23 @@ unique(stock_comp$area)
 ## FIT -------------------------------------------------------------------------
 
 model_inputs <- make_inputs(
-  abund_formula = catch ~ 0 + reg +
-    s(month_n, bs = "tp", k = 3, by = reg) +
-    # s(month_n, by = year, bs = "tp", m = 1, k = 3) +
+  abund_formula = catch ~ area +
+    s(month_n, bs = "tp", k = 4, m = 2, by = reg) +
+    s(month_n, by = year, bs = "tp", m = 1, k = 4) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  comp_formula = pst_agg ~ area + 
-    s(month_n, bs = "tp", k = 3, by = reg, m = 2),
+  comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat,
-  model = "dirichlet",
-  include_re_preds = TRUE
+  model = "integrated",
+  include_re_preds = FALSE
 )
 
 head(model_inputs$tmb_data$X1_ij)
 glimpse(model_inputs$tmb_data$Zs)
+glimpse(model_inputs2$tmb_data$Zs)
 head(model_inputs$tmb_data$X2_ij)
 
 head(model_inputs$tmb_data$pred_X1_ij)
@@ -144,10 +144,10 @@ stock_mod <- fit_model(
   tmb_pars = model_inputs$tmb_pars, 
   tmb_map = model_inputs$tmb_map, 
   tmb_random  = model_inputs$tmb_random,
-  model = "dirichlet",
+  model = "integrated",
   fit_random = TRUE,
-  ignore_fix = TRUE,
-  include_re_preds = TRUE
+  ignore_fix = FALSE,
+  include_re_preds = FALSE
 )
 
 saveRDS(stock_mod$ssdr, 
