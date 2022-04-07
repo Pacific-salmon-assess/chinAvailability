@@ -151,7 +151,7 @@ stock_mod <- fit_model(
 )
 
 saveRDS(stock_mod$ssdr, 
-        here::here("data", "model_fits", "dirichlet_smooth_area.rds"))
+        here::here("data", "model_fits", "integrated_area_ri_mig_corridor.rds"))
 
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
@@ -163,82 +163,58 @@ ssdr <- readRDS(
 unique(rownames(ssdr))
 
 
-## Stock Composition
-logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-
-link_preds <- data.frame(
-  link_prob_est = logit_pred_ppn[ , "Estimate"],
-  link_prob_se =  logit_pred_ppn[ , "Std. Error"]
-) %>% 
-  mutate(
-    pred_prob_est = plogis(link_prob_est),
-    pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
-    pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
-  ) 
-
-stock_seq <- colnames(model_inputs$tmb_data$Y2_ik)
-pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_stock_comp
-  dum$stock <- x
-  return(dum)
-}) %>%
-  bind_rows() %>%
-  cbind(., link_preds) %>% 
-  split(., .$reg)
-
-comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
-  p <- ggplot(data = x, aes(x = month_n)) +
-    labs(y = "Predicted Stock Proportion", x = "Month") +
-    facet_grid(area~stock) +
-    ggsidekick::theme_sleek() +
-    geom_line(aes(y = pred_prob_est, colour = year)) +
-    labs(title = y)
-  
-  p_ribbon <- p +
-    geom_ribbon(data = x,
-                aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
-                alpha = 0.2)
-  
-  list(p, p_ribbon)
-})
-
-pdf(here::here("figs", "jdf_area_preds", "stock_comp_area_sm_preds.pdf"))
-comp_plots
-dev.off()
-
-
-##### TO BE CORRECTED #####
-
-# generate observed proportions
-# number of samples in an event
-long_dat <- model_inputs$wide_comp_dat %>%
-  mutate(samp_nn = apply(model_inputs$tmb_data$Y2_ik, 1, sum)) %>%
-  pivot_longer(cols = c(PSD:WCVI), names_to = "stock", 
-               values_to = "obs_count") %>% 
-  # filter(area %in% c("121", "21", "20", "19JdF", "19GST", "20W", "18")) %>% 
-  mutate(obs_ppn = obs_count / samp_nn) 
-mean_long_dat <- long_dat %>%
-  group_by(month_n, year, area, reg, stock) %>%
-  summarize(obs_ppn = mean(obs_ppn), .groups = "drop") %>%
-  split(., .$reg)
-
-p_obs <- p + 
-  geom_jitter(data = long_dat, aes(x = month_n, y = obs_ppn, colour = year,
-                                  alpha = sample_size_bin)) +
-  scale_alpha_discrete()
+## Stock Composition (REMOVED FOR ADREPORT)
+# logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
+# 
+# link_preds <- data.frame(
+#   link_prob_est = logit_pred_ppn[ , "Estimate"],
+#   link_prob_se =  logit_pred_ppn[ , "Std. Error"]
+# ) %>% 
+#   mutate(
+#     pred_prob_est = plogis(link_prob_est),
+#     pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
+#     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
+#   ) 
+# 
+# stock_seq <- colnames(model_inputs$tmb_data$Y2_ik)
+# pred_comp <- purrr::map(stock_seq, function (x) {
+#   dum <- pred_dat_stock_comp
+#   dum$stock <- x
+#   return(dum)
+# }) %>%
+#   bind_rows() %>%
+#   cbind(., link_preds) %>% 
+#   split(., .$reg)
+# 
+# comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
+#   p <- ggplot(data = x, aes(x = month_n)) +
+#     labs(y = "Predicted Stock Proportion", x = "Month") +
+#     facet_grid(area~stock) +
+#     ggsidekick::theme_sleek() +
+#     geom_line(aes(y = pred_prob_est, colour = year)) +
+#     labs(title = y)
+#   
+#   p_ribbon <- p +
+#     geom_ribbon(data = x,
+#                 aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
+#                 alpha = 0.2)
+#   
+#   list(p, p_ribbon)
+# })
+# 
+# pdf(here::here("figs", "jdf_area_preds", "stock_comp_area_sm_preds.pdf"))
+# comp_plots
+# dev.off()
 
 
 ## Predicted Abundance
 
 ## aggregate (i.e. total)
-# log_agg_abund <- ssdr[rownames(ssdr) == "ln_pred_mu1_cumsum", ]
 log_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
 
 log_abund_preds <- data.frame(
-  link_abund_est = c(#log_agg_abund[ , "Estimate"], 
-    log_abund[ , "Estimate"]),
-  link_abund_se =  c(#log_agg_abund[ , "Std. Error"], 
-    log_abund[ , "Std. Error"])
+  link_abund_est = log_abund[ , "Estimate"],
+  link_abund_se = log_abund[ , "Std. Error"]
 ) %>% 
   mutate(
     pred_abund_est = exp(link_abund_est),
@@ -246,11 +222,10 @@ log_abund_preds <- data.frame(
     pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
   ) 
 
-stock_seq2 <- c(#"total", 
-  colnames(model_inputs$tmb_data$Y2_ik))
+stock_seq2 <- c(colnames(model_inputs$tmb_data$Y2_ik))
 
 pred_abund <- purrr::map(stock_seq2, function (x) {
-  dum <- pred_dat_catch
+  dum <- pred_dat
   dum$stock <- x
   return(dum)
 }) %>%
@@ -264,19 +239,26 @@ saveRDS(pred_abund,
                    "combined_mvn_mig_corridor_pred_abund.rds"))
 
 
-abund_plots <- purrr::map2(pred_abund, names(pred_abund), function (x, y) {
-  q <- ggplot(data = x, aes(x = month_n)) +
-    labs(y = "Predicted Abundance Index", x = "Month") +
-    facet_grid(area~stock, scales = "free_y") +
-    ggsidekick::theme_sleek() +
-    geom_line(aes(y = pred_abund_est, colour = year)) +
-    labs(title = y)
-  q_ribbon <- q + 
-    geom_ribbon(aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
-                alpha = 0.5)
 
-  list(q, q_ribbon)  
+abund_plots <- purrr::map2(pred_abund, names(pred_abund), function (x, y) {
+  p <- ggplot(data = x, aes(x = month_n)) +
+    labs(y = "Predicted Abundance Index", x = "Month") +
+    facet_wrap(area~stock, scales = "free_y") +
+    ggsidekick::theme_sleek() +
+    geom_line(aes(y = pred_abund_est, colour = year))
+  
+  p_ribbon <- p +
+    geom_ribbon(data = x,
+                aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
+                alpha = 0.2)
+
+  list(p, p_ribbon)
 })
+
+
+
+
+
 
 
 ## EXPORT FIGS -----------------------------------------------------------------
