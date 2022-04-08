@@ -144,10 +144,9 @@ stock_mod <- fit_model(
   tmb_pars = model_inputs$tmb_pars, 
   tmb_map = model_inputs$tmb_map, 
   tmb_random  = model_inputs$tmb_random,
-  model = "integrated",
-  fit_random = TRUE,
+  fit_random = FALSE,
   ignore_fix = FALSE,
-  include_re_preds = FALSE
+  model_specs = model_inputs$model_specs
 )
 
 saveRDS(stock_mod$ssdr, 

@@ -36,7 +36,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
                         abund_dat = NULL, comp_dat = NULL,
                         abund_rint = NULL, comp_rint = NULL,
                         pred_dat = NULL,
-                        # pred_abund = NULL, #pred_comp = NULL,
                         model = c("negbin", "dirichlet", "integrated"),
                         include_re_preds = FALSE) {
   
@@ -219,7 +218,11 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     }
   }
   
-  out_list <- list(tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
+  # combine model specs to pass as logicals to fitting function
+  model_specs <- list(model = model, include_re_preds = include_re_preds)
+  
+  out_list <- list(model_specs = model_specs,
+                   tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
                    tmb_random = tmb_random)
   if (model %in% c("dirichlet", "integrated")) {
     out_list <- c(out_list, list(wide_comp_dat = comp_wide))
@@ -240,19 +243,22 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 # include_re_preds = TRUE
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
-                      model = c("negbin", "dirichlet", "integrated"),
+                      # model = c("negbin", "dirichlet", "integrated"),
                       fit_random = TRUE, ignore_fix = FALSE,
-                      include_re_preds = FALSE) {
+                      # include_re_preds = FALSE
+                      model_specs = list(model = "integrated",
+                                         include_re_preds = FALSE)
+                      ) {
   
-  if (model == "negbin") tmb_model <- "negbin_rsplines"
+  if (model_specs$model == "negbin") tmb_model <- "negbin_rsplines"
   # use MVN model if random effects predictions necessary
-  if (model == "dirichlet") {
-    tmb_model <- ifelse(include_re_preds == FALSE,
+  if (model_specs$model == "dirichlet") {
+    tmb_model <- ifelse(model_specs$include_re_preds == FALSE,
                         "dirichlet_ri",
                         "dirichlet_mvn")
   }
-  if (model == "integrated") {
-    tmb_model <- ifelse(include_re_preds == FALSE,
+  if (model_specs$model == "integrated") {
+    tmb_model <- ifelse(model_specs$include_re_preds == FALSE,
                         "negbin_rsplines_dirichlet_ri",
                         "negbin_rsplines_dirichlet_mvn")
   }
