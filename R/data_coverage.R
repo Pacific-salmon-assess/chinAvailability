@@ -47,22 +47,6 @@ subarea_coverage <- purrr::map2(
   }
 )
 
-# as above but focused only on core regions
-subarea_trim <- subarea_list %>% 
-  bind_rows() %>% 
-  filter(area %in% c("19GST", "19JDF", "20", "21", "121")) 
-
-alpha_scale <- c(0.3, 0.95)
-names(alpha_scale) <- c("no", "yes")
-ggplot(subarea_trim, 
-       aes(x = as.factor(month_n), y = n, fill = year, alpha = core_area)) +
-  geom_bar(position="stack", stat="identity") +
-  scale_alpha_manual(values = alpha_scale) +
-  ggsidekick::theme_sleek() +
-  facet_wrap(~subarea, scales = "free_y") +
-  labs(x = "Month", y = "Samples")
-
-
 area_coverage <- purrr::map2(
   area_list, names(area_list),
   function (x, y) {
@@ -74,6 +58,28 @@ area_coverage <- purrr::map2(
     print(p)
   }
 )
+
+
+# as above but focused only on core regions
+subarea_trim <- subarea_list %>% 
+  bind_rows() %>% 
+  filter(area %in% c("19GST", "19JDF", "20E", "20W", "21", "121")) 
+
+alpha_scale <- c(0.3, 0.95)
+names(alpha_scale) <- c("no", "yes")
+
+png(here::here("figs", "data_coverage", "gsi_samples_subarea_trim.png"))
+ggplot(subarea_trim, 
+       aes(x = as.factor(month_n), y = n, fill = year, alpha = core_area)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_alpha_manual(values = alpha_scale) +
+  ggsidekick::theme_sleek() +
+  facet_wrap(~subarea, scales = "free_y") +
+  labs(x = "Month", y = "Samples")
+dev.off()
+
+
+
 
 # export
 pdf(here::here("figs", "data_coverage", "gsi_samples_new_subarea.pdf"))
