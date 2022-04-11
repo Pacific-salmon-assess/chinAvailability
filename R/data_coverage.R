@@ -12,14 +12,18 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   mutate(month_n = lubridate::month(date)) 
 
 
-
-
 # sample coverage for GSI ------------------------------------------------------
 
 subarea_list <- rec_raw %>%
-  group_by(subarea, region, year, month_n, legal) %>%
+  group_by(area, subarea, region, year, month_n, legal) %>%
   summarize(n = length(unique(id)),
-            .groups = "drop") %>%
+            .groups = "drop") %>% 
+  mutate(year = as.factor(year),
+         core_area = case_when(
+           subarea %in% c("121A", "121B", "21A") ~ "yes",
+           area %in% "19GST" ~ "yes",
+           TRUE ~ "no"
+         )) %>% 
   ungroup() %>% 
   split(., .$region)
 area_list <- rec_raw %>%
@@ -34,14 +38,30 @@ area_list <- rec_raw %>%
 subarea_coverage <- purrr::map2(
   subarea_list, names(subarea_list),
   function (x, y) {
-    p <- ggplot(x, aes(x = as.factor(month_n), y = n, fill = legal)) +
+    p <- ggplot(x, aes(x = as.factor(month_n), y = n, fill = year)) +
       geom_bar(position="stack", stat="identity") +
       ggsidekick::theme_sleek() +
-      facet_grid(subarea~year) +
+      facet_wrap(~subarea, scales = "free_y") +
       labs(x = "Month", y = "Samples", title = y)
     print(p)
   }
 )
+
+# as above but focused only on core regions
+subarea_trim <- subarea_list %>% 
+  bind_rows() %>% 
+  filter(area %in% c("19GST", "19JDF", "20", "21", "121")) 
+
+alpha_scale <- c(0.3, 0.95)
+names(alpha_scale) <- c("no", "yes")
+ggplot(subarea_trim, 
+       aes(x = as.factor(month_n), y = n, fill = year, alpha = core_area)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_alpha_manual(values = alpha_scale) +
+  ggsidekick::theme_sleek() +
+  facet_wrap(~subarea, scales = "free_y") +
+  labs(x = "Month", y = "Samples")
+
 
 area_coverage <- purrr::map2(
   area_list, names(area_list),
