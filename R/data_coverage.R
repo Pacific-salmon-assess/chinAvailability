@@ -161,20 +161,31 @@ subarea_comp_dat <- rec_raw %>%
 stock_pal <- disco::disco("rainbow", n = length(unique(subarea_comp_dat$pst_agg)))
 
 
-subset_stock_comp <- ggplot(
-  subarea_comp_dat, 
-  aes(fill = pst_agg, y = agg_ppn, x = month_n, alpha = core_area)
-) + 
-  geom_bar(position="stack", stat="identity") +
+labs <- subarea_comp_dat %>% 
+  dplyr::select(month_n, strata, total_samples) %>% 
+  distinct() 
+
+
+subset_stock_comp <- ggplot() + 
+  geom_bar(data = subarea_comp_dat, 
+           aes(fill = pst_agg, y = agg_ppn, x = month_n, alpha = core_area),
+           position="stack", stat="identity") +
   scale_fill_manual(name = "Stock", values = stock_pal) +
   scale_alpha_manual(name = "Core Area", values = alpha_scale) +
+  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
+            position = position_dodge(width = 0.75), size = 2.5,
+            vjust = -0.5) +
   facet_wrap(~strata) +
-  labs(x = "Month", y = "Agg Probability", title = "Core Study Area") +
+  labs(x = "Month", y = "Agg Probability") +
   ggsidekick::theme_sleek()
 
 
 pdf(here::here("figs", "data_coverage", "mean_monthly_stock_comp.pdf"))
 seasonal_stock_comp
+dev.off()
+
+png(here::here("figs", "data_coverage", "mean_monthly_stock_comp_subarea.png"),
+    height = 7, width = 9, units = "in", res = 250)
 subset_stock_comp
 dev.off()
 
