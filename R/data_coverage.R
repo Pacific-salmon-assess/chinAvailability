@@ -173,7 +173,7 @@ subset_stock_comp <- ggplot() +
   scale_fill_manual(name = "Stock", values = stock_pal) +
   scale_alpha_manual(name = "Core Area", values = alpha_scale) +
   geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
-            position = position_dodge(width = 0.75), size = 2.5,
+            position = position_dodge(width = 0.9), size = 2.5,
             vjust = -0.5) +
   facet_wrap(~strata) +
   labs(x = "Month", y = "Agg Probability") +
@@ -185,7 +185,7 @@ seasonal_stock_comp
 dev.off()
 
 png(here::here("figs", "data_coverage", "mean_monthly_stock_comp_subarea.png"),
-    height = 7, width = 9, units = "in", res = 250)
+    height = 7, width = 10, units = "in", res = 250)
 subset_stock_comp
 dev.off()
 

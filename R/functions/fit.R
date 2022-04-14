@@ -241,13 +241,13 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 # fit_random = FALSE;
 # ignore_fix = FALSE;
 # include_re_preds = TRUE
+# model_specs = list(model = "integrated",
+#                    include_re_preds = FALSE)
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       # model = c("negbin", "dirichlet", "integrated"),
-                      fit_random = TRUE, ignore_fix = FALSE,
+                      fit_random = TRUE, ignore_fix = FALSE, model_specs
                       # include_re_preds = FALSE
-                      model_specs = list(model = "integrated",
-                                         include_re_preds = FALSE)
                       ) {
   
   if (model_specs$model == "negbin") tmb_model <- "negbin_rsplines"

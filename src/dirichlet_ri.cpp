@@ -107,7 +107,7 @@ Type objective_function<Type>::operator() ()
     }
   }
 
-  ADREPORT(pred_Mu2);
+  // ADREPORT(pred_Mu2);
   ADREPORT(logit_pred_Pi_prop);
   
   // Return negative loglikelihood

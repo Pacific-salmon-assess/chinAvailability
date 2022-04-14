@@ -35,3 +35,12 @@ April 1, 2022
 April 5, 2022
 - Address vector memory issues by removing non-essential ADREPORT from integrated model
 
+April 14, 2022
+- Begin investigating subarea stock comp
+- Pool US7 and 19B, 21A and 21B due to small sample sizes; remove 18A, 19A, 18E outside study area and small sample sizes
+- Considered incorporating 123I but composition is quite different (large inputs of RCH fish) and worried it will skew results
+- Proposed framework:
+	- Fit hierarchical GAM w/ smooths by region (SWVI, JdF, SSoG) and intercepts by subarea
+	- Constrain predictions to focus on areas that overlap with RKW foraging: 21A, 121A, 121B, 19C, 19B, 18B
+- Fit initial model, but required removing data poor strata (subareas and months)
+- Next steps check against observations and experiment with different levels of stock clumping 
