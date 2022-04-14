@@ -9,8 +9,33 @@ library(tidyverse)
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   rename(stock_region = region, region = cap_region) %>% 
-  mutate(month_n = lubridate::month(date)) 
+  mutate(month_n = lubridate::month(date),
+         subarea = case_when(
+           subarea %in% c("21B") ~ "21A",
+           subarea %in% c("US7") ~ "19B",
+           TRUE ~ subarea
+         ),
+         reg_f = case_when(
+           # subarea == "123I" ~ "SWVI", # qu
+           #correction for subarea 21A IDd as SSoG
+           subarea == "21A" ~ "SWVI",
+           area %in% c("121", "21") ~ "SWVI",
+           subarea == "19C" ~ "SSoG",
+           area %in% c("20W", "20E", "19JDF") ~ "JdFS",
+           area %in% c("18", "19GST") ~ "SSoG",
+           # area  ~ "SSoG",
+           TRUE ~ "out"
+         ),
+         reg_f = as.factor(reg_f),
+         core_area = case_when(
+           reg_f %in% c("SWVI") ~ "yes", 
+           subarea %in% c("18B", "19B", "19C") ~ "yes",
+           TRUE ~ "no"
+         )
+  ) 
 
+alpha_scale <- c(0.3, 0.95)
+names(alpha_scale) <- c("no", "yes")
 
 # sample coverage for GSI ------------------------------------------------------
 
@@ -18,12 +43,7 @@ subarea_list <- rec_raw %>%
   group_by(area, subarea, region, year, month_n, legal) %>%
   summarize(n = length(unique(id)),
             .groups = "drop") %>% 
-  mutate(year = as.factor(year),
-         core_area = case_when(
-           subarea %in% c("121A", "121B", "21A") ~ "yes",
-           area %in% "19GST" ~ "yes",
-           TRUE ~ "no"
-         )) %>% 
+  mutate(year = as.factor(year)) %>% 
   ungroup() %>% 
   split(., .$region)
 area_list <- rec_raw %>%
@@ -65,8 +85,6 @@ subarea_trim <- subarea_list %>%
   bind_rows() %>% 
   filter(area %in% c("19GST", "19JDF", "20E", "20W", "21", "121")) 
 
-alpha_scale <- c(0.3, 0.95)
-names(alpha_scale) <- c("no", "yes")
 
 png(here::here("figs", "data_coverage", "gsi_samples_subarea_trim.png"))
 ggplot(subarea_trim, 
@@ -123,19 +141,34 @@ seasonal_stock_comp <- purrr::map2(
   }
 )
 
-# subset to focus on areas of interest
-subset_stock_comp <- stock_comp_dat %>% 
-  filter(
-    area %in% c("121", "21", "20E", "20W", "19JDF", "19GST", "18", "123")
-  ) %>% 
-  mutate(
-    reg = abbreviate(region, minlength = 4),
-    area = paste(reg, area, sep = "_")
-  ) %>% 
-  ggplot(., aes(fill = pst_agg, y = agg_ppn, x = month_n)) + 
+# as above but for subareas, restricted to regions of focus and aggregated 
+# post-hoc
+
+subarea_comp_dat <- rec_raw %>%
+  filter(legal == "legal",
+         !reg_f == "out") %>%
+  group_by(subarea, month) %>% 
+  mutate(total_samples = sum(prob)) %>% 
+  group_by(subarea, reg_f, month, month_n, total_samples, pst_agg, core_area) %>% 
+  summarize(
+    agg_prob = sum(prob),
+    agg_ppn = agg_prob / total_samples,
+    .groups = "drop"
+  ) %>%  
+  distinct() %>% 
+  mutate(strata = paste(reg_f, subarea))
+
+stock_pal <- disco::disco("rainbow", n = length(unique(subarea_comp_dat$pst_agg)))
+
+
+subset_stock_comp <- ggplot(
+  subarea_comp_dat, 
+  aes(fill = pst_agg, y = agg_ppn, x = month_n, alpha = core_area)
+) + 
   geom_bar(position="stack", stat="identity") +
   scale_fill_manual(name = "Stock", values = stock_pal) +
-  facet_wrap(~area) +
+  scale_alpha_manual(name = "Core Area", values = alpha_scale) +
+  facet_wrap(~strata) +
   labs(x = "Month", y = "Agg Probability", title = "Core Study Area") +
   ggsidekick::theme_sleek()
 
