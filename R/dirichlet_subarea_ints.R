@@ -114,8 +114,7 @@ pred_dat_stock_comp <- pred_dat_comp1 %>%
 # year
 pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
   select(-year) %>%
-  distinct() %>%
-  glimpse()
+  distinct()
 
 
 # look at sample coverage in data passed to model
@@ -155,7 +154,7 @@ model_inputs <- make_inputs(
   comp_rint = "year",
   pred_dat = pred_dat_stock_comp,
   model = "dirichlet",
-  include_re_preds = FALSE
+  include_re_preds = TRUE
 )
 
 stock_mod <- fit_model(
@@ -177,10 +176,10 @@ saveRDS(stock_mod$ssdr,
 # no rand predictions
 model_inputs_ri <- make_inputs(
   comp_formula = pst_agg ~ area + 
-    s(month_n, bs = "tp", k = 4, by = reg, m = 2) ,
+    s(month_n, bs = "tp", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
-  pred_comp = pred_dat_stock_comp_ri,
+  pred_dat = pred_dat_stock_comp_ri,
   model = "dirichlet",
   include_re_preds = FALSE
 )
@@ -190,15 +189,14 @@ stock_mod_ri <- fit_model(
   tmb_pars = model_inputs_ri$tmb_pars, 
   tmb_map = model_inputs_ri$tmb_map, 
   tmb_random  = model_inputs_ri$tmb_random,
-  model = "dirichlet",
   fit_random = TRUE,
   ignore_fix = TRUE,
-  include_re_preds = FALSE
+  model_specs = model_inputs$model_specs
 )
 
 saveRDS(stock_mod_ri$ssdr, 
         here::here("data", "model_fits", 
-                   "dirichlet_area_ri_mig_corridor.rds"))
+                   "dirichlet_subarea_ri_mig_corridor.rds"))
 
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
@@ -206,7 +204,7 @@ saveRDS(stock_mod_ri$ssdr,
 
 # random effects predictions 
 ssdr <- readRDS(
-  here::here("data", "model_fits", "dirichlet_area_mvn_mig_corridor.rds"))
+  here::here("data", "model_fits", "dirichlet_subarea_mvn_mig_corridor.rds"))
 
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 
@@ -246,7 +244,7 @@ p_ribbon <- p +
 
 # fixed effects predictions 
 ssdr_ri <- readRDS(
-  here::here("data", "model_fits", "dirichlet_area_ri_mig_corridor.rds"))
+  here::here("data", "model_fits", "dirichlet_subarea_ri_mig_corridor.rds"))
 
 logit_pred_ppn_ri <- ssdr_ri[rownames(ssdr_ri) == "logit_pred_Pi_prop", ]
 
@@ -267,11 +265,12 @@ pred_comp_ri <- purrr::map(stock_seq, function (x) {
 }) %>%
   bind_rows() %>%
   cbind(., link_preds_ri) %>% 
-  mutate(area_f = fct_reorder(as.factor(area), as.numeric(reg)))
+  mutate(area_f = fct_reorder(as.factor(area), as.numeric(reg)),
+         subarea_f = fct_reorder(as.factor(subarea), as.numeric(reg)))
 
 p2 <- ggplot(data = pred_comp_ri, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(area_f~stock) +
+  facet_grid(subarea_f~stock) +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_prob_est)) +
   geom_ribbon(aes(ymin = pred_prob_low, ymax = pred_prob_up),
