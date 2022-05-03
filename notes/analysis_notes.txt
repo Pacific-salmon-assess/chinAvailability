@@ -44,3 +44,18 @@ April 14, 2022
 	- Constrain predictions to focus on areas that overlap with RKW foraging: 21A, 121A, 121B, 19C, 19B, 18B
 - Fit initial model, but required removing data poor strata (subareas and months)
 - Next steps check against observations and experiment with different levels of stock clumping 
+
+April 21, 2022
+- Consolidate several subareas after identifying troubles with convergence
+    - 19CDE and 20CDE
+    - Also remove 18D
+- Issues with unrealistc curves when k = 3 and shared smooth, but k = 4 doesn't work with shared or without (latter barely)
+
+May 1, 2022
+- Focus on higher stock resolution (Canadian MUs); most stable model includes region-specific smooths and no hyper smooth with 3 knots
+- Experimented with using week as a covariate 
+    - No convergence -- hypersmooth + 3 knots, no hypersmooth + 3 knots, no hypersmooth + 4 knots
+    - Tried truncating input data, still no convergence
+- Tried changing sample_id to aggregate by week rather than day 
+    - No joy with: no hypersmooth + 4 knots, hypersmooth + 3 knots, hypersmooth + 4 knots, no hypersmooth + 3 knots
+    
