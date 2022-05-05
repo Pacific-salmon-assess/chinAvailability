@@ -61,8 +61,8 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          week = lubridate::week(date),
          yday = lubridate::yday(date),
          month_n = lubridate::month(date),
-         sample_id = paste(month_n, reg, week, year, sep = "_"),
-         # sample_id = paste(month_n, reg, yday, year, sep = "_"),
+         # sample_id = paste(month_n, reg, week, year, sep = "_"),
+         sample_id = paste(month_n, reg, yday, year, sep = "_"),
          can_reg = case_when(
            pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa", "CA_ORCST", 
                           "CR-lower_sp", "CR-upper_sp", "PSD", 
@@ -83,13 +83,14 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   ungroup()
 
 stock_comp <- comp1 %>%  
-  group_by(sample_id, subarea, area, reg, reg_c = region, week, month, month_n, year, 
+  group_by(sample_id, subarea, area, reg, reg_c = region, #week, 
+           month, month_n, year, 
            nn, can_reg, core_area) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
-  filter(!reg == "out",
-         week > 22 & week < 38
+  filter(!reg == "out"#,
+         # week > 22 & week < 38
          # month_n < 10.1 & month_n > 1.9
          ) %>% 
   mutate(year = as.factor(year),
@@ -104,11 +105,11 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
       reg = unique(x$reg),
-      week = unique(x$week),
-      # month_n = seq(min(x$month_n),
-      #               max(x$month_n),
-      #               by = 0.1
-      # ),
+      # week = unique(x$week),
+      month_n = seq(min(x$month_n),
+                    max(x$month_n),
+                    by = 0.1
+      ),
       year = unique(x$year)
     ) 
   }) 
@@ -118,16 +119,14 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
 area_key <- stock_comp %>% 
   select(subarea, area, reg, core_area) %>% 
   distinct()
-# month_key <- stock_comp %>% 
-#   select(week, month_n) %>% 
-#   distinct()
+
 
 # subset predicted composition dataset
 pred_dat_stock_comp <- pred_dat_comp1 %>% 
   left_join(., area_key, by = "reg") %>%
   filter(core_area == "yes",
-         # month_n < 9.1 & month_n > 5.9,
-         week < 36 & week > 22
+         month_n < 9.1 & month_n > 5.9
+         # week < 36 & week > 22
          ) %>% 
   select(-core_area)
 
@@ -144,10 +143,10 @@ names(alpha_scale) <- c("no", "yes")
 
 png(here::here("figs", "data_coverage", "comp_model_inputs.png"))
 stock_comp %>% 
-  select(sample_id, year, reg, subarea, week, nn, core_area) %>% 
+  select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
   distinct() %>% 
   ggplot() +
-  geom_jitter(aes(x = week, y = year, size = nn, colour = reg, 
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg, 
                   shape = core_area),
               alpha = 0.3, width = 0.25) +
   facet_wrap(~subarea)
@@ -194,8 +193,8 @@ saveRDS(stock_mod$ssdr,
 # no rand predictions
 model_inputs_ri <- make_inputs(
   comp_formula = can_reg ~ subarea + 
-    # s(week, bs = "tp", k = 3, m = 2) +
-    s(week, bs = "tp", k = 3, by = reg, m = 2),
+    # s(month_n, bs = "cc", k = 4, m = 2) +
+    s(month_n, bs = "cc", k = 4, by = reg, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,
@@ -209,7 +208,7 @@ stock_mod_ri <- fit_model(
   tmb_map = model_inputs_ri$tmb_map, 
   tmb_random  = model_inputs_ri$tmb_random,
   fit_random = TRUE,
-  ignore_fix = TRUE,
+  ignore_fix = FALSE,
   model_specs = model_inputs_ri$model_specs
 )
 
@@ -288,12 +287,14 @@ p_ribbon <- p +
 # number of samples in a daily observation
 long_dat <- model_inputs_ri$wide_comp_dat %>%
   mutate(samp_nn = apply(model_inputs_ri$tmb_data$Y2_ik, 1, sum)) %>%
-  pivot_longer(cols = c(Fraser_Summer_4.1:Fraser_Summer_5.2), 
+  pivot_longer(cols = c(Other:Fraser_Summer_5.2), 
                names_to = "stock", 
                values_to = "obs_count") %>% 
   mutate(obs_ppn = obs_count / samp_nn) %>% 
   filter(subarea %in% pred_comp$subarea,
-         month_n %in% pred_comp$month_n) 
+         # month_n %in% pred_comp$month_n
+         month_n < 11 & month_n > 4
+         ) 
 
 p_obs <- ggplot() +
   labs(y = "Predicted Stock Proportion", x = "Month") +
@@ -301,7 +302,7 @@ p_obs <- ggplot() +
   ggsidekick::theme_sleek() +
   geom_jitter(data = long_dat,
               aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
-  geom_line(data = pred_comp, aes(x = month_n, y = pred_prob_est), 
+  geom_line(data = pred_comp, aes(x = month_n, y = pred_prob_est),
             colour = "red") +
   scale_size_continuous() +
   theme(legend.position = "top")
@@ -314,10 +315,12 @@ pred_bar <- pred_comp %>%
   geom_col(aes(x = month_n, y = pred_prob_est, fill = stock)) +
   facet_wrap(~subarea, scales = "free_y") +
   scale_fill_brewer(type = "div", palette = 9) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  ggsidekick::theme_sleek() 
 
 
-pdf(here::here("figs", "jdf_subarea_preds", "subarea_month.pdf"))
+pdf(here::here("figs", "jdf_subarea_preds", "subarea_month_v2.pdf"),
+    height = 6, width = 9)
 p
 p_ribbon
 p_obs
