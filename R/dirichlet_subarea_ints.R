@@ -64,6 +64,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          # sample_id = paste(month_n, reg, week, year, sep = "_"),
          sample_id = paste(month_n, reg, yday, year, sep = "_"),
          can_reg = case_when(
+          grepl("Fraser_Spring", Region1Name) ~ "Fraser_spring_X.2",
            pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa", "CA_ORCST", 
                           "CR-lower_sp", "CR-upper_sp", "PSD", 
                           "NBC_SEAK", "WACST") ~ "Other",
@@ -141,7 +142,8 @@ pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
 alpha_scale <- c(0.3, 0.95)
 names(alpha_scale) <- c("no", "yes")
 
-png(here::here("figs", "data_coverage", "comp_model_inputs.png"))
+png(here::here("figs", "data_coverage", "comp_model_inputs.png"), res = 250, 
+    height = 4, width = 5, units = "in")
 stock_comp %>% 
   select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
   distinct() %>% 
@@ -193,8 +195,8 @@ saveRDS(stock_mod$ssdr,
 # no rand predictions
 model_inputs_ri <- make_inputs(
   comp_formula = can_reg ~ subarea + 
-    # s(month_n, bs = "cc", k = 4, m = 2) +
-    s(month_n, bs = "cc", k = 4, by = reg, m = 2),
+    s(month_n, bs = "cc", k = 4, m = 2), #+
+    # s(month_n, bs = "cc", k = 4, by = subarea, m = 1),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,
@@ -225,7 +227,7 @@ dum <- model_inputs_ri$tmb_data$pred_X2_ij %*% beta_mat
 
 saveRDS(stock_mod_ri$ssdr, 
         here::here("data", "model_fits", "subarea",
-                   "dirichlet_ri_mig_corridor.rds"))
+                   "dirichlet_ri_mig_corridor_cc.rds"))
 
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
@@ -268,14 +270,16 @@ pred_comp <- purrr::map(stock_seq, function (x) {
     stock = fct_relevel(
       stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
       "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", "SOMN", "WCVI", "Other"
-    )
+    ),
+    subarea = fct_relevel(subarea, "121B", "121A", "21A", "19B", "18B")
   )
 
 p <- ggplot(data = pred_comp, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est)) #+
+  geom_line(aes(y = pred_prob_est)) +                                                                # Change font size
+  theme(strip.text.x = element_text(size = 7))
 
 p_ribbon <- p +
   geom_ribbon(data = pred_comp,
@@ -290,7 +294,12 @@ long_dat <- model_inputs_ri$wide_comp_dat %>%
   pivot_longer(cols = c(Other:Fraser_Summer_5.2), 
                names_to = "stock", 
                values_to = "obs_count") %>% 
-  mutate(obs_ppn = obs_count / samp_nn) %>% 
+  mutate(obs_ppn = obs_count / samp_nn,
+         stock = fct_relevel(
+           stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
+           "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", "SOMN", "WCVI", "Other"
+         ),
+         subarea = fct_relevel(subarea, "121B", "121A", "21A", "19B", "18B")) %>% 
   filter(subarea %in% pred_comp$subarea,
          # month_n %in% pred_comp$month_n
          month_n < 11 & month_n > 4
@@ -300,12 +309,13 @@ p_obs <- ggplot() +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
-  geom_jitter(data = long_dat,
-              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
   geom_line(data = pred_comp, aes(x = month_n, y = pred_prob_est),
             colour = "red") +
+  geom_jitter(data = long_dat,
+              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
   scale_size_continuous() +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +                                                                # Change font size
+  theme(strip.text.x = element_text(size = 7))
 
 
 # stacked bar plots

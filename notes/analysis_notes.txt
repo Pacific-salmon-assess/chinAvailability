@@ -63,3 +63,5 @@ May 1, 2022
 May 4, 2022
 - Included all seasonal data and fit with high resolution stock data and monthly covariate
 	- Converged with hypersmooth only + CC + 4 knots
+	- No joy with hypersmooth + regional smooths + 4 knots/CC
+	- No joy with regional smooths + 4 knots/CC
