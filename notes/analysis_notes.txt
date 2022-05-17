@@ -59,3 +59,9 @@ May 1, 2022
 - Tried changing sample_id to aggregate by week rather than day 
     - No joy with: no hypersmooth + 4 knots, hypersmooth + 3 knots, hypersmooth + 4 knots, no hypersmooth + 3 knots
     
+
+May 4, 2022
+- Included all seasonal data and fit with high resolution stock data and monthly covariate
+	- Converged with hypersmooth only + CC + 4 knots
+	- No joy with hypersmooth + regional smooths + 4 knots/CC
+	- No joy with regional smooths + 4 knots/CC

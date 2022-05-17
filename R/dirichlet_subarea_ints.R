@@ -32,7 +32,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          !subarea %in% c("18E", "19A", "18A", "18D")) %>% 
   rename(stock_region = region, region = cap_region) %>% 
   mutate(month_n = lubridate::month(date),
-         subarea_f = subarea,
+         subarea_original = subarea,
          subarea = case_when(
            subarea %in% c("21B") ~ "21A",
            subarea %in% c("US7") ~ "19B",
@@ -84,8 +84,8 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   ungroup()
 
 stock_comp <- comp1 %>%  
-  group_by(sample_id, subarea, area, reg, reg_c = region, week, month, month_n, year, 
-           nn, can_reg, core_area) %>% 
+  group_by(sample_id, subarea, subarea_original, area, reg, reg_c = region, 
+           week, month, month_n, year, nn, can_reg, core_area) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
@@ -143,7 +143,8 @@ pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
 alpha_scale <- c(0.3, 0.95)
 names(alpha_scale) <- c("no", "yes")
 
-png(here::here("figs", "data_coverage", "comp_model_inputs.png"))
+png(here::here("figs", "data_coverage", "comp_model_inputs.png"), height = 5,
+    width = 5, units = "in", res = 200)
 stock_comp %>% 
   select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
   distinct() %>% 
@@ -151,7 +152,8 @@ stock_comp %>%
   geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg, 
                   shape = core_area),
               alpha = 0.3, width = 0.25) +
-  facet_wrap(~fct_reorder(subarea, as.numeric(reg)))
+  facet_wrap(~fct_reorder(subarea, as.numeric(reg))) +
+  ggsidekick::theme_sleek()
 dev.off()
 
 
