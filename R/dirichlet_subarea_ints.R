@@ -32,6 +32,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          !subarea %in% c("18E", "19A", "18A", "18D")) %>% 
   rename(stock_region = region, region = cap_region) %>% 
   mutate(month_n = lubridate::month(date),
+         subarea_f = subarea,
          subarea = case_when(
            subarea %in% c("21B") ~ "21A",
            subarea %in% c("US7") ~ "19B",
@@ -89,11 +90,11 @@ stock_comp <- comp1 %>%
   ungroup() %>% 
   droplevels() %>% 
   filter(!reg == "out",
-         week > 22 & week < 38
-         # month_n < 10.1 & month_n > 1.9
+         # week > 22 & week < 38
+         month_n < 10.1 & month_n > 1.9
          ) %>% 
   mutate(year = as.factor(year),
-         reg = as.factor(reg),
+         reg = factor(reg, levels = c("SWVI", "JdFS", "SSoG")),
          subarea = as.factor(subarea),
          area = as.factor(area)
          )
@@ -144,13 +145,13 @@ names(alpha_scale) <- c("no", "yes")
 
 png(here::here("figs", "data_coverage", "comp_model_inputs.png"))
 stock_comp %>% 
-  select(sample_id, year, reg, subarea, week, nn, core_area) %>% 
+  select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
   distinct() %>% 
   ggplot() +
-  geom_jitter(aes(x = week, y = year, size = nn, colour = reg, 
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg, 
                   shape = core_area),
               alpha = 0.3, width = 0.25) +
-  facet_wrap(~subarea)
+  facet_wrap(~fct_reorder(subarea, as.numeric(reg)))
 dev.off()
 
 
