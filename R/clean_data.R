@@ -10,7 +10,11 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2022.rds"))
 creel_spatial <- readRDS(
   here::here("data", "rec", "creel_subarea_spatial.rds")
 ) %>% 
-  st_drop_geometry()
+  st_drop_geometry() %>% 
+  #coerce 20-D to equal specific subarea
+  mutate(
+    creelsub = ifelse(creelsub == "20-DO", "20-D", creelsub)
+  )
 
 
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------

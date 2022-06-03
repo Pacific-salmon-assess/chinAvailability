@@ -58,10 +58,16 @@ May 1, 2022
     - Tried truncating input data, still no convergence
 - Tried changing sample_id to aggregate by week rather than day 
     - No joy with: no hypersmooth + 4 knots, hypersmooth + 3 knots, hypersmooth + 4 knots, no hypersmooth + 3 knots
-    
 
 May 4, 2022
 - Included all seasonal data and fit with high resolution stock data and monthly covariate
 	- Converged with hypersmooth only + CC + 4 knots
 	- No joy with hypersmooth + regional smooths + 4 knots/CC
 	- No joy with regional smooths + 4 knots/CC
+
+Jun 2, 2022
+- Rebinned SSoG data so that 18D/E included with 18B
+- Combined SOMN with ECVI
+- Refit 
+	- All months and CC + 4 knots -> converges and looks ok
+	- subset of months and TP + 3 knots -> and looks ok
