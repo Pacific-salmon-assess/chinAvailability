@@ -22,11 +22,11 @@ library(TMB)
 #   offset;
 # abund_dat = catch;
 # abund_rint = "year";
-# # comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2);
-# # comp_dat = stock_comp;
-# # comp_rint = "year";
-# # pred_dat = pred_dat;
-# model = "negbin";
+# comp_formula = can_reg ~ s(dist_123i)
+# comp_dat = stock_comp
+# comp_rint = "year"
+# pred_dat = pred_dat_stock_comp_ri
+# model = "dirichlet"
 # include_re_preds = FALSE
 
 
@@ -74,13 +74,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # random intercepts
     rfac1 <-  as.numeric(as.factor(abund_dat[[abund_rint]])) - 1
-    # pred_rfac1 <- as.numeric(pred_dat[[abund_rint]]) - 1
-    
-    # aggregate key for pooling estimates
-    # NOTE -- CHANGE TO MAKE FLEXIBLE (e.g conditional that changes key variable
-    # to default stratification when missing)
-    # pred_rfac_agg <- as.numeric(pred_dat$key_var) - 1
-    # pred_rfac_agg_levels <- unique(pred_rfac_agg)
     
     # make abundance tmb inputs
     abund_tmb_data <- list(
@@ -94,9 +87,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       pred_X1_ij = pred_X_ij,
       pred_Zs = sm_pred$Zs,
       pred_Xs = sm_pred$Xs#,
-      # pred_rfac1 = pred_rfac1,
-      # pred_rfac_agg = pred_rfac_agg,
-      # pred_rfac_agg_levels = pred_rfac_agg_levels
     )
     tmb_data <- c(tmb_data, abund_tmb_data)
     
@@ -104,10 +94,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     if (include_re_preds == TRUE) {
       #vector of predicted random intercepts
       pred_rand_ints <- list(
-        pred_rfac1 = as.numeric(pred_dat[[abund_rint]]) - 1#,
-        # pred_rfac_agg = as.numeric(pred_dat$key_var) - 1,
-        # pred_rfac_agg_levels = unique(pred_rfac_agg)
-      )
+        pred_rfac1 = as.numeric(pred_dat[[abund_rint]]) - 1)
       
       tmb_data <- c(tmb_data, pred_rand_ints)
     } 
@@ -143,7 +130,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # adjust input data to wide and convert observations to matrix
     comp_wide <- comp_dat %>%
-      pivot_wider(., names_from = as.name(group_var), values_from = prob) %>%
+      pivot_wider(names_from = as.name(group_var), 
+                  values_from = prob) %>%
       mutate_if(is.numeric, ~ replace_na(., 0.00001)) %>% 
       #add dummy response variable
       mutate(dummy = 0)

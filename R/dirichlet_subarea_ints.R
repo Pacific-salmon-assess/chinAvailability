@@ -82,7 +82,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          )
   ) %>% 
   group_by(sample_id) %>% 
-  mutate(nn = length(unique(id))) %>% 
+  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
   ungroup()
 
 stock_comp <- comp1 %>%  
