@@ -142,13 +142,15 @@ pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
 
 # no rand predictions
 model_inputs_ri <- make_inputs(
-  comp_formula = can_reg ~ s(dist_123i, k = 5) #+ 
-    # s(week, bs = "tp", k = 3, m = 2) +
-    # s(month_n, bs = "cc", k = 4, m = 2, by = reg)
-  ,
+  # comp_formula = can_reg ~ s(dist_123i, k = 5) + 
+  #   s(month_n, bs = "cc", k = 4, m = 2),
+  comp_formula = can_reg ~ te(month_n, dist_123i, bs = c("cc", "tp"),
+                              k = c(4, 5), m = 2) +
+    s(subarea, bs = "re"),
+  comp_knots = list(month_n = c(0, 12)),
   comp_dat = stock_comp,
   comp_rint = "year",
-  pred_dat = pred_dat_stock_comp_ri %>% select(subarea, dist_123i) %>% distinct(),
+  pred_dat = pred_dat_stock_comp_ri,
   model = "dirichlet",
   include_re_preds = FALSE
 )
@@ -172,8 +174,17 @@ rownames(beta_mat) <- colnames(model_inputs_ri$tmb_data$X2_ij)
 colnames(beta_mat) <- colnames(model_inputs_ri$tmb_data$Y2_ik)
 beta_mat
 
+saveRDS(stock_mod_ri$ssdr, 
+        here::here("data", "model_fits", "distance",
+                   "dirichlet_ri_mig_corridor.rds"))
+
+
 
 ## EXPLORE PREDICTIONS ---------------------------------------------------------
+
+ssdr <- readRDS(here::here("data", "model_fits", "distance",
+                   "dirichlet_ri_mig_corridor.rds"))
+
 
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 pred_mu <- ssdr[rownames(ssdr) == "pred_Mu2", ]
@@ -191,30 +202,70 @@ link_preds <- data.frame(
 
 stock_seq <- colnames(model_inputs_ri$tmb_data$Y2_ik)
 pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_stock_comp_ri %>% 
-    select(reg, area, subarea, dist_123i) %>% 
-    distinct()
+  dum <- pred_dat_stock_comp_ri
   dum$stock <- x
   return(dum)
 }) %>%
   bind_rows() %>%
   cbind(., link_preds) %>% 
   mutate(
-    area_f = fct_reorder(as.factor(area), as.numeric(reg)),
-    stock = fct_relevel(
-      stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
-      "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", #"SOMN",
-      "WCVI", "Other"
-    )
+    area_f = fct_reorder(as.factor(area), as.numeric(reg))#,
+    # stock = fct_relevel(
+    #   stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
+    #   "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", #"SOMN",
+    #   "WCVI", "Other"
+    # )
   )
 
-ggplot(data = pred_comp, aes(x = dist_123i)) +
+p <- ggplot(data = pred_comp, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_wrap(~stock) +
+  facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
-  geom_point(aes(y = pred_prob_est)) #+
+  geom_line(aes(y = pred_prob_est))
 
 p_ribbon <- p +
   geom_ribbon(data = pred_comp,
               aes(ymin = pred_prob_low, ymax = pred_prob_up),
               alpha = 0.2)
+
+
+## compare to observations
+# number of samples in a daily observation
+long_dat <- model_inputs_ri$wide_comp_dat %>%
+  mutate(samp_nn = apply(model_inputs_ri$tmb_data$Y2_ik, 1, sum)) %>%
+  pivot_longer(cols = c(Other:WCVI), 
+               names_to = "stock", 
+               values_to = "obs_count") %>%
+  mutate(obs_ppn = obs_count / samp_nn) %>% 
+  filter(subarea %in% pred_comp$subarea,
+         month_n %in% stock_comp$month_n
+  ) 
+
+p_obs <- ggplot() +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(subarea~stock) +
+  ggsidekick::theme_sleek() +
+  geom_jitter(data = long_dat,
+              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
+  geom_line(data = pred_comp, aes(x = month_n, y = pred_prob_est), 
+            colour = "red") +
+  scale_size_continuous() +
+  theme(legend.position = "top")
+
+
+# stacked bar plots
+pred_bar <- pred_comp %>% 
+  filter(month_n %in% c("6", "7", "8", "9")) %>% 
+  ggplot(.) +
+  geom_col(aes(x = month_n, y = pred_prob_est, fill = stock)) +
+  facet_wrap(~subarea, scales = "free_y") +
+  scale_fill_brewer(type = "div", palette = 9) +
+  theme(legend.position = "top")
+
+
+pdf(here::here("figs", "jdf_dist_preds", "subarea_month.pdf"))
+p
+p_ribbon
+p_obs
+pred_bar
+dev.off()

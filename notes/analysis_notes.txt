@@ -71,3 +71,7 @@ Jun 2, 2022
 - Refit 
 	- All months and CC + 4 knots -> converges and looks ok
 	- subset of months and TP + 3 knots -> and looks ok
+
+June 17, 2022
+- Experimented with including distance covariate instead of fixed intercepts for subareas, but too much shrinkage even with interaction between te() and month
+- Unable to add random intercepts as well distance covariate

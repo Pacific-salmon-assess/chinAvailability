@@ -202,6 +202,7 @@ model_inputs_ri <- make_inputs(
     # s(week, bs = "tp", k = 3, m = 2) +
     s(month_n, bs = "cc", k = 4, m = 2, by = reg)
     ,
+  comp_knots = list(month_n = c(0, 12)),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,

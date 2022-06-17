@@ -22,7 +22,8 @@ library(TMB)
 #   offset;
 # abund_dat = catch;
 # abund_rint = "year";
-# comp_formula = can_reg ~ s(dist_123i)
+# comp_formula = can_reg ~ s(dist_123i) + 
+#   s(month_n, bs = "cc", k = 4, m = 2, by = reg)
 # comp_dat = stock_comp
 # comp_rint = "year"
 # pred_dat = pred_dat_stock_comp_ri
@@ -33,6 +34,7 @@ library(TMB)
 ## MAKE INPUTS  ----------------------------------------------------------------
 
 make_inputs <- function(abund_formula = NULL, comp_formula = NULL, 
+                        comp_knots = NULL,
                         abund_dat = NULL, comp_dat = NULL,
                         abund_rint = NULL, comp_rint = NULL,
                         pred_dat = NULL,
@@ -61,8 +63,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     formula_no_sm <- remove_s_and_t2(abund_formula)
     X_ij <- model.matrix(formula_no_sm, data = abund_dat)
     sm <- parse_smoothers(abund_formula, data = abund_dat)
-    pred_X_ij <- predict(gam(formula_no_sm, data = abund_dat), 
-                         pred_dat, type = "lpmatrix")
     pred_X_ij <- predict(gam(formula_no_sm, data = abund_dat), 
                          pred_dat, type = "lpmatrix")
     sm_pred <- parse_smoothers(abund_formula, data = abund_dat, 
@@ -140,7 +140,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       as.matrix()
     
     # dummy model
-    dummy_comp <- mgcv::gam(comp_formula_new, data = comp_wide)
+    dummy_comp <- mgcv::gam(comp_formula_new, data = comp_wide, 
+                            knots = comp_knots)
     X2_ij <- predict(dummy_comp, type = "lpmatrix")
     pred_X2_ij <- predict(dummy_comp, pred_dat, type = "lpmatrix")
     
