@@ -3,9 +3,6 @@
 # Eventually move to stockseasonr
 # Dec. 7, 2021
 
-# Note that two prediction datasets are necessary since abundance and composition
-# data may be differently stratified
-
 # Dev TO DO:
 # 2) Make RE intercepts flexible (i.e. turn on/off or remove MVN component)
 # 3) Map 0 observations in composition component
@@ -19,10 +16,10 @@ library(TMB)
 # abund_formula = catch ~ 0 + area +
 #   s(month_n, bs = "tp", k = 3, m = 2, by = area) +
 #   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-#   offset;
+#   offset + (1 | year);
 # abund_dat = catch;
 # abund_rint = "year";
-# comp_formula = can_reg ~ s(dist_123i) + 
+# comp_formula = can_reg ~ subarea +
 #   s(month_n, bs = "cc", k = 4, m = 2, by = reg)
 # comp_dat = stock_comp
 # comp_rint = "year"
@@ -222,21 +219,21 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 
 ## FIT MODELS  -----------------------------------------------------------------
-# tmb_data = model_inputs$tmb_data;
-# tmb_pars = model_inputs$tmb_pars;
-# tmb_map = model_inputs$tmb_map;
-# tmb_random  = model_inputs$tmb_random;
-# model = "integrated";
-# fit_random = FALSE;
+# tmb_data = model_inputs_ri$tmb_data;
+# tmb_pars = model_inputs_ri$tmb_pars;
+# tmb_map = model_inputs_ri$tmb_map;
+# tmb_random  = model_inputs_ri$tmb_random;
+# fit_random = TRUE;
 # ignore_fix = FALSE;
-# include_re_preds = TRUE
-# model_specs = list(model = "integrated",
+# model_specs = list(model = "dirichlet",
 #                    include_re_preds = FALSE)
+# nlminb_loops = 2
+# newton_loops = 2
+
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
-                      # model = c("negbin", "dirichlet", "integrated"),
-                      fit_random = TRUE, ignore_fix = FALSE, model_specs
-                      # include_re_preds = FALSE
+                      fit_random = TRUE, ignore_fix = FALSE, model_specs,
+                      nlminb_loops = 1L, newton_loops = 0L
                       ) {
   
   if (model_specs$model == "negbin") tmb_model <- "negbin_rsplines"
@@ -251,6 +248,7 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                         "negbin_rsplines_dirichlet_ri",
                         "negbin_rsplines_dirichlet_mvn")
   }
+  
   ## fit fixed effects only 
   # map random effects
   if (fit_random == FALSE | ignore_fix == FALSE) {
@@ -260,19 +258,15 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
       map(new_map_list, function (x) factor(rep(NA, length(x))))
     )
     # fit
-    obj1 <- TMB::MakeADFun(
+    obj <- TMB::MakeADFun(
       data = tmb_data,
       parameters = tmb_pars,
       map = tmb_map_random,
       DLL = tmb_model
     )
-    opt1 <- stats::nlminb(obj1$par, obj1$fn, obj1$gr,
+    opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
                           control = list(eval.max = 1e4, iter.max = 1e4)
     )
-    # no need to sdreport if just passing to random effects
-    if (fit_random == FALSE) {
-      sdr <- sdreport(obj1)
-    }
   }
   
   ## fit with random effects 
@@ -281,7 +275,7 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
     if (ignore_fix == TRUE) {
       pars_in <- tmb_pars   
     } else {
-      pars_in <- obj1$env$parList(opt1$par)
+      pars_in <- obj$env$parList(opt$par)
     } 
     
     obj <- TMB::MakeADFun(
@@ -292,13 +286,28 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
       DLL = tmb_model
     )
     opt <- stats::nlminb(obj$par, obj$fn, obj$gr)
-    nlminb_loops = 2
-    for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
-      opt <- stats::nlminb(opt$par, obj$fn, obj$gr)
-    }
-    
-    sdr <- sdreport(obj)
   }
+  
+  if (nlminb_loops > 1) {
+    for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
+      temp <- opt[c("iterations", "evaluations")]
+      opt <- stats::nlminb(
+        start = opt$par, objective = obj$fn, gradient = obj$gr)
+      opt[["iterations"]] <- opt[["iterations"]] + temp[["iterations"]]
+      opt[["evaluations"]] <- opt[["evaluations"]] + temp[["evaluations"]]
+    }
+  }
+  
+  if (newton_loops > 0) {
+    for (i in seq_len(newton_loops)) {
+      g <- as.numeric(obj$gr(opt$par))
+      h <- stats::optimHess(opt$par, fn = obj$fn, gr = obj$gr)
+      opt$par <- opt$par - solve(h, g)
+      opt$objective <- obj$fn(opt$par)
+    }
+  }
+  
+  sdr <- sdreport(obj)
   
   # derived quantities
   ssdr <- summary(sdr)

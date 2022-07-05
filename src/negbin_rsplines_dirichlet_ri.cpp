@@ -1,23 +1,8 @@
 #include <TMB.hpp>
 
-// List of matrices
-template <class Type>
-struct LOM_t : vector<matrix<Type> > {
-  LOM_t(SEXP x){  // x = list passed from R
-(*this).resize(LENGTH(x));
-    for(int i=0; i<LENGTH(x); i++){
-      SEXP sm = VECTOR_ELT(x, i);
-      (*this)(i) = asMatrix<Type>(sm);
-    }
-  }
-};
-
 template<class Type>
 Type objective_function<Type>::operator() ()
 {
-
-  // load namespace with multivariate distributions
-  using namespace density;
 
   // DATA ----------------------------------------------------------------------
   
@@ -44,6 +29,9 @@ Type objective_function<Type>::operator() ()
   // Composition predictions
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
 
+  // Conditionals
+  DATA_INTEGER(abundance_component);
+  // DATA_INTEGER(random_walk);
 
   // PARAMETERS ----------------------------------------------------------------
   
@@ -79,37 +67,38 @@ Type objective_function<Type>::operator() ()
   // LINEAER PREDICTOR ---------------------------------------------------------
 
   // Abundance
-  vector<Type> eta_fx_i = X1_ij * b1_j;
+  if (abundance_component) {
+    vector<Type> eta_fx_i = X1_ij * b1_j;
 
-  // Smooths
-  vector<Type> eta_smooth_i(X1_ij.rows());
-  eta_smooth_i.setZero();
-
-  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-    vector<Type> beta_s(Zs(s).cols());
-    beta_s.setZero();
-    for (int j = 0; j < beta_s.size(); j++) {
-      beta_s(j) = b_smooth(b_smooth_start(s) + j);
-      jnll -= dnorm(beta_s(j), Type(0), exp(ln_smooth_sigma(s)), true);
-    }
-    eta_smooth_i += Zs(s) * beta_s;
-  }
-  eta_smooth_i += Xs * bs;
-
-  // Combine smooths and linear
-  vector<Type> eta_i(n1);
-  eta_i.setZero();
-  for (int i = 0; i < n1; i++) {
-    eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); 
-  }
+    // Smooths
+    vector<Type> eta_smooth_i(X1_ij.rows());
+    eta_smooth_i.setZero();
   
-  // Add random intercepts
-  vector<Type> mu_i(n1); 
-  mu_i.setZero();
-  for (int i = 0; i < n1; i++) {
-    mu_i(i) = eta_i(i) + a1(rfac1(i));
+    for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+      vector<Type> beta_s(Zs(s).cols());
+      beta_s.setZero();
+      for (int j = 0; j < beta_s.size(); j++) {
+        beta_s(j) = b_smooth(b_smooth_start(s) + j);
+        jnll -= dnorm(beta_s(j), Type(0), exp(ln_smooth_sigma(s)), true);
+      }
+      eta_smooth_i += Zs(s) * beta_s;
+    }
+    eta_smooth_i += Xs * bs;
+  
+    // Combine smooths and linear
+    vector<Type> eta_i(n1);
+    eta_i.setZero();
+    for (int i = 0; i < n1; i++) {
+      eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); 
+    }
+    
+    // Add random intercepts
+    vector<Type> mu_i(n1); 
+    mu_i.setZero();
+    for (int i = 0; i < n1; i++) {
+      mu_i(i) = eta_i(i) + a1(rfac1(i));
+    }
   }
-
 
   // Composition (no random smooths)
   matrix<Type> Mu2_fx_ik = X2_ij * B2_jk; // fixed effects
@@ -127,29 +116,26 @@ Type objective_function<Type>::operator() ()
 
   // ABUNDANCE LIKELIHOOD ------------------------------------------------------
 
-  // Type s1, s2;
-  vector<Type> s1(n1);
-  vector<Type> s2(n1);
-  for(int i = 0; i < n1; i++){
-    s1(i) = mu_i(i); //mu
-    s2(i) = 2.0 * (s1(i) - ln_phi); //scale
-    jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
-  }
-
-  // Report for residuals
-  // ADREPORT(s1);
-  // ADREPORT(s2);
-
-  // Probability of abundance random coefficients (random walk)
-  for(int k = 0; k < n_rfac1; k++){
-    if (k == 0) {
-      jnll -= dnorm(a1(k), Type(0.0), exp(ln_sigma_a1), true);  
+  if (abundance_component) {
+    // Type s1, s2;
+    vector<Type> s1(n1);
+    vector<Type> s2(n1);
+    for(int i = 0; i < n1; i++){
+      s1(i) = mu_i(i); //mu
+      s2(i) = 2.0 * (s1(i) - ln_phi); //scale
+      jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
     }
-    if (k > 0) {
-      jnll -= dnorm(a1(k), a1(k - 1), exp(ln_sigma_a1), true);
+  
+    // Probability of abundance random coefficients (random walk)
+    for(int k = 0; k < n_rfac1; k++){
+      if (k == 0) {
+        jnll -= dnorm(a1(k), Type(0.0), exp(ln_sigma_a1), true);  
+      }
+      if (k > 0) {
+        jnll -= dnorm(a1(k), a1(k - 1), exp(ln_sigma_a1), true);
+      }
     }
   }
-
 
   // COMPOSITION LIKELIHOOD ----------------------------------------------------
 
@@ -175,35 +161,9 @@ Type objective_function<Type>::operator() ()
 
   Type sigma_rfac2 = exp(ln_sigma_A2);
   REPORT(sigma_rfac2);
-  // ADREPORT(sigma_rfac2);
   
 
   // PREDICTIONS ---------------------------------------------------------------
-
-  // Predicted abundance
-  vector<Type> pred_mu1 = pred_X1_ij * b1_j;
-
-  // smoothers
-  vector<Type> pred_smooth_i(n_predX1);
-  pred_smooth_i.setZero();
-  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-    vector<Type> beta_s(pred_Zs(s).cols());
-    beta_s.setZero();
-    for (int j = 0; j < beta_s.size(); j++) {
-      beta_s(j) = b_smooth(b_smooth_start(s) + j);
-    }
-    pred_smooth_i += pred_Zs(s) * beta_s;
-  }
-  pred_smooth_i += pred_Xs * bs;
-  
-  // combine fixed and smoothed predictions
-  for (int m = 0; m < n_predX1; m++) {
-    pred_mu1(m) += pred_smooth_i(m);
-  }
-
-  // REPORT(pred_mu1);
-  // ADREPORT(pred_mu1);
-
 
   // Predicted composition 
   // matrix<Type> pred_Mu2_fx(n_predX1, n_cat);    //pred fixed effects on log scale
@@ -237,20 +197,42 @@ Type objective_function<Type>::operator() ()
   vector<Type> exp_pred_mu1 = exp(pred_mu1); // calculate real values for summing
   matrix<Type> pred_mu1_Pi(n_predX1, n_cat);
   
-  // multiply abundance and composition predictions
-  for (int m = 0; m < n_predX1; m++) {
-    for (int k = 0; k < n_cat; k++) {
-      pred_mu1_Pi(m, k) = exp_pred_mu1(m) * pred_Pi_prop(m, k);
-    }
-  }
-  matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
+  // Predicted abundance
+  if (abundance_component) {
+    vector<Type> pred_mu1 = pred_X1_ij * b1_j;
   
-
-  // Report
-  // ADREPORT(pred_Mu2);
-  // ADREPORT(logit_pred_Pi_prop);
-  ADREPORT(log_pred_mu1_Pi);
-
+    ADREPORT(pred_mu1);
+    ADREPORT(logit_pred_Pi_prop);
+  
+  
+    // smoothers
+    vector<Type> pred_smooth_i(n_predX1);
+    pred_smooth_i.setZero();
+    for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+      vector<Type> beta_s(pred_Zs(s).cols());
+      beta_s.setZero();
+      for (int j = 0; j < beta_s.size(); j++) {
+        beta_s(j) = b_smooth(b_smooth_start(s) + j);
+      }
+      pred_smooth_i += pred_Zs(s) * beta_s;
+    }
+    pred_smooth_i += pred_Xs * bs;
+    
+    // combine fixed and smoothed predictions
+    for (int m = 0; m < n_predX1; m++) {
+      pred_mu1(m) += pred_smooth_i(m);
+    }
+  
+    // multiply abundance and composition predictions
+    for (int m = 0; m < n_predX1; m++) {
+      for (int k = 0; k < n_cat; k++) {
+        pred_mu1_Pi(m, k) = exp_pred_mu1(m) * pred_Pi_prop(m, k);
+      }
+    }
+    matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
+    
+    ADREPORT(log_pred_mu1_Pi);
+  }
 
   return jnll;
 }

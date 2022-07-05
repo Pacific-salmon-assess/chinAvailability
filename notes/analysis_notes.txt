@@ -74,4 +74,4 @@ Jun 2, 2022
 
 June 17, 2022
 - Experimented with including distance covariate instead of fixed intercepts for subareas, but too much shrinkage even with interaction between te() and month
-- Unable to add random intercepts as well distance covariate
+- Unable to add random intercepts as well as distance covariate

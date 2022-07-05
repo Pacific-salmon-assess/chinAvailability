@@ -91,9 +91,9 @@ stock_comp <- comp1 %>%
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   droplevels() %>% 
-  filter(!reg == "out"#,
+  filter(!reg == "out",
          # week > 22 & week < 38
-         # month_n < 9.1 & month_n > 1.9
+         month_n < 10.1 & month_n > 1.9
          ) %>% 
   mutate(year = as.factor(year),
          reg = factor(reg, levels = c("SWVI", "JdFS", "SSoG")),
@@ -125,7 +125,10 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
       reg = unique(x$reg),
-      # week = unique(x$week),
+      # week = seq(min(x$week),
+      #            max(x$week),
+      #            by = 0.5
+      # ),
       month_n = seq(min(x$month_n),
                     max(x$month_n),
                     by = 0.1
@@ -133,7 +136,6 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
       year = unique(x$year)
     ) 
   }) 
-
 
 # add areas to composition dataset
 area_key <- stock_comp %>% 
@@ -147,10 +149,10 @@ area_key <- stock_comp %>%
 pred_dat_stock_comp <- pred_dat_comp1 %>% 
   left_join(., area_key, by = "reg") %>%
   filter(core_area == "yes",
-         month_n < 9.1 & month_n > 5.9#,
-         # week < 36 & week > 22
+         month_n < 9.1 & month_n > 5.9
          ) %>% 
-  select(-core_area)
+  select(-core_area) %>% 
+  mutate(week = month_n * 4)
 
 # remove random effects from predictions to generate estimates for "average"
 # year
@@ -169,40 +171,14 @@ pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
 
 ## FIT MODEL -------------------------------------------------------------------
 
-# rand predictions
-# model_inputs <- make_inputs(
-#   comp_formula = pst_agg ~ subarea + 
-#     s(month_n, bs = "tp", k = 3, by = reg, m = 2),
-#   comp_dat = stock_comp,
-#   comp_rint = "year",
-#   pred_dat = pred_dat_stock_comp,
-#   model = "dirichlet",
-#   include_re_preds = TRUE
-# )
-# 
-# stock_mod <- fit_model(
-#   tmb_data = model_inputs$tmb_data, 
-#   tmb_pars = model_inputs$tmb_pars, 
-#   tmb_map = model_inputs$tmb_map, 
-#   tmb_random  = model_inputs$tmb_random,
-#   fit_random = TRUE,
-#   ignore_fix = TRUE,
-#   model_specs = model_inputs$model_specs
-#   )
-# 
-# 
-# saveRDS(stock_mod$ssdr, 
-#         here::here("data", "model_fits", "subarea", 
-#                    "dirichlet_mvn_mig_corridor.rds"))
-
 
 # no rand predictions
 model_inputs_ri <- make_inputs(
-  comp_formula = can_reg ~ subarea + 
-    # s(week, bs = "tp", k = 3, m = 2) +
-    s(month_n, bs = "cc", k = 4, m = 2, by = reg)
+  comp_formula = can_reg ~ #subarea + 
+    s(month_n, bs = "tp", k = 4, m = 2)
     ,
-  comp_knots = list(month_n = c(0, 12)),
+  # comp_knots = list(month_n = c(0, 12)),
+  # comp_knots = list(month_n = c(0, 53)),
   comp_dat = stock_comp,
   comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,
@@ -217,7 +193,8 @@ stock_mod_ri <- fit_model(
   tmb_random  = model_inputs_ri$tmb_random,
   fit_random = TRUE,
   ignore_fix = FALSE,
-  model_specs = model_inputs_ri$model_specs
+  model_specs = model_inputs_ri$model_specs,
+  nlminb_loops = 2, newton_loops = 1
 )
 
 ssdr <- stock_mod_ri$ssdr 
@@ -235,6 +212,32 @@ saveRDS(stock_mod_ri$ssdr,
         here::here("data", "model_fits", "subarea",
                    "dirichlet_ri_mig_corridor.rds"))
 
+
+
+# as above but with week as a covariate
+model_inputs_ri2 <- make_inputs(
+  comp_formula = can_reg ~ subarea + 
+    s(week, bs = "cc", k = 4, m = 2) 
+    # s(month_n, bs = "cc", k = 4, m = 2, by = reg)
+  ,
+  # comp_knots = list(month_n = c(0, 12)),
+  comp_knots = list(week = c(0, 53)),
+  comp_dat = stock_comp,
+  comp_rint = "year",
+  pred_dat = pred_dat_stock_comp_ri,
+  model = "dirichlet",
+  include_re_preds = FALSE
+)
+
+stock_mod_ri2 <- fit_model(
+  tmb_data = model_inputs_ri2$tmb_data, 
+  tmb_pars = model_inputs_ri2$tmb_pars, 
+  tmb_map = model_inputs_ri2$tmb_map, 
+  tmb_random  = model_inputs_ri2$tmb_random,
+  fit_random = TRUE,
+  ignore_fix = TRUE,
+  model_specs = model_inputs_ri2$model_specs
+)
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 

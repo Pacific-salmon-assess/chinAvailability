@@ -81,8 +81,9 @@ tmb_inputs <- make_inputs(
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  pred_abund = pred_dat_catch,
-  model = "negbin"
+  pred_dat = pred_dat_catch,
+  model = "negbin",
+  include_re_preds = FALSE
 )
 
 abund_mod <- fit_model(
@@ -90,8 +91,9 @@ abund_mod <- fit_model(
   tmb_pars = tmb_inputs$tmb_pars, 
   tmb_map = tmb_inputs$tmb_map, 
   tmb_random  = tmb_inputs$tmb_random,
-  model = "negbin",
-  fit_random = TRUE
+  fit_random = TRUE,
+  ignore_fix = FALSE,
+  model_specs = tmb_inputs$model_specs
 )
 
 saveRDS(abund_mod$ssdr, 

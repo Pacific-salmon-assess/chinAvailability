@@ -69,8 +69,16 @@ Type objective_function<Type>::operator() ()
 
   
   // Probability of random intercepts
+  // for (int h = 0; h < n_rfac2; h++) {
+  //   jnll -= dnorm(A2_h(h), Type(0.0), exp(ln_sigma_A2), true);
+  // }
   for (int h = 0; h < n_rfac2; h++) {
-    jnll -= dnorm(A2_h(h), Type(0.0), exp(ln_sigma_A2), true);
+    if (h == 0) {
+      jnll -= dnorm(A2_h(h), Type(0.0), exp(ln_sigma_A2), true);  
+    }
+    if (h > 0) {
+      jnll -= dnorm(A2_h(h), A2_h(h - 1), exp(ln_sigma_A2), true);
+    }
   }
 
   Type sigma_rfac2 = exp(ln_sigma_A2);
