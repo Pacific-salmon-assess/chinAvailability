@@ -1,6 +1,6 @@
-## Function to make inputs for negative binomial, composition, or integrated 
-# model, then fit
+## Function to make inputs for composition or integrated model, then fit
 # Eventually move to stockseasonr
+
 # Dec. 7, 2021
 
 # Dev TO DO:
@@ -13,20 +13,17 @@ library(mgcv)
 library(TMB)
 
 # 
-# abund_formula = catch ~ 0 + area +
-#   s(month_n, bs = "tp", k = 3, m = 2, by = area) +
-#   s(month_n, by = year, bs = "tp", m = 1, k = 3) +
-#   offset + (1 | year);
+# abund_formula = catch ~ area +
+#   s(month_n, bs = "tp", k = 4, m = 2) +
+#   offset;
 # abund_dat = catch;
 # abund_rint = "year";
-# comp_formula = can_reg ~ subarea +
-#   s(month_n, bs = "cc", k = 4, m = 2, by = reg)
+# comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, m = 2);
 # comp_dat = stock_comp
-# comp_rint = "year"
-# pred_dat = pred_dat_stock_comp_ri
+# comp_rint = NULL #"year"
+# pred_dat = pred_dat_integrated
 # model = "dirichlet"
 # include_re_preds = FALSE
-
 
 ## MAKE INPUTS  ----------------------------------------------------------------
 
@@ -36,6 +33,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
                         abund_rint = NULL, comp_rint = NULL,
                         pred_dat = NULL,
                         model = c("dirichlet", "integrated"),
+                        random_walk = FALSE,
                         include_re_preds = FALSE) {
   
   # make sure necessary components are present
@@ -47,13 +45,18 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
        indicate proportions data.")
   }
   
+  # coerce include_re_preds
+  if (is.null(comp_rint) & is.null(abund_rint)) {
+    include_re_preds <- FALSE
+    random_walk <- FALSE
+  }
 
   # initialize empty lists to fill with data and initial parameters
   tmb_data <- list()
   tmb_pars <- list()
   tmb_map <- list()
   tmb_random <- NULL
-  
+
   if (model == "integrated") {
     # generate inputs for negbin component
     formula_no_sm <- remove_s_and_t2(abund_formula)
@@ -87,13 +90,13 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     tmb_data <- c(tmb_data, abund_tmb_data)
     
     # adjust data when RI predictions being made
-    # if (include_re_preds == TRUE) {
-    #   #vector of predicted random intercepts
-    #   pred_rand_ints <- list(
-    #     pred_rfac1 = as.numeric(pred_dat[[abund_rint]]) - 1)
-    #   
-    #   tmb_data <- c(tmb_data, pred_rand_ints)
-    # } 
+    if (include_re_preds == TRUE) {
+      #vector of predicted random intercepts
+      pred_rand_ints <- list(
+        pred_rfac1 = as.numeric(pred_dat[[abund_rint]]) - 1)
+
+      tmb_data <- c(tmb_data, pred_rand_ints)
+    }
     
     abund_tmb_pars <- list(
       b1_j = rep(0, ncol(X_ij)),
@@ -117,92 +120,97 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     tmb_random <- c(tmb_random, c("b_smooth", "a1"))
   } 
   
-  if (model %in% c("dirichlet", "integrated")) {
-    # adjust composition model formula
-    comp_formula_split <- str_split(comp_formula, "~")
-    comp_formula_new <- formula(paste("dummy", 
-                                      comp_formula_split[[3]], sep = "~"))
-    group_var <- comp_formula_split[[2]]
-    
-    # adjust input data to wide and convert observations to matrix
-    comp_wide <- comp_dat %>%
-      pivot_wider(names_from = as.name(group_var), 
-                  values_from = prob) %>%
-      mutate_if(is.numeric, ~ replace_na(., 0.00001)) %>% 
-      #add dummy response variable
-      mutate(dummy = 0)
-    group_names <- unique(comp_dat[[group_var]])
-    obs_comp <- comp_wide[ , group_names] %>%
-      as.matrix()
-    
-    # dummy model
-    dummy_comp <- mgcv::gam(comp_formula_new, data = comp_wide, 
-                            knots = comp_knots)
-    X2_ij <- predict(dummy_comp, type = "lpmatrix")
-    pred_X2_ij <- predict(dummy_comp, pred_dat, type = "lpmatrix")
-    
-    # check to make sure predictive dataframes for composition and abundance
-    # are same length
-    if (model == "integrated"){
-      if (nrow(pred_X2_ij) != nrow(pred_X_ij)) {
-      stop("Dimensions of abundance and composition predictions are not
-           compatible.")
-    }}
-    
-    # NOTE: REPLACE WITH FLEXIBLE STRUCTURE WHEN NULL
+  ## composition component of model
+  # adjust composition model formula
+  comp_formula_split <- str_split(comp_formula, "~")
+  comp_formula_new <- formula(paste("dummy", 
+                                    comp_formula_split[[3]], sep = "~"))
+  group_var <- comp_formula_split[[2]]
+  
+  # adjust input data to wide and convert observations to matrix
+  comp_wide <- comp_dat %>%
+    pivot_wider(names_from = as.name(group_var), 
+                values_from = prob) %>%
+    mutate_if(is.numeric, ~ replace_na(., 0.00001)) %>% 
+    #add dummy response variable
+    mutate(dummy = 0)
+  group_names <- unique(comp_dat[[group_var]])
+  obs_comp <- comp_wide[ , group_names] %>%
+    as.matrix()
+  
+  # dummy model
+  dummy_comp <- mgcv::gam(comp_formula_new, data = comp_wide, 
+                          knots = comp_knots)
+  X2_ij <- predict(dummy_comp, type = "lpmatrix")
+  pred_X2_ij <- predict(dummy_comp, pred_dat, type = "lpmatrix")
+  
+  # check to make sure predictive dataframes for composition and abundance
+  # are same length
+  if (model == "integrated"){
+    if (nrow(pred_X2_ij) != nrow(pred_X_ij)) {
+    stop("Dimensions of abundance and composition predictions are not
+         compatible.")
+  }}
+  
+  if (!is.null(comp_rint)) {
     rfac2 <- as.numeric(as.factor(as.character(comp_wide[[comp_rint]]))) - 1
     n_rint2 <- length(unique(rfac2))
-    
-    #make composition tmb inputs 
-    comp_tmb_data <- list(
-      Y2_ik = obs_comp,
-      X2_ij = X2_ij,
-      rfac2 = rfac2,
-      n_rfac2 = n_rint2,
-      pred_X2_ij = pred_X2_ij
-    )
-    tmb_data <- c(tmb_data, comp_tmb_data)
-    
-    comp_tmb_pars <- list(
-      B2_jk = matrix(0,
-                     nrow = ncol(X2_ij),
-                     ncol = ncol(obs_comp)
-      ),
-      ln_sigma_A2 = log(0.25)
-    )
-    tmb_pars <- c(tmb_pars, comp_tmb_pars)
-    
-    # adjust data and parameters when RI predictions being made
-    if (include_re_preds == TRUE) {
-      #vector of predicted random intercepts
-      #only added for dirichlet because generated in neg bin component for 
-      #integrated model
-      if (model == "dirichlet") {
-        pred_rand_ints <- list(
-          pred_rfac1 = as.numeric(pred_dat[[comp_rint]]) - 1
-        )
-        tmb_data <- c(tmb_data, pred_rand_ints)
-      }
-      # mvn matrix of REs
-      mvn_rand_inits <- list(
-        A2_hk = matrix(rnorm(n_rint2 * ncol(obs_comp), 0, 0.5), 
-                       nrow = n_rint2,
-                       ncol = ncol(obs_comp))
-      )
-      
-      tmb_pars <- c(tmb_pars, mvn_rand_inits)
-      tmb_random <- c(tmb_random, "A2_hk")
-    } else if (include_re_preds == FALSE) {
-      # vector of random intercepts
-      rand_inits <- list(
-        A2_h = rnorm(n_rint2, 0, 0.5)
-      )
-      
-      tmb_pars <- c(tmb_pars, rand_inits)
-      tmb_random <- c(tmb_random, "A2_h")
-    }
+  } else {
+    rfac2 <- 1
+    n_rint2 <- 1
   }
   
+  #make composition tmb inputs 
+  comp_tmb_data <- list(
+    Y2_ik = obs_comp,
+    X2_ij = X2_ij,
+    rfac2 = rfac2,
+    n_rfac2 = n_rint2,
+    pred_X2_ij = pred_X2_ij,
+    random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer(),
+    fit_RE = ifelse(is.null(abund_rint) & is.null(comp_rint), 0, 1)
+  )
+  tmb_data <- c(tmb_data, comp_tmb_data)
+  
+  comp_tmb_pars <- list(
+    B2_jk = matrix(0,
+                   nrow = ncol(X2_ij),
+                   ncol = ncol(obs_comp)
+    ),
+    ln_sigma_A2 = log(0.25)
+  )
+  tmb_pars <- c(tmb_pars, comp_tmb_pars)
+  
+  # adjust data and parameters when RI predictions being made
+  if (include_re_preds == TRUE) {
+    #vector of predicted random intercepts
+    #only added for dirichlet because generated in neg bin component for 
+    #integrated model
+    if (model == "dirichlet") {
+      pred_rand_ints <- list(
+        pred_rfac1 = as.numeric(pred_dat[[comp_rint]]) - 1
+      )
+      tmb_data <- c(tmb_data, pred_rand_ints)
+    }
+    # mvn matrix of REs
+    mvn_rand_inits <- list(
+      A2_hk = matrix(rnorm(n_rint2 * ncol(obs_comp), 0, 0.5), 
+                     nrow = n_rint2,
+                     ncol = ncol(obs_comp))
+    )
+    
+    tmb_pars <- c(tmb_pars, mvn_rand_inits)
+    tmb_random <- c(tmb_random, "A2_hk")
+  } else if (include_re_preds == FALSE) {
+    # vector of random intercepts
+    rand_inits <- list(
+      A2_h = rnorm(n_rint2, 0, 0.5)
+    )
+    
+    tmb_pars <- c(tmb_pars, rand_inits)
+    tmb_random <- c(tmb_random, "A2_h")
+  }
+   
   # combine model specs to pass as logicals to fitting function
   model_specs <- list(model = model, include_re_preds = include_re_preds)
   
@@ -235,7 +243,7 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       nlminb_loops = 1L, newton_loops = 0L
                       ) {
   
-  if (model_specs$model == "negbin") tmb_model <- "negbin_rsplines"
+  # if (model_specs$model == "negbin") tmb_model <- "negbin_rsplines"
   # use MVN model if random effects predictions necessary
   if (model_specs$model == "dirichlet") {
     tmb_model <- ifelse(model_specs$include_re_preds == FALSE,

@@ -2,6 +2,8 @@
 ## Adapt stockseasonr model with MVN intercepts
 ## NOTE: attempted to incorporate random smooths, but unclear how to proceed 
 ## given parameters are a matrix, not vector
+## NOTE: related to above, separate predictive matrices are necessary in TMB
+## because of how smooths are stored
 ## Nov. 29, 2021
 ## Updated March 19 to explore composition at area levels
 ## Updated April 14 to subarea levels
@@ -12,8 +14,8 @@ library(TMB)
 
 # tmb models - use MVN if time-varying predictions are required, use RI if 
 # generating predictions for "average" year
-compile(here::here("src", "dirichlet_mvn.cpp"))
-dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
+# compile(here::here("src", "dirichlet_mvn.cpp"))
+# dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
 compile(here::here("src", "dirichlet_ri.cpp"))
 dyn.load(dynlib(here::here("src", "dirichlet_ri")))
 
@@ -21,7 +23,7 @@ dyn.load(dynlib(here::here("src", "dirichlet_ri")))
 # utility functions for prepping smooths 
 source(here::here("R", "functions", "utils.R"))
 # data prep and model fitting functions
-source(here::here("R", "functions", "fit.R"))
+source(here::here("R", "functions", "fit_new.R"))
 
 
 # pre-cleaning: aggregate at PST, remove sublegals
@@ -161,16 +163,9 @@ pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
   distinct()
 
 
-# stock_comp %>% 
-#   group_by(subarea, reg, month, can_reg) %>% 
-#   summarize(sum_prob = prob) %>% 
-#   ggplot(.) +
-#   geom_col(aes(x = month, y = sum_prob, fill = reg)) +
-#   facet_grid(can_reg~subarea, scales = "free_y")
-# 
-
 ## FIT MODEL -------------------------------------------------------------------
 
+source(here::here("R", "functions", "fit_new.R"))
 
 # no rand predictions
 model_inputs_ri <- make_inputs(
@@ -180,7 +175,7 @@ model_inputs_ri <- make_inputs(
   # comp_knots = list(month_n = c(0, 12)),
   # comp_knots = list(month_n = c(0, 53)),
   comp_dat = stock_comp,
-  comp_rint = "year",
+  # comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,
   model = "dirichlet",
   include_re_preds = FALSE
@@ -191,13 +186,15 @@ stock_mod_ri <- fit_model(
   tmb_pars = model_inputs_ri$tmb_pars, 
   tmb_map = model_inputs_ri$tmb_map, 
   tmb_random  = model_inputs_ri$tmb_random,
-  fit_random = TRUE,
+  fit_random = FALSE,
   ignore_fix = FALSE,
-  model_specs = model_inputs_ri$model_specs,
-  nlminb_loops = 2, newton_loops = 1
+  model_specs = model_inputs_ri$model_specs#,
+  # nlminb_loops = 2, newton_loops = 1
 )
 
+
 ssdr <- stock_mod_ri$ssdr 
+
 beta_mat <- ssdr[rownames(ssdr) == "B2_jk", 2] %>% 
   matrix(., 
             nrow = ncol(model_inputs_ri$tmb_data$X2_ij),

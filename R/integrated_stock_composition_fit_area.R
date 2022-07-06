@@ -11,17 +11,14 @@ library(sdmTMB)
 # utility functions for prepping smooths 
 source(here::here("R", "functions", "utils.R"))
 # data prep and model fitting functions
-source(here::here("R", "functions", "fit.R"))
+source(here::here("R", "functions", "fit_new.R"))
 
 
 # relevant TMB models
-compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
-dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
+# compile(here::here("src", "negbin_rsplines_dirichlet_mvn.cpp"))
+# dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_mvn")))
 compile(here::here("src", "negbin_rsplines_dirichlet_ri.cpp"))
 dyn.load(dynlib(here::here("src", "negbin_rsplines_dirichlet_ri")))
-
-compile(here::here("src", "dirichlet_mvn.cpp"))
-dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
 
 
 # DATA CLEAN -------------------------------------------------------------------
@@ -83,13 +80,12 @@ area_key <- stock_comp %>%
 
 # generate predictive dataframe constrained to variables common to both
 # datasets
-pred_dat <- expand.grid(
-  year = unique(stock_comp$year[stock_comp$year %in% catch$year]),
+pred_dat_integrated <- expand.grid(
   area = unique(stock_comp$area[stock_comp$area %in% catch$area]),
   month_n = seq(5, 9, by = 0.1)
 ) %>% 
   left_join(., area_key, by = "area")
-pred_dat$offset <- mean(catch$offset)
+pred_dat_integrated$offset <- mean(catch$offset)
 
 
 ## RAW OBSERVATIONS ------------------------------------------------------------
@@ -116,35 +112,25 @@ unique(stock_comp$area)
 
 model_inputs <- make_inputs(
   abund_formula = catch ~ area +
-    s(month_n, bs = "tp", k = 4, m = 2, by = reg) +
-    s(month_n, by = year, bs = "tp", m = 1, k = 4) +
+    s(month_n, bs = "tp", k = 4, m = 2) +
     offset,
   abund_dat = catch,
   abund_rint = "year",
-  comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, by = reg, m = 2),
+  comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, m = 2),
   comp_dat = stock_comp,
   comp_rint = "year",
-  pred_dat = pred_dat,
+  pred_dat = pred_dat_integrated,
   model = "integrated",
-  include_re_preds = FALSE
+  include_re_preds = FALSE,
+  random_walk = TRUE
 )
-
-head(model_inputs$tmb_data$X1_ij)
-glimpse(model_inputs$tmb_data$Zs)
-glimpse(model_inputs2$tmb_data$Zs)
-head(model_inputs$tmb_data$X2_ij)
-
-head(model_inputs$tmb_data$pred_X1_ij)
-glimpse(model_inputs$tmb_data$pred_Xs)
-glimpse(model_inputs$tmb_data$pred_Zs)
-head(model_inputs$tmb_data$pred_X2_ij)
 
 stock_mod <- fit_model(
   tmb_data = model_inputs$tmb_data, 
   tmb_pars = model_inputs$tmb_pars, 
   tmb_map = model_inputs$tmb_map, 
   tmb_random  = model_inputs$tmb_random,
-  fit_random = FALSE,
+  fit_random = TRUE,
   ignore_fix = FALSE,
   model_specs = model_inputs$model_specs
 )
@@ -163,47 +149,38 @@ unique(rownames(ssdr))
 
 
 ## Stock Composition (REMOVED FOR ADREPORT)
-# logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-# 
-# link_preds <- data.frame(
-#   link_prob_est = logit_pred_ppn[ , "Estimate"],
-#   link_prob_se =  logit_pred_ppn[ , "Std. Error"]
-# ) %>% 
-#   mutate(
-#     pred_prob_est = plogis(link_prob_est),
-#     pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
-#     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
-#   ) 
-# 
-# stock_seq <- colnames(model_inputs$tmb_data$Y2_ik)
-# pred_comp <- purrr::map(stock_seq, function (x) {
-#   dum <- pred_dat_stock_comp
-#   dum$stock <- x
-#   return(dum)
-# }) %>%
-#   bind_rows() %>%
-#   cbind(., link_preds) %>% 
-#   split(., .$reg)
-# 
-# comp_plots <- purrr::map2(pred_comp, names(pred_comp), function (x, y) {
-#   p <- ggplot(data = x, aes(x = month_n)) +
-#     labs(y = "Predicted Stock Proportion", x = "Month") +
-#     facet_grid(area~stock) +
-#     ggsidekick::theme_sleek() +
-#     geom_line(aes(y = pred_prob_est, colour = year)) +
-#     labs(title = y)
-#   
-#   p_ribbon <- p +
-#     geom_ribbon(data = x,
-#                 aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
-#                 alpha = 0.2)
-#   
-#   list(p, p_ribbon)
-# })
-# 
-# pdf(here::here("figs", "jdf_area_preds", "stock_comp_area_sm_preds.pdf"))
-# comp_plots
-# dev.off()
+logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
+
+link_preds <- data.frame(
+  link_prob_est = logit_pred_ppn[ , "Estimate"],
+  link_prob_se =  logit_pred_ppn[ , "Std. Error"]
+) %>%
+  mutate(
+    pred_prob_est = plogis(link_prob_est),
+    pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
+    pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
+  )
+
+stock_seq <- colnames(model_inputs$tmb_data$Y2_ik)
+pred_comp <- purrr::map(stock_seq, function (x) {
+  dum <- pred_dat_integrated
+  dum$stock <- x
+  return(dum)
+}) %>%
+  bind_rows() %>%
+  cbind(., link_preds) 
+
+p <- ggplot(data = pred_comp, aes(x = month_n)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(area~stock) +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_prob_est, colour = reg))
+
+p_ribbon <- p +
+  geom_ribbon(data = x,
+              aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = year),
+              alpha = 0.2)
+
 
 
 ## Predicted Abundance
@@ -224,7 +201,7 @@ log_abund_preds <- data.frame(
 stock_seq2 <- c(colnames(model_inputs$tmb_data$Y2_ik))
 
 pred_abund <- purrr::map(stock_seq2, function (x) {
-  dum <- pred_dat
+  dum <- pred_dat_integrated
   dum$stock <- x
   return(dum)
 }) %>%
