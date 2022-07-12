@@ -152,13 +152,15 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
          compatible.")
   }}
   
-  if (!is.null(comp_rint)) {
+  ## TODO: conditionals don't seem to work (perhaps due to improper format
+  # of empty data/parameters passed to tmb)
+  # if (!is.null(comp_rint)) {
     rfac2 <- as.numeric(as.factor(as.character(comp_wide[[comp_rint]]))) - 1
     n_rint2 <- length(unique(rfac2))
-  } else {
-    rfac2 <- 1
-    n_rint2 <- 1
-  }
+  # } else {
+  #   rfac2 <- matrix(, nrow = nrow(comp_wide), ncol = 0) %>% as.vector()
+  #   n_rint2 <- 0
+  # }
   
   #make composition tmb inputs 
   comp_tmb_data <- list(
@@ -167,8 +169,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     rfac2 = rfac2,
     n_rfac2 = n_rint2,
     pred_X2_ij = pred_X2_ij,
-    random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer(),
-    fit_RE = ifelse(is.null(abund_rint) & is.null(comp_rint), 0, 1)
+    random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer()#,
+    # fit_RE = ifelse(is.null(abund_rint) & is.null(comp_rint), 0, 1)
   )
   tmb_data <- c(tmb_data, comp_tmb_data)
   
@@ -204,7 +206,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
   } else if (include_re_preds == FALSE) {
     # vector of random intercepts
     rand_inits <- list(
-      A2_h = rnorm(n_rint2, 0, 0.5)
+      A2_h = rep(0, n_rint2)
     )
     
     tmb_pars <- c(tmb_pars, rand_inits)

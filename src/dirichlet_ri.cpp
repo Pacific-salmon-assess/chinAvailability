@@ -17,7 +17,7 @@ Type objective_function<Type>::operator() ()
 
   // Conditionals
   DATA_INTEGER(random_walk);
-  DATA_INTEGER(fit_RE);
+  // DATA_INTEGER(fit_RE);
 
   // PARAMETERS ----------------------------------------------------------------
 
@@ -72,7 +72,7 @@ Type objective_function<Type>::operator() ()
 
   
   // Probability of random intercepts
-  if (fit_RE) {
+  // if (fit_RE) {
     if (random_walk) {
       for (int h = 0; h < n_rfac2; h++) {
         if (h == 0) {
@@ -90,7 +90,7 @@ Type objective_function<Type>::operator() ()
   
     Type sigma_rfac2 = exp(ln_sigma_A2);
     ADREPORT(sigma_rfac2);    
-  }
+  // }
   
 
   // PREDICTIONS ---------------------------------------------------------------

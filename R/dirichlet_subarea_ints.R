@@ -105,21 +105,21 @@ stock_comp <- comp1 %>%
 
 
 # look at sample coverage in data passed to model
-alpha_scale <- c(0.3, 0.95)
-names(alpha_scale) <- c("no", "yes")
-
-png(here::here("figs", "data_coverage", "comp_model_inputs.png"), height = 5,
-    width = 5, units = "in", res = 200)
-stock_comp %>% 
-  select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
-  distinct() %>% 
-  ggplot() +
-  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg, 
-                  shape = core_area),
-              alpha = 0.5, width = 0.25) +
-  facet_wrap(~fct_reorder(subarea, as.numeric(reg))) +
-  ggsidekick::theme_sleek()
-dev.off()
+# alpha_scale <- c(0.3, 0.95)
+# names(alpha_scale) <- c("no", "yes")
+# 
+# png(here::here("figs", "data_coverage", "comp_model_inputs.png"), height = 5,
+#     width = 5, units = "in", res = 200)
+# stock_comp %>% 
+#   select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
+#   distinct() %>% 
+#   ggplot() +
+#   geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg, 
+#                   shape = core_area),
+#               alpha = 0.5, width = 0.25) +
+#   facet_wrap(~fct_reorder(subarea, as.numeric(reg))) +
+#   ggsidekick::theme_sleek()
+# dev.off()
 
 
 # prediction datasets 
@@ -169,13 +169,13 @@ source(here::here("R", "functions", "fit_new.R"))
 
 # no rand predictions
 model_inputs_ri <- make_inputs(
-  comp_formula = can_reg ~ #subarea + 
-    s(month_n, bs = "tp", k = 4, m = 2)
+  comp_formula = can_reg ~ area + 
+    s(month_n, bs = "tp", k = 5, m = 2)
     ,
   # comp_knots = list(month_n = c(0, 12)),
   # comp_knots = list(month_n = c(0, 53)),
   comp_dat = stock_comp,
-  # comp_rint = "year",
+  comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,
   model = "dirichlet",
   include_re_preds = FALSE
