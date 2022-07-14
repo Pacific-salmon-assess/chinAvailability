@@ -83,7 +83,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     )
     
     # as above but for predictive dataset
-    resp <- attr(terms(abund_formula), which = "variables")[[2]] %>% as.character()
+    resp <- attr(terms(abund_formula), which = "variables")[[2]] %>% 
+      as.character()
     pred_dat[resp] <- 0
     pred_dat$x <- runif(nrow(pred_dat))
     pred_dat$y <- runif(nrow(pred_dat))
@@ -103,7 +104,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       X1_ij = sdmTMB_dummy$tmb_data$X_ij[[1]],
       re_index1 = sdmTMB_dummy$tmb_data$RE_indexes,
       ln_sigma_re_index1 = sdmTMB_dummy$tmb_data$ln_tau_G_index,
-      # n_re = ncol(re_index1),
+      nobs_re1 = sdmTMB_dummy$tmb_data$nobs_RE,
       b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
       Zs = sdmTMB_dummy$tmb_data$Zs, # optional smoother basis function matrices
       Xs = sdmTMB_dummy$tmb_data$Xs, # optional smoother linear effect matrix
@@ -129,8 +130,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       bs = sdmTMB_dummy$tmb_params$bs %>% as.vector(),
       ln_smooth_sigma = sdmTMB_dummy$tmb_params$ln_smooth_sigma %>% as.vector(), 
       b_smooth = rnorm(nrow(sdmTMB_dummy$tmb_params$b_smooth), 0, 0.5),
-      ln_sigma_re1 = sdmTMB_dummy$tmb_params$ln_tau_G,
-      re1 = sdmTMB_dummy$tmb_params$RE
+      re1 = sdmTMB_dummy$tmb_params$RE %>% as.vector(),
+      ln_sigma_re1 = sdmTMB_dummy$tmb_params$ln_tau_G %>% as.vector()
     )
     tmb_pars <- c(tmb_pars, abund_tmb_pars)
     
@@ -142,7 +143,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     # tmb_map <- c(tmb_map, list(b1_j = as.factor(b1_j_map)))
     
     # random parameters
-    tmb_random <- c(tmb_random, c("b_smooth", "re_1"))
+    tmb_random <- c(tmb_random, c("b_smooth", "re1"))
   } 
   
   if (model %in% c("integrated", "dirichlet")) {
