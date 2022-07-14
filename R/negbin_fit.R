@@ -12,12 +12,14 @@ library(sdmTMB)
 # utility functions for prepping smooths 
 source(here::here("R", "functions", "utils.R"))
 # data prep and model fitting functions
-source(here::here("R", "functions", "fit.R"))
+source(here::here("R", "functions", "fit_new.R"))
 
 
 # relevant TMB models
-compile(here::here("src", "negbin_rsplines.cpp"))
-dyn.load(dynlib(here::here("src", "negbin_rsplines")))
+# compile(here::here("src", "negbin_rsplines.cpp"))
+# dyn.load(dynlib(here::here("src", "negbin_rsplines")))
+compile(here::here("src", "negbin_rsplines_sdmTMB.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines_sdmTMB")))
 
 
 
@@ -74,13 +76,10 @@ pred_dat_catch <- group_split(catch, reg) %>%
 ## FIT -------------------------------------------------------------------------
 
 tmb_inputs <- make_inputs(
-  abund_formula = catch ~ 0 + area + 
-    s(month_n, bs = "tp", k = 4) +
-    s(month_n, bs = "tp", m = 1, k = 4, by = area) +
-    s(month_n, bs = "tp", m = 1, k = 4, by = year) +
-    offset,
+  abund_formula = catch ~ area +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    (1 | year),
   abund_dat = catch,
-  abund_rint = "year",
   pred_dat = pred_dat_catch,
   model = "negbin",
   include_re_preds = FALSE
@@ -91,7 +90,7 @@ abund_mod <- fit_model(
   tmb_pars = tmb_inputs$tmb_pars, 
   tmb_map = tmb_inputs$tmb_map, 
   tmb_random  = tmb_inputs$tmb_random,
-  fit_random = TRUE,
+  fit_random = FALSE,
   ignore_fix = FALSE,
   model_specs = tmb_inputs$model_specs
 )
