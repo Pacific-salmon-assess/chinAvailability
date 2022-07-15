@@ -70,14 +70,14 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # random intercepts (use sdmTMB to generate proper structure)
     # rfac1 <-  as.numeric(as.factor(abund_dat[[abund_rint]])) - 1
-    abund_dat$x <- runif(nrow(abund_dat))
-    abund_dat$y <- runif(nrow(abund_dat))
-    dum_mesh <- make_mesh(abund_dat, c("x", "y"), cutoff = 1000)
+    # abund_dat$x <- runif(nrow(abund_dat))
+    # abund_dat$y <- runif(nrow(abund_dat))
+    # dum_mesh <- make_mesh(abund_dat, c("x", "y"), cutoff = 1000)
     
     sdmTMB_dummy <- sdmTMB::sdmTMB(
       abund_formula,
       data = abund_dat,
-      mesh = dum_mesh,
+      # mesh = dum_mesh,
       spatial = "off",
       do_fit = FALSE
     )
@@ -86,14 +86,14 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     resp <- attr(terms(abund_formula), which = "variables")[[2]] %>% 
       as.character()
     pred_dat[resp] <- 0
-    pred_dat$x <- runif(nrow(pred_dat))
-    pred_dat$y <- runif(nrow(pred_dat))
-    dum_mesh_pred <- make_mesh(pred_dat, c("x", "y"), cutoff = 1000)
+    # pred_dat$x <- runif(nrow(pred_dat))
+    # pred_dat$y <- runif(nrow(pred_dat))
+    # dum_mesh_pred <- make_mesh(pred_dat, c("x", "y"), cutoff = 1000)
     
     sdmTMB_dummy_p <- sdmTMB::sdmTMB(
       abund_formula,
       data = pred_dat,
-      mesh = dum_mesh_pred,
+      # mesh = dum_mesh_pred,
       spatial = "off",
       do_fit = FALSE
     )

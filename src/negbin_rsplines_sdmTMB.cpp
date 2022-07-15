@@ -84,12 +84,12 @@ Type objective_function<Type>::operator() ()
     eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); 
   }
   
-  // Add random intercepts
-  vector<Type> eta_re_i(n1); 
-  eta_re_i.setZero();
-  vector<Type> mu_i(n1); 
-  mu_i.setZero();
-  for (int i = 0; i < n1; i++) {
+//  // Add random intercepts
+ vector<Type> eta_re_i(n1);
+ eta_re_i.setZero();
+ vector<Type> mu_i(n1);
+ mu_i.setZero();
+ for (int i = 0; i < n1; i++) {
     int temp = 0;
     for (int g = 0; g < n_re; g++) {
       if (g == 0) eta_re_i(i) += re1(re_index1(i, g));
@@ -103,20 +103,26 @@ Type objective_function<Type>::operator() ()
       //   eta_re_i(i) += re1(re_index1(i, g) + temp, 0);
       // }      
     }
-    mu_i(i) = eta_i(i) + eta_re_i(i);
-  }
+   mu_i(i) = exp(eta_i(i) + eta_re_i(i));
+ }
 
 
   // LIKELIHOOD ----------------------------------------------------------------
 
   // Type s1, s2;
-  vector<Type> s1(n1);
-  vector<Type> s2(n1);
+  // vector<Type> s1(n1);
+  // vector<Type> s2(n1);
+  
+  Type s1, s2;
   for(int i = 0; i < n1; i++){
-    s1(i) = mu_i(i); //mu
-    s2(i) = 2.0 * (s1(i) - ln_phi); //scale
-    jnll -= dnbinom_robust(y1_i(i), s1(i), s2(i), true);
+    // s1(i) = mu_i(i); //mu (in log space)
+    // s2(i) = 2.0 * (s1(i) - ln_phi); //scale  // log(var - mu)
+    
+    s1 = log(mu_i(i)); // log(mu_i)
+    s2 = 2. * s1 - ln_phi; // log(var - mu)
+    jnll -= dnbinom_robust(y1_i(i), s1, s2, true);
   }
+  // std::cout << "HERE-3" << "\n";
 
   // Report for residuals
   // ADREPORT(s1);
