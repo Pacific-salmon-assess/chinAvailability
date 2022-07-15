@@ -86,17 +86,19 @@ tmb_inputs <- make_inputs(
   include_re_preds = FALSE
 )
 
-pcod_2011$fyear = as.factor(pcod_2011$year)
-pcod_2011$catch = round(pcod_2011$density, digits = 0)
-tmb_inputs <- make_inputs(
-  abund_formula = catch ~ s(depth, bs = "tp", k = 4, m = 2) +
-    # (1 | reg) +
-    (1 | fyear),
-  abund_dat = pcod_2011,
-  pred_dat = pcod_2011,
-  model = "negbin",
-  include_re_preds = FALSE
-)
+
+## tried with pcod but no luck there either
+# pcod_2011$fyear = as.factor(pcod_2011$year)
+# pcod_2011$catch = round(pcod_2011$density, digits = 0)
+# tmb_inputs <- make_inputs(
+#   abund_formula = catch ~ s(depth, bs = "tp", k = 4, m = 2) +
+#     # (1 | reg) +
+#     (1 | fyear),
+#   abund_dat = pcod_2011,
+#   pred_dat = pcod_2011,
+#   model = "negbin",
+#   include_re_preds = FALSE
+# )
 
 abund_mod <- fit_model(
   tmb_data = tmb_inputs$tmb_data, 
@@ -108,9 +110,8 @@ abund_mod <- fit_model(
   model_specs = tmb_inputs$model_specs
 )
 
-saveRDS(abund_mod$ssdr, 
-        here::here("data", "model_fits", "negbin_rsmooths_121_21_only.rds"))
 
+## dummy chunk to explore what's going on in C++
 re_index1 <- tmb_inputs$tmb_data$re_index1
 re1 <- rnorm(nrow(tmb_inputs$tmb_pars$re1), 0, 1)
 eta_re_i <- rep(0, nrow(re_index1))
@@ -126,6 +127,9 @@ for (i in 1:nrow(re_index1)) {
     }
   }
 }
+
+### IGNORE BELOW ####
+
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 
