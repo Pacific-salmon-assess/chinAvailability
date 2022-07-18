@@ -18,11 +18,11 @@ library(sdmTMB)
 #   # s(month_n, bs = "tp", k = 4, m = 2) +
 #   (1 | year);
 # abund_dat = catch;
-# abund_rint = "year";
-# comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, m = 2);
-# comp_dat = stock_comp
-# comp_rint = NULL #"year"
-# pred_dat = pred_dat_catch
+# # abund_rint = "year";
+# # comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, m = 2);
+# # comp_dat = stock_comp
+# # comp_rint = NULL #"year"
+# # pred_dat = pred_dat_catch
 # model = "negbin"
 # include_re_preds = FALSE
 
@@ -297,7 +297,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
-                      fit_random = TRUE, ignore_fix = FALSE, model_specs,
+                      # fit_random = TRUE, ignore_fix = FALSE, 
+                      model_specs,
                       nlminb_loops = 1L, newton_loops = 0L
                       ) {
   
@@ -316,42 +317,45 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
   
   ## fit fixed effects only 
   # map random effects
-  if (fit_random == FALSE | ignore_fix == FALSE) {
-    new_map_list <- tmb_pars[names(tmb_pars) %in% tmb_random]
-    tmb_map_random <- c(
-      tmb_map,
-      map(new_map_list, function (x) factor(rep(NA, length(x))))
-    )
-    # fit
-    obj <- TMB::MakeADFun(
-      data = tmb_data,
-      parameters = tmb_pars,
-      map = tmb_map_random,
-      DLL = tmb_model
-    )
-    opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
-                          control = list(eval.max = 1e4, iter.max = 1e4)
-    )
-  }
+  # if (fit_random == FALSE | ignore_fix == FALSE) {
+    #TODO: this is nonfunctional with smooths (b_smooth flagged as RI); 
+    #for now remove entirely, but could replace with conditional excluding those 
+    # pars although may not be worthwhile
+  #   new_map_list <- tmb_pars[names(tmb_pars) %in% tmb_random]
+  #   tmb_map_random <- c(
+  #     tmb_map,
+  #     map(new_map_list, function (x) factor(rep(NA, length(x))))
+  #   )
+  #   # fit
+  #   obj <- TMB::MakeADFun(
+  #     data = tmb_data,
+  #     parameters = tmb_pars,
+  #     map = tmb_map_random,
+  #     DLL = tmb_model
+  #   )
+  #   opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
+  #                         control = list(eval.max = 1e4, iter.max = 1e4)
+  #   )
+  # }
   
   ## fit with random effects 
-  if (fit_random) {
+  # if (fit_random) {
     # pass parameter inits from above unless specified otherwise
-    if (ignore_fix == TRUE) {
-      pars_in <- tmb_pars   
-    } else {
-      pars_in <- obj$env$parList(opt$par)
-    } 
+    # if (ignore_fix == TRUE) {
+      # pars_in <- tmb_pars   
+    # } else {
+    #   pars_in <- obj$env$parList(opt$par)
+    # } 
     
     obj <- TMB::MakeADFun(
       data = tmb_data,
-      parameters = pars_in,
+      parameters = tmb_pars, #pars_in,
       map = tmb_map,
       random = tmb_random,
       DLL = tmb_model
     )
     opt <- stats::nlminb(obj$par, obj$fn, obj$gr)
-  }
+  # }
   
   if (nlminb_loops > 1) {
     for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
