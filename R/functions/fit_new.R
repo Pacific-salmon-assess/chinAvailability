@@ -69,15 +69,9 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     # y_i <- model.response(mf, "numeric")
     
     # random intercepts (use sdmTMB to generate proper structure)
-    # rfac1 <-  as.numeric(as.factor(abund_dat[[abund_rint]])) - 1
-    # abund_dat$x <- runif(nrow(abund_dat))
-    # abund_dat$y <- runif(nrow(abund_dat))
-    # dum_mesh <- make_mesh(abund_dat, c("x", "y"), cutoff = 1000)
-    
     sdmTMB_dummy <- sdmTMB::sdmTMB(
       abund_formula,
       data = abund_dat,
-      # mesh = dum_mesh,
       spatial = "off",
       do_fit = FALSE
     )
@@ -86,28 +80,25 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     resp <- attr(terms(abund_formula), which = "variables")[[2]] %>% 
       as.character()
     pred_dat[resp] <- 0
-    # pred_dat$x <- runif(nrow(pred_dat))
-    # pred_dat$y <- runif(nrow(pred_dat))
-    # dum_mesh_pred <- make_mesh(pred_dat, c("x", "y"), cutoff = 1000)
     
     sdmTMB_dummy_p <- sdmTMB::sdmTMB(
       abund_formula,
       data = pred_dat,
-      # mesh = dum_mesh_pred,
       spatial = "off",
       do_fit = FALSE
     )
     
     # make abundance tmb inputs
     abund_tmb_data <- list(
-      y1_i = sdmTMB_dummy$tmb_data$y_i,
+      y1_i = sdmTMB_dummy$tmb_data$y_i %>% as.numeric(),
       X1_ij = sdmTMB_dummy$tmb_data$X_ij[[1]],
       re_index1 = sdmTMB_dummy$tmb_data$RE_indexes,
       ln_sigma_re_index1 = sdmTMB_dummy$tmb_data$ln_tau_G_index,
       nobs_re1 = sdmTMB_dummy$tmb_data$nobs_RE,
-      b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
       Zs = sdmTMB_dummy$tmb_data$Zs, # optional smoother basis function matrices
       Xs = sdmTMB_dummy$tmb_data$Xs, # optional smoother linear effect matrix
+      has_smooths = as.integer(sdmTMB_dummy$tmb_data$has_smooths),
+      b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
       pred_X1_ij = sdmTMB_dummy_p$tmb_data$X_ij[[1]],
       pred_Zs = sdmTMB_dummy_p$tmb_data$Zs,
       pred_Xs = sdmTMB_dummy_p$tmb_data$Xs#,
@@ -130,7 +121,12 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       bs = sdmTMB_dummy$tmb_params$bs %>% as.vector(),
       ln_smooth_sigma = sdmTMB_dummy$tmb_params$ln_smooth_sigma %>% as.vector(), 
       b_smooth = rnorm(nrow(sdmTMB_dummy$tmb_params$b_smooth), 0, 0.5),
-      re1 = sdmTMB_dummy$tmb_params$RE %>% as.vector(),
+      #for some reason cannot bet zeros when ignore_fix = FALSE; use sdmTMB
+      #inputs for length but redefine with rnorm
+      # re1 = sdmTMB_dummy$tmb_params$RE %>% as.vector(),
+      re1 = rnorm(n = length(sdmTMB_dummy$tmb_params$RE %>% as.vector()),
+                  0,
+                  0.5),
       ln_sigma_re1 = sdmTMB_dummy$tmb_params$ln_tau_G %>% as.vector()
     )
     tmb_pars <- c(tmb_pars, abund_tmb_pars)
@@ -196,8 +192,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       rfac2 = rfac2,
       n_rfac2 = n_rint2,
       pred_X2_ij = pred_X2_ij,
-      random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer()#,
-      # fit_RE = ifelse(is.null(abund_rint) & is.null(comp_rint), 0, 1)
+      random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer()
     )
     tmb_data <- c(tmb_data, comp_tmb_data)
     
@@ -257,12 +252,14 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 
 ## FIT MODELS  -----------------------------------------------------------------
-# tmb_data = model_inputs_ri$tmb_data;
-# tmb_pars = model_inputs_ri$tmb_pars;
-# tmb_map = model_inputs_ri$tmb_map;
-# tmb_random  = model_inputs_ri$tmb_random;
+# tmb_data = tmb_inputs$tmb_data 
+# tmb_pars = tmb_inputs$tmb_pars 
+# tmb_map = tmb_inputs$tmb_map
+# tmb_random  = tmb_inputs$tmb_random
 # fit_random = TRUE;
 # ignore_fix = FALSE;
+# model_specs = tmb_inputs$model_specs
+# tmb_pars$re1 <- rnorm(n = length(tmb_pars$re1), 0, 1)
 # model_specs = list(model = "dirichlet",
 #                    include_re_preds = FALSE)
 # nlminb_loops = 2

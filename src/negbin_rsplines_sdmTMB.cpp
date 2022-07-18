@@ -23,15 +23,16 @@ Type objective_function<Type>::operator() ()
   DATA_IMATRIX(re_index1);
   DATA_IVECTOR(ln_sigma_re_index1);
   DATA_IVECTOR(nobs_re1);
-  // DATA_INTEGER(n_re);
-  DATA_IVECTOR(b_smooth_start);
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
-
+  // for penalized regression splines
+  DATA_INTEGER(has_smooths);  // whether or not smooths are included
+  DATA_IVECTOR(b_smooth_start);
+  
   //predictions
-  // DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
-  // DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
-  // DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
+  DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
+  DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
+  DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
   // DATA_IVECTOR(pred_re_index1);
    
 
@@ -45,15 +46,13 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(b_smooth);  // P-spline smooth parameters
   PARAMETER_VECTOR(re1);
   PARAMETER_VECTOR(ln_sigma_re1);
-  // PARAMETER_ARRAY(re1);
-  // PARAMETER_ARRAY(ln_sigma_re1);
   
 
   // DERIVED -------------------------------------------------------------------
 
   int n1 = y1_i.size();
   int n_re = re_index1.cols();      // number of random intercepts
-  // int n_predX1 = pred_X1_ij.rows(); // number of finest scale predictions (abundance only)  
+  int n_predX1 = pred_X1_ij.rows(); // number of predictions   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
 
@@ -66,25 +65,28 @@ Type objective_function<Type>::operator() ()
   vector<Type> eta_smooth_i(X1_ij.rows());
   eta_smooth_i.setZero();
 
-  for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-    vector<Type> beta_s(Zs(s).cols());
-    beta_s.setZero();
-    for (int j = 0; j < beta_s.size(); j++) {
-      beta_s(j) = b_smooth(b_smooth_start(s) + j);
-      jnll -= dnorm(beta_s(j), Type(0), exp(ln_smooth_sigma(s)), true);
+  if (has_smooths) {
+    for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+      vector<Type> beta_s(Zs(s).cols());
+      beta_s.setZero();
+      for (int j = 0; j < beta_s.size(); j++) {
+        beta_s(j) = b_smooth(b_smooth_start(s) + j);
+        jnll -= dnorm(beta_s(j), Type(0), exp(ln_smooth_sigma(s)), true);
+      }
+      eta_smooth_i += Zs(s) * beta_s;
     }
-    eta_smooth_i += Zs(s) * beta_s;
+    eta_smooth_i += Xs * bs;
   }
-  eta_smooth_i += Xs * bs;
 
   // Combine smooths and linear
   vector<Type> eta_i(n1);
   eta_i.setZero();
   for (int i = 0; i < n1; i++) {
     eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); 
-  }
+  }    
   
-//  // Add random intercepts
+  
+ // Add random intercepts
  vector<Type> eta_re_i(n1);
  eta_re_i.setZero();
  vector<Type> mu_i(n1);
@@ -97,11 +99,6 @@ Type objective_function<Type>::operator() ()
         temp += nobs_re1(g - 1);
         eta_re_i(i) += re1(re_index1(i, g) + temp);
       } 
-      // if (g == 0) eta_re_i(i) += re1(re_index1(i, g), 0);
-      // if (g > 0) {
-      //   temp += nobs_re1(g - 1);
-      //   eta_re_i(i) += re1(re_index1(i, g) + temp, 0);
-      // }      
     }
    mu_i(i) = exp(eta_i(i) + eta_re_i(i));
  }
@@ -109,15 +106,8 @@ Type objective_function<Type>::operator() ()
 
   // LIKELIHOOD ----------------------------------------------------------------
 
-  // Type s1, s2;
-  // vector<Type> s1(n1);
-  // vector<Type> s2(n1);
-  
   Type s1, s2;
   for(int i = 0; i < n1; i++){
-    // s1(i) = mu_i(i); //mu (in log space)
-    // s2(i) = 2.0 * (s1(i) - ln_phi); //scale  // log(var - mu)
-    
     s1 = log(mu_i(i)); // log(mu_i)
     s2 = 2. * s1 - ln_phi; // log(var - mu)
     jnll -= dnbinom_robust(y1_i(i), s1, s2, true);
@@ -132,7 +122,6 @@ Type objective_function<Type>::operator() ()
   for(int h = 0; h < re1.size(); h++){
     // if (h == 0) {
         jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);  
-      // jnll -= dnorm(re1(h, 0), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h), 0)), true);  
   }
   //   if (h > 0) {
   //     jnll -= dnorm(re1(h), re1(h - 1), exp(ln_sigma_re1), true);
@@ -147,25 +136,28 @@ Type objective_function<Type>::operator() ()
   // // smoothers
   // vector<Type> pred_smooth_i(n_predX1);
   // pred_smooth_i.setZero();
-  // for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-  //   vector<Type> beta_s(pred_Zs(s).cols());
-  //   beta_s.setZero();
-  //   for (int j = 0; j < beta_s.size(); j++) {
-  //     beta_s(j) = b_smooth(b_smooth_start(s) + j);
-  //   }
-  //   pred_smooth_i += pred_Zs(s) * beta_s;
-  // }
-  // pred_smooth_i += pred_Xs * bs;
   
+  // if (has_smooths) {
+  //   for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+  //     vector<Type> beta_s(pred_Zs(s).cols());
+  //     beta_s.setZero();
+  //     for (int j = 0; j < beta_s.size(); j++) {
+  //       beta_s(j) = b_smooth(b_smooth_start(s) + j);
+  //     }
+  //     pred_smooth_i += pred_Zs(s) * beta_s;
+  //   }
+  //   pred_smooth_i += pred_Xs * bs;
+  // }
+
   // // combine fixed and smoothed predictions
   // for (int i = 0; i < n_predX1; i++) {
   //   pred_mu1(i) += pred_smooth_i(i);
   // }
 
-  // // add random intercepts 
-  // // for (int i = 0; i < n_predX1; i++) {
-  // //   pred_mu1(i) += re1(pred_re_index1(i));
-  // // }
+  // add random intercepts 
+  // for (int i = 0; i < n_predX1; i++) {
+  //   pred_mu1(i) += re1(pred_re_index1(i));
+  // }
 
   // REPORT(pred_mu1);
   // ADREPORT(pred_mu1);

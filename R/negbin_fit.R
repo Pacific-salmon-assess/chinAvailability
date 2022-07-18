@@ -19,7 +19,6 @@ source(here::here("R", "functions", "fit_new.R"))
 # compile(here::here("src", "negbin_rsplines.cpp"))
 # dyn.load(dynlib(here::here("src", "negbin_rsplines")))
 compile(here::here("src", "negbin_rsplines_sdmTMB.cpp"))
-# dyn.load(dynlib(here::here("src", "negbin_rsplines_sdmTMB")))
 dyn.load(dynlib('src/negbin_rsplines_sdmTMB'))
 
 # DATA CLEAN -------------------------------------------------------------------
@@ -85,43 +84,59 @@ pred_dat_catch <- group_split(catch, reg) %>%
 #   include_re_preds = FALSE
 # )
 
-## tried with pcod but no luck there either
-pcod$fyear = as.factor(pcod$year)
-pcod$catch = round(pcod$density, digits = 0)
+# pcod$fyear = as.factor(pcod$year)
+# pcod$catch = round(pcod$density, digits = 0)
+# tmb_inputs <- make_inputs(
+#   abund_formula = catch ~ 1 +
+#     s(depth) +
+#     (1 | fyear),
+#   abund_dat = pcod,
+#   pred_dat = pcod,
+#   model = "negbin",
+#   include_re_preds = FALSE
+# )
+# 
+# m2 <- sdmTMB(catch ~ 1 + s(depth) + (1|fyear), data = pcod, 
+#   spatial = "off", family = sdmTMB::nbinom2())
+# m2$sd_report
+# 
+# obj <- TMB::MakeADFun(
+#   data = tmb_inputs$tmb_data,
+#   parameters = tmb_inputs$tmb_pars,
+#   random = tmb_inputs$tmb_random,
+#   map = NULL,
+#   DLL = "negbin_rsplines_sdmTMB"
+# )
+# opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
+#   control = list(eval.max = 1e4, iter.max = 1e4))
+# opt
+# sdr <- sdreport(obj)
+# sdr
+# 
+# m2$sd_report
+
+
 tmb_inputs <- make_inputs(
   abund_formula = catch ~ 1 +
-    s(depth) +
+    # s(month_n, bs = "tp", k = 4, m = 2) +
     # (1 | reg) +
-    (1 | fyear),
-  abund_dat = pcod,
-  pred_dat = pcod,
+    (1 | year),
+  abund_dat = catch,
+  pred_dat = catch,
   model = "negbin",
   include_re_preds = FALSE
 )
 
-m2 <- sdmTMB(catch ~ 1 + s(depth) + (1|fyear), data = pcod, 
-  spatial = "off", family = sdmTMB::nbinom2())
-m2$sd_report
-# m3 <- glmmTMB::glmmTMB(catch ~ 1, data = pcod, family = glmmTMB::nbinom2())
-# m3$sdr
-
-# tmb_inputs$tmb_pars$b_smooth <- NULL
-# tmb_inputs$tmb_pars$bs <- NULL
-# tmb_inputs$tmb_pars$ln_smooth_sigma <- NULL
-
-# tmb_inputs$tmb_random <- "re1"
-
-# tmb_inputs$tmb_data$b_smooth_start <- NULL
-# tmb_inputs$tmb_data$Zs <- NULL
-tmb_inputs$tmb_data$pred_Zs <- NULL
-tmb_inputs$tmb_data$pred_Xs <- NULL
-# tmb_inputs$tmb_data$Xs <- NULL
-tmb_inputs$tmb_data$pred_X1_ij <- NULL
-tmb_inputs$tmb_data
-
-tmb_inputs$tmb_pars$ln_phi <- -2
-
-tmb_inputs$tmb_data$y1_i <- as.numeric(tmb_inputs$tmb_data$y1_i)
+abund_mod <- fit_model(
+  tmb_data = tmb_inputs$tmb_data, 
+  tmb_pars = tmb_inputs$tmb_pars, 
+  tmb_map = tmb_inputs$tmb_map,
+  tmb_random  = tmb_inputs$tmb_random,
+  fit_random = TRUE,
+  ignore_fix = TRUE,
+  model_specs = tmb_inputs$model_specs
+)
+abund_mod$sdr
 
 obj <- TMB::MakeADFun(
   data = tmb_inputs$tmb_data,
@@ -132,39 +147,20 @@ obj <- TMB::MakeADFun(
 )
 opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
   control = list(eval.max = 1e4, iter.max = 1e4))
-opt
-sdr <- sdreport(obj)
-sdr
 
+m2 <- sdmTMB(catch ~  1 +
+               # s(month_n, bs = "tp", k = 4, m = 2) +
+               # (1 | reg) +
+               (1 | year),
+             data = catch, 
+             spatial = "off", family = sdmTMB::nbinom2())
 m2$sd_report
 
 
+ssdr <- abund_mod$ssdr
+ssdr[rownames(ssdr) == "pred_mu1"] %>% range()
 
-
-
-
-
-# ------------------
-
-
-abund_mod <- fit_model(
-  tmb_data = tmb_inputs$tmb_data, 
-  tmb_pars = tmb_inputs$tmb_pars, 
-  tmb_map = tmb_inputs$tmb_map,
-  # tmb_map = list(re1 = factor(rep(NA, length(tmb_inputs$tmb_pars$re1))), ln_sigma_re1 = factor(NA)),
-  # tmb_random  = tmb_inputs$tmb_random,
-  tmb_random  = "re1",
-  fit_random = TRUE,
-  ignore_fix = FALSE,
-  model_specs = tmb_inputs$model_specs
-)
-abund_mod
-
-
-
-
-
-
+predict(m2, newdata = catch) %>% glimpse()
 
 
 
