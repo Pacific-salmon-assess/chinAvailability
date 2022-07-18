@@ -118,7 +118,7 @@ pred_dat_catch <- group_split(catch, reg) %>%
 
 tmb_inputs <- make_inputs(
   abund_formula = catch ~ 1 +
-    # s(month_n, bs = "tp", k = 4, m = 2) +
+    s(month_n, bs = "tp", k = 4, m = 2) +
     # (1 | reg) +
     (1 | year),
   abund_dat = catch,
@@ -127,29 +127,39 @@ tmb_inputs <- make_inputs(
   include_re_preds = FALSE
 )
 
+tmb_inputs$tmb_pars$b_smooth
+
 abund_mod <- fit_model(
   tmb_data = tmb_inputs$tmb_data, 
   tmb_pars = tmb_inputs$tmb_pars, 
   tmb_map = tmb_inputs$tmb_map,
   tmb_random  = tmb_inputs$tmb_random,
   fit_random = TRUE,
-  ignore_fix = TRUE,
+  ignore_fix = FALSE,
   model_specs = tmb_inputs$model_specs
 )
 abund_mod$sdr
 
+new_map_list <- tmb_inputs$tmb_pars[names(tmb_inputs$tmb_pars) %in% tmb_inputs$tmb_random]
+tmb_map_random <- c(
+  tmb_inputs$tmb_map,
+  map(new_map_list, function (x) factor(rep(NA, length(x))))
+)
+tmb_map_random <- c(tmb_map_random, ln_sigma_re1 = factor(rep(NA, 1)))
+
 obj <- TMB::MakeADFun(
   data = tmb_inputs$tmb_data,
   parameters = tmb_inputs$tmb_pars,
-  random = tmb_inputs$tmb_random,
-  map = NULL,
+  # random = tmb_inputs$tmb_random,
+  map = tmb_map_random,#tmb_inputs$tmb_map,
   DLL = "negbin_rsplines_sdmTMB"
 )
 opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
   control = list(eval.max = 1e4, iter.max = 1e4))
+sdreport(obj)
 
 m2 <- sdmTMB(catch ~  1 +
-               # s(month_n, bs = "tp", k = 4, m = 2) +
+               s(month_n, bs = "tp", k = 4, m = 2) +
                # (1 | reg) +
                (1 | year),
              data = catch, 

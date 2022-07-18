@@ -52,7 +52,7 @@ Type objective_function<Type>::operator() ()
 
   int n1 = y1_i.size();
   int n_re = re_index1.cols();      // number of random intercepts
-  int n_predX1 = pred_X1_ij.rows(); // number of predictions   
+  // int n_predX1 = pred_X1_ij.rows(); // number of predictions   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
 
