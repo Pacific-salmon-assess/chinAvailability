@@ -25,6 +25,7 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(nobs_re1);
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
+  DATA_VECTOR(offset_i); // optional offset
   // for penalized regression splines
   DATA_INTEGER(has_smooths);  // whether or not smooths are included
   DATA_IVECTOR(b_smooth_start);
@@ -78,11 +79,11 @@ Type objective_function<Type>::operator() ()
     eta_smooth_i += Xs * bs;
   }
 
-  // Combine smooths and linear
+  // Combine smooths, linear and offset
   vector<Type> eta_i(n1);
   eta_i.setZero();
   for (int i = 0; i < n1; i++) {
-    eta_i(i) = eta_fx_i(i) + eta_smooth_i(i); 
+    eta_i(i) = eta_fx_i(i) + eta_smooth_i(i) + offset_i(i); 
   }    
   
   

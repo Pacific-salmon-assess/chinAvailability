@@ -14,10 +14,10 @@ library(TMB)
 library(sdmTMB)
 
  
-# abund_formula = catch ~ area +
+# abund_formula = catch ~ area + #offset +
 #   # s(month_n, bs = "tp", k = 4, m = 2) +
 #   (1 | year);
-# abund_dat = catch;
+# # abund_dat = catch;
 # # abund_rint = "year";
 # # comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, m = 2);
 # # comp_dat = stock_comp
@@ -41,6 +41,7 @@ map_foo <- function(x, tmb_pars) {
 make_inputs <- function(abund_formula = NULL, comp_formula = NULL, 
                         comp_knots = NULL,
                         abund_dat = NULL, comp_dat = NULL,
+                        abund_offset = NULL,
                         # abund_rint = NULL, comp_rint = NULL,
                         pred_dat = NULL,
                         model = c("negbin", "dirichlet", "integrated"),
@@ -86,6 +87,13 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       do_fit = FALSE
     )
     
+    # generate offset separately
+    if (is.null(offset)) {
+      offset <- rep(0, length(y_i))
+    } else {
+      offset <- abund_dat[["offset"]]
+    }
+    
     # smooths present (conditional for determining input structure)
     has_smooths <- as.integer(sdmTMB_dummy$tmb_data$has_smooths)
     
@@ -98,6 +106,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       nobs_re1 = sdmTMB_dummy$tmb_data$nobs_RE, # number of random intercepts
       Zs = sdmTMB_dummy$tmb_data$Zs, # optional smoother basis function matrices
       Xs = sdmTMB_dummy$tmb_data$Xs, # optional smoother linear effect matrix
+      offset_i = offset,
       has_smooths = has_smooths,
       b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
       pred_X1_ij = sdmTMB_dummy_p$tmb_data$X_ij[[1]],
@@ -130,12 +139,9 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       },
       b_smooth = if (has_smooths) {
         rep(0, nrow(sdmTMB_dummy$tmb_params$b_smooth))
-        #rnorm(nrow(sdmTMB_dummy$tmb_params$b_smooth), 0, 0.5)  
       } else {
         0
       },
-      # ln_smooth_sigma = sdmTMB_dummy$tmb_params$ln_smooth_sigma %>% as.vector(), 
-      # b_smooth = rnorm(nrow(sdmTMB_dummy$tmb_params$b_smooth), 0, 0.5),
       #for some reason cannot fix as zeros when ignore_fix = FALSE; use sdmTMB
       #inputs for length but redefine with rnorm
       # re1 = sdmTMB_dummy$tmb_params$RE %>% as.vector(),
@@ -146,13 +152,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     )
     tmb_pars <- c(tmb_pars, abund_tmb_pars)
     
-    # mapped parameters (REJIG BASED ON SDMTMB)
-    # offset_pos <- grep("^offset$", colnames(X_ij))
-    # tmb_pars$b1_j[offset_pos] <- 1
-    # b1_j_map <- seq_along(tmb_pars$b1_j)
-    # b1_j_map[offset_pos] <- NA
-    # tmb_map <- c(tmb_map, list(b1_j = as.factor(b1_j_map))
-    
+    # map parameters unless necessary
     # random parameters
     if (abund_tmb_data$nobs_re1 > 0) {
       tmb_random <- c(tmb_random, "re1")

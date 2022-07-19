@@ -84,21 +84,22 @@ pred_dat_catch <- group_split(catch, reg) %>%
 #   include_re_preds = FALSE
 # )
 
-# pcod$fyear = as.factor(pcod$year)
-# pcod$catch = round(pcod$density, digits = 0)
-# tmb_inputs <- make_inputs(
-#   abund_formula = catch ~ 1 +
-#     s(depth) +
-#     (1 | fyear),
-#   abund_dat = pcod,
-#   pred_dat = pcod,
-#   model = "negbin",
-#   include_re_preds = FALSE
-# )
+pcod$fyear = as.factor(pcod$year)
+pcod$catch = round(pcod$density, digits = 0)
+tmb_inputs <- make_inputs(
+  abund_formula = catch ~ 1 +
+    s(depth) +
+    (1 | fyear),
+  abund_dat = pcod,
+  pred_dat = pcod,
+  model = "negbin",
+  include_re_preds = FALSE
+)
 # 
-# m2 <- sdmTMB(catch ~ 1 + s(depth) + (1|fyear), data = pcod, 
-#   spatial = "off", family = sdmTMB::nbinom2())
-# m2$sd_report
+m2 <- sdmTMB(catch ~ 1 + s(depth), #+ (1|fyear),
+             data = pcod,
+  spatial = "off", family = sdmTMB::nbinom2())
+m2$sd_report
 # 
 # obj <- TMB::MakeADFun(
 #   data = tmb_inputs$tmb_data,
@@ -120,51 +121,33 @@ tmb_inputs <- make_inputs(
   abund_formula = catch ~ 1 +
     s(month_n, bs = "tp", k = 4, m = 2) +
     # (1 | reg) +
-    (1 | year),
+    (1 | year)
+  ,
   abund_dat = catch,
+  abund_offset = "offset",
   pred_dat = catch,
   model = "negbin",
   include_re_preds = FALSE
 )
-
-tmb_inputs$tmb_pars$b_smooth
 
 abund_mod <- fit_model(
   tmb_data = tmb_inputs$tmb_data, 
   tmb_pars = tmb_inputs$tmb_pars, 
   tmb_map = tmb_inputs$tmb_map,
   tmb_random  = tmb_inputs$tmb_random,
-  fit_random = TRUE,
-  ignore_fix = FALSE,
   model_specs = tmb_inputs$model_specs
 )
 abund_mod$sdr
 
-new_map_list <- tmb_inputs$tmb_pars[names(tmb_inputs$tmb_pars) %in% tmb_inputs$tmb_random]
-tmb_map_random <- c(
-  tmb_inputs$tmb_map,
-  map(new_map_list, function (x) factor(rep(NA, length(x))))
-)
-tmb_map_random <- c(tmb_map_random, ln_sigma_re1 = factor(rep(NA, 1)))
 
-obj <- TMB::MakeADFun(
-  data = tmb_inputs$tmb_data,
-  parameters = tmb_inputs$tmb_pars,
-  # random = tmb_inputs$tmb_random,
-  map = tmb_map_random,#tmb_inputs$tmb_map,
-  DLL = "negbin_rsplines_sdmTMB"
-)
-opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
-  control = list(eval.max = 1e4, iter.max = 1e4))
-sdreport(obj)
-
-m2 <- sdmTMB(catch ~  1 +
+m3 <- sdmTMB(catch ~  1 +
                s(month_n, bs = "tp", k = 4, m = 2) +
                # (1 | reg) +
                (1 | year),
+             # offset = catch$offset,
              data = catch, 
              spatial = "off", family = sdmTMB::nbinom2())
-m2$sd_report
+m3$sd_report
 
 
 ssdr <- abund_mod$ssdr
