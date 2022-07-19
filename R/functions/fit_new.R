@@ -14,9 +14,10 @@ library(TMB)
 library(sdmTMB)
 
  
-# abund_formula = catch ~ area + #offset +
-#   # s(month_n, bs = "tp", k = 4, m = 2) +
-#   (1 | year);
+# abund_formula = catch ~ 1 +
+#   s(month_n, bs = "tp", k = 4, m = 2) +
+#   (1 | reg) +
+#   (1 | year)
 # # abund_dat = catch;
 # # abund_rint = "year";
 # # comp_formula = pst_agg ~ area + s(month_n, bs = "tp", k = 4, m = 2);
@@ -75,18 +76,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       do_fit = FALSE
     )
     
-    # as above but for predictive dataset
-    resp <- attr(terms(abund_formula), which = "variables")[[2]] %>% 
-      as.character()
-    pred_dat[resp] <- 0
-    
-    sdmTMB_dummy_p <- sdmTMB::sdmTMB(
-      abund_formula,
-      data = pred_dat,
-      spatial = "off",
-      do_fit = FALSE
-    )
-    
     # generate offset separately
     if (is.null(offset)) {
       offset <- rep(0, length(y_i))
@@ -96,6 +85,26 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # smooths present (conditional for determining input structure)
     has_smooths <- as.integer(sdmTMB_dummy$tmb_data$has_smooths)
+    
+    # predictions present
+    has_preds <- ifelse(is.null(pred_dat), 0, 1)
+    
+    if (has_preds == 1) {
+      resp <- attr(terms(abund_formula), which = "variables")[[2]] %>% 
+        as.character()
+      pred_dat[resp] <- 0
+      
+      sdmTMB_dummy_p <- sdmTMB::sdmTMB(
+        abund_formula,
+        data = pred_dat,
+        spatial = "off",
+        do_fit = FALSE
+      )
+    } else {
+      # copy original template inputs as placeholders (not used in cpp due to
+      # conditional)
+      sdmTMB_dummy_p <- sdmTMB_dummy
+    }
     
     # make abundance tmb inputs
     abund_tmb_data <- list(
@@ -109,13 +118,14 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       offset_i = offset,
       has_smooths = has_smooths,
       b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
+      has_preds = has_preds,
       pred_X1_ij = sdmTMB_dummy_p$tmb_data$X_ij[[1]],
       pred_Zs = sdmTMB_dummy_p$tmb_data$Zs,
-      pred_Xs = sdmTMB_dummy_p$tmb_data$Xs#,
+      pred_Xs = sdmTMB_dummy_p$tmb_data$Xs
     )
     tmb_data <- c(tmb_data, abund_tmb_data)
     
-    # adjust data when RI predictions being made
+    # TODO: adjust data when RI predictions being made
     # if (include_re_preds == TRUE) {
     #   #vector of predicted random intercepts
     #   pred_rand_ints <- list(
@@ -144,7 +154,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       },
       #for some reason cannot fix as zeros when ignore_fix = FALSE; use sdmTMB
       #inputs for length but redefine with rnorm
-      # re1 = sdmTMB_dummy$tmb_params$RE %>% as.vector(),
       re1 = rnorm(n = length(sdmTMB_dummy$tmb_params$RE %>% as.vector()),
                   0,
                   0.5),
@@ -154,7 +163,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     
     # map parameters unless necessary
     # random parameters
-    if (abund_tmb_data$nobs_re1 > 0) {
+    if (abund_tmb_data$nobs_re1[[1]] > 0) {
       tmb_random <- c(tmb_random, "re1")
     } else {
       re_map <- map_foo(x = c("re1", "ln_sigma_re1"),

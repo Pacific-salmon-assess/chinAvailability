@@ -25,8 +25,8 @@ dyn.load(dynlib('src/negbin_rsplines_sdmTMB'))
 
 catch <- readRDS(here::here("data", "rec", "rec_creel_area.rds")) %>% 
   filter(!legal == "sublegal",
-         reg %in% c("JdFS"#, "SSoG"
-         ),
+         # reg %in% c("JdFS"#, "SSoG"
+         # ),
          month_n > 4 & month_n < 10) %>% 
   mutate(year = as.factor(year),
          area = as.factor(area),
@@ -71,56 +71,12 @@ pred_dat_catch <- group_split(catch, reg) %>%
   rename(key_var = reg_month_year_f)
 
 
-## FIT -------------------------------------------------------------------------
-
-# tmb_inputs <- make_inputs(
-#   abund_formula = catch ~ 1 +
-#     # s(month_n, bs = "tp", k = 4, m = 2) +
-#     # (1 | reg) +
-#     (1 | year),
-#   abund_dat = catch,
-#   pred_dat = pred_dat_catch,
-#   model = "negbin",
-#   include_re_preds = FALSE
-# )
-
-pcod$fyear = as.factor(pcod$year)
-pcod$catch = round(pcod$density, digits = 0)
-tmb_inputs <- make_inputs(
-  abund_formula = catch ~ 1 +
-    s(depth) +
-    (1 | fyear),
-  abund_dat = pcod,
-  pred_dat = pcod,
-  model = "negbin",
-  include_re_preds = FALSE
-)
-# 
-m2 <- sdmTMB(catch ~ 1 + s(depth), #+ (1|fyear),
-             data = pcod,
-  spatial = "off", family = sdmTMB::nbinom2())
-m2$sd_report
-# 
-# obj <- TMB::MakeADFun(
-#   data = tmb_inputs$tmb_data,
-#   parameters = tmb_inputs$tmb_pars,
-#   random = tmb_inputs$tmb_random,
-#   map = NULL,
-#   DLL = "negbin_rsplines_sdmTMB"
-# )
-# opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
-#   control = list(eval.max = 1e4, iter.max = 1e4))
-# opt
-# sdr <- sdreport(obj)
-# sdr
-# 
-# m2$sd_report
-
+## COMPARE FIT -----------------------------------------------------------------
 
 tmb_inputs <- make_inputs(
   abund_formula = catch ~ 1 +
     s(month_n, bs = "tp", k = 4, m = 2) +
-    # (1 | reg) +
+    (1 | reg) +
     (1 | year)
   ,
   abund_dat = catch,
@@ -140,42 +96,22 @@ abund_mod <- fit_model(
 abund_mod$sdr
 
 
-m3 <- sdmTMB(catch ~  1 +
+m3 <- sdmTMB(catch ~ 1 +
                s(month_n, bs = "tp", k = 4, m = 2) +
-               # (1 | reg) +
+               (1 | reg) +
                (1 | year),
-             # offset = catch$offset,
+             offset = catch$offset,
              data = catch, 
              spatial = "off", family = sdmTMB::nbinom2())
 m3$sd_report
 
 
 ssdr <- abund_mod$ssdr
-ssdr[rownames(ssdr) == "pred_mu1"] %>% range()
+pred_mu <- ssdr[rownames(ssdr) == "pred_mu1", "Estimate"]
 
-predict(m2, newdata = catch) %>% glimpse()
-
-
+pred_mu_sdm <- predict(m3, newdata = catch) %>% glimpse()
 
 
-
-
-## dummy chunk to explore what's going on in C++
-re_index1 <- tmb_inputs$tmb_data$re_index1
-re1 <- rnorm(nrow(tmb_inputs$tmb_pars$re1), 0, 1)
-eta_re_i <- rep(0, nrow(re_index1))
-nobs_re1 <- tmb_inputs$tmb_data$nobs_re1
-
-for (i in 1:nrow(re_index1)) {
-  temp = 0
-  for (g in 1:ncol(re_index1)) {
-    if (g == 1) eta_re_i[i] = eta_re_i[i] + re1[re_index1[i, g] + 1]
-    if (g > 1) {
-      temp = temp + nobs_re1[g - 1]
-      eta_re_i[i] = eta_re_i[i] + re1[re_index1[i, g] + temp + 1]
-    }
-  }
-}
 
 ### IGNORE BELOW ####
 
@@ -306,3 +242,40 @@ DHARMaRes = createDHARMa(
   simulatedResponse = sim, observedResponse = testData$observedResponse, 
   fittedPredictedResponse = predict(fittedModel), integerResponse = T)
 plot(DHARMaRes, quantreg = F)
+
+
+
+## SANDBOX ---------------------------------------------------------------------
+
+## pcod example for fitting equivalent
+# pcod$fyear = as.factor(pcod$year)
+# pcod$catch = round(pcod$density, digits = 0)
+# tmb_inputs <- make_inputs(
+#   abund_formula = catch ~ 1 +
+#     s(depth) +
+#     (1 | fyear),
+#   abund_dat = pcod,
+#   pred_dat = pcod,
+#   model = "negbin",
+#   include_re_preds = FALSE
+# )
+# # 
+# m2 <- sdmTMB(catch ~ 1 + s(depth), #+ (1|fyear),
+#              data = pcod,
+#   spatial = "off", family = sdmTMB::nbinom2())
+# m2$sd_report
+# 
+# obj <- TMB::MakeADFun(
+#   data = tmb_inputs$tmb_data,
+#   parameters = tmb_inputs$tmb_pars,
+#   random = tmb_inputs$tmb_random,
+#   map = NULL,
+#   DLL = "negbin_rsplines_sdmTMB"
+# )
+# opt <- stats::nlminb(obj$par, obj$fn, obj$gr,
+#   control = list(eval.max = 1e4, iter.max = 1e4))
+# opt
+# sdr <- sdreport(obj)
+# sdr
+# 
+# m2$sd_report
