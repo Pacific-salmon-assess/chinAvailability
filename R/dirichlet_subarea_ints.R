@@ -141,8 +141,9 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
 
 # add areas to composition dataset
 area_key <- stock_comp %>% 
-  select(subarea, area, reg, core_area) %>% 
+  select(subarea, subarea_original, area, reg, core_area) %>% 
   distinct()
+saveRDS(area_key, here::here("data", "rec", "subarea_key.RDS"))
 # month_key <- stock_comp %>% 
 #   select(week, month_n) %>% 
 #   distinct()
