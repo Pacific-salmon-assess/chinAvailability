@@ -4,9 +4,8 @@
 # Dec. 7, 2021
 
 # Dev TO DO:
-# 2) Make RE intercepts flexible (i.e. turn on/off or remove MVN component)
-# 3) Map 0 observations in composition component
-# 4) Combine cpp scripts into one with conditionals (may not be worthwhile...)
+# 1) Add RW back into RIs 
+# 2) Generate random predictions
 
 library(tidyverse)
 library(mgcv)
@@ -18,14 +17,13 @@ library(sdmTMB)
 #   s(month_n, bs = "tp", k = 4, m = 2) +
 #   (1 | reg) +
 #   (1 | year)
-# # abund_dat = catch;
-comp_formula = can_reg ~ 1 + area + s(month_n, bs = "tp", k = 4, m = 2) + 
-  (1 | year);
-comp_dat = stock_comp
+# abund_dat = catch;
+# comp_formula = can_reg ~ 1 + area + s(month_n, bs = "tp", k = 4, m = 2) + 
+#   (1 | year);
+# comp_dat = stock_comp
 # comp_rint = NULL #"year"
 # # pred_dat = pred_dat_catch
-model = "dirichlet"
-# include_re_preds = FALSE
+# model = "dirichlet"
 
 ## MAKE INPUTS  ----------------------------------------------------------------
 
@@ -40,13 +38,12 @@ map_foo <- function(x, tmb_pars) {
 }
 
 make_inputs <- function(abund_formula = NULL, comp_formula = NULL, 
-                        comp_knots = NULL,
                         abund_dat = NULL, comp_dat = NULL,
                         abund_offset = NULL,
                         # abund_rint = NULL, comp_rint = NULL,
                         pred_dat = NULL,
                         model = c("negbin", "dirichlet", "integrated"),
-                        random_walk = FALSE,
+                        # random_walk = FALSE,
                         include_re_preds = FALSE) {
   
   # make sure necessary components are present
@@ -69,8 +66,8 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
   # predictions present
   has_preds <- ifelse(is.null(pred_dat), 0, 1)
   
+  # generate inputs for negbin component
   if (model %in% c("integrated", "negbin")) {
-    # generate inputs for negbin component
     # random intercepts (use sdmTMB to generate proper structure)
     sdmTMB_dummy <- sdmTMB::sdmTMB(
       abund_formula,
@@ -201,7 +198,15 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     obs_comp <- comp_wide[ , group_names] %>%
       as.matrix()
     
-    # generate template inputs using sdmTMB 
+    
+    # generate main effects model matrix 
+    # NOTE can't use sdmTMB because penalized smooths are not readily compatible
+    # with multivariate response data 
+    fixed_formula <- glmmTMB::splitForm(comp_formula_new)$fixedFormula
+    dummy_comp <- mgcv::gam(fixed_formula, data = comp_wide)
+    X2_ij <- predict(dummy_comp, type = "lpmatrix")
+    
+    # generate RI inputs using sdmTMB 
     sdmTMB_dummy <- sdmTMB::sdmTMB(
       comp_formula_new,
       data = comp_wide,
@@ -209,91 +214,51 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
       do_fit = FALSE
     )
     
-    if (has_preds == 1) {
-      resp <- attr(terms(comp_formula_new), which = "variables")[[2]] %>% 
-        as.character()
-      pred_dat[resp] <- 0
-      
-      sdmTMB_dummy_p <- sdmTMB::sdmTMB(
-        comp_formula_new,
-        data = pred_dat,
-        spatial = "off",
-        do_fit = FALSE
-      )
-    } else {
-      # copy original template inputs as placeholders (not used in cpp due to
-      # conditional)
-      sdmTMB_dummy_p <- sdmTMB_dummy
-    }
-    
-    # TODO: fixed effects can't come from sdmTMB because random smooths 
-    # can't be estimated for parameter matrix
-    
+    # NOTE dummy sdmTMB not necessary because predictions based on main effects
+    # only, but will be if random int predictions are incorporated (look at 
+    # abundance version for reference)
+    if (has_preds == 1) { 
+      pred_X2_ij <- predict(dummy_comp, pred_dat, type = "lpmatrix")
+      } else {
+        pred_X2_ij <- X2_ij
+      } 
     
     # make composition tmb inputs
     comp_tmb_data <- list(
       Y2_ik = obs_comp,
-      X2_ij = sdmTMB_dummy$tmb_data$X_ij[[1]],
+      X2_ij = X2_ij,
       re_index2 = sdmTMB_dummy$tmb_data$RE_indexes,
       ln_sigma_re_index2 = sdmTMB_dummy$tmb_data$ln_tau_G_index,
       nobs_re2 = sdmTMB_dummy$tmb_data$nobs_RE, # number of random intercepts
-      Zs = sdmTMB_dummy$tmb_data$Zs, # optional smoother basis function matrices
-      Xs = sdmTMB_dummy$tmb_data$Xs, # optional smoother linear effect matrix
-      offset_i = offset,
-      has_smooths = has_smooths,
-      b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
       has_preds = has_preds,
-      pred_X1_ij = sdmTMB_dummy_p$tmb_data$X_ij[[1]],
-      pred_Zs = sdmTMB_dummy_p$tmb_data$Zs,
-      pred_Xs = sdmTMB_dummy_p$tmb_data$Xs
+      pred_X2_ij = pred_X2_ij
     )
-    tmb_data <- c(tmb_data, abund_tmb_data)
+    tmb_data <- c(tmb_data, comp_tmb_data)
     
-    comp_tmb_data <- list(
-      Y2_ik = obs_comp,
-      X2_ij = X2_ij,
-      rfac2 = rfac2,
-      n_rfac2 = n_rint2,
-      pred_X2_ij = pred_X2_ij,
-      random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer()
+    comp_tmb_pars <- list(
+      B2_jk = matrix(0,
+                     nrow = ncol(X2_ij),
+                     ncol = ncol(obs_comp)
+      ),
+      #for some reason cannot fix as zeros when ignore_fix = FALSE; use sdmTMB
+      #inputs for length but redefine with rnorm
+      re2 = rnorm(n = length(sdmTMB_dummy$tmb_params$RE %>% as.vector()),
+                  0,
+                  0.5),
+      ln_sigma_re2 = sdmTMB_dummy$tmb_params$ln_tau_G %>% as.vector()
     )
+    tmb_pars <- c(tmb_pars, comp_tmb_pars)
     
-    # dummy model
-    # dummy_comp <- mgcv::gam(comp_formula_new, data = comp_wide, 
-    #                         knots = comp_knots)
-    # X2_ij <- predict(dummy_comp, type = "lpmatrix")
-    # pred_X2_ij <- predict(dummy_comp, pred_dat, type = "lpmatrix")
-    # 
-    # ## TODO: conditionals don't seem to work (perhaps due to improper format
-    # # of empty data/parameters passed to tmb)
-    # # if (!is.null(comp_rint)) {
-    # rfac2 <- as.numeric(as.factor(as.character(comp_wide[[comp_rint]]))) - 1
-    # n_rint2 <- length(unique(rfac2))
-    # # } else {
-    # #   rfac2 <- matrix(, nrow = nrow(comp_wide), ncol = 0) %>% as.vector()
-    # #   n_rint2 <- 0
-    # # }
-    # 
-    # #make composition tmb inputs 
-    # comp_tmb_data <- list(
-    #   Y2_ik = obs_comp,
-    #   X2_ij = X2_ij,
-    #   rfac2 = rfac2,
-    #   n_rfac2 = n_rint2,
-    #   pred_X2_ij = pred_X2_ij,
-    #   random_walk = ifelse(random_walk == TRUE, 1, 0) %>% as.integer()
-    # )
-    # tmb_data <- c(tmb_data, comp_tmb_data)
-    # 
-    # comp_tmb_pars <- list(
-    #   B2_jk = matrix(0,
-    #                  nrow = ncol(X2_ij),
-    #                  ncol = ncol(obs_comp)
-    #   ),
-    #   ln_sigma_A2 = log(0.25)
-    # )
-    # tmb_pars <- c(tmb_pars, comp_tmb_pars)
-    
+    # map random intercepts unless necessary
+    if (comp_tmb_data$nobs_re2[[1]] > 0) {
+      tmb_random <- c(tmb_random, "re2")
+    } else {
+      re_map <- map_foo(x = c("re2", "ln_sigma_re2"),
+                        tmb_pars = tmb_pars)
+      tmb_map <- c(tmb_map, 
+                   re_map)
+    }
+
     # adjust data and parameters when RI predictions being made
     # if (include_re_preds == TRUE) {
     #   #vector of predicted random intercepts
@@ -341,13 +306,11 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 
 
 ## FIT MODELS  -----------------------------------------------------------------
-# tmb_data = tmb_inputs$tmb_data 
-# tmb_pars = tmb_inputs$tmb_pars 
-# tmb_map = tmb_inputs$tmb_map
-# tmb_random  = tmb_inputs$tmb_random
-# fit_random = TRUE;
-# ignore_fix = FALSE;
-# model_specs = tmb_inputs$model_specs
+# tmb_data = model_inputs_ri$tmb_data
+# tmb_pars = model_inputs_ri$tmb_pars
+# tmb_map = model_inputs_ri$tmb_map
+# tmb_random  = model_inputs_ri$tmb_random
+# model_specs = model_inputs_ri$model_specs
 # tmb_pars$re1 <- rnorm(n = length(tmb_pars$re1), 0, 1)
 # model_specs = list(model = "dirichlet",
 #                    include_re_preds = FALSE)
@@ -364,14 +327,14 @@ fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
   if (model_specs$model == "negbin") tmb_model <- "negbin_rsplines_sdmTMB"
   # use MVN model if random effects predictions necessary
   if (model_specs$model == "dirichlet") {
-    tmb_model <- ifelse(model_specs$include_re_preds == FALSE,
-                        "dirichlet_ri",
-                        "dirichlet_mvn")
+    tmb_model <- #ifelse(model_specs$include_re_preds == FALSE,
+                        "dirichlet_ri_sdmTMB"#,
+                        # "dirichlet_mvn")
   }
   if (model_specs$model == "integrated") {
-    tmb_model <- ifelse(model_specs$include_re_preds == FALSE,
-                        "negbin_rsplines_dirichlet_ri",
-                        "negbin_rsplines_dirichlet_mvn")
+    tmb_model <- #ifelse(model_specs$include_re_preds == FALSE,
+                        "negbin_rsplines_dirichlet_ri"#,
+                        # "negbin_rsplines_dirichlet_mvn")
   }
   
   ## fit fixed effects only 

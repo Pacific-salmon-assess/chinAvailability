@@ -19,7 +19,7 @@ dyn.load(dynlib(here::here("src", "dirichlet_ri_sdmTMB")))
 
 
 # utility functions for prepping smooths 
-source(here::here("R", "functions", "utils.R"))
+# source(here::here("R", "functions", "utils.R"))
 # data prep and model fitting functions
 source(here::here("R", "functions", "fit_new.R"))
 
@@ -164,13 +164,9 @@ source(here::here("R", "functions", "fit_new.R"))
 
 # no rand predictions
 model_inputs_ri <- make_inputs(
-  comp_formula = can_reg ~ area + 
-    s(month_n, bs = "tp", k = 5, m = 2)
-    ,
-  # comp_knots = list(month_n = c(0, 12)),
-  # comp_knots = list(month_n = c(0, 53)),
+  comp_formula = can_reg ~ 1 + area + 
+    s(month_n, bs = "tp", k = 5, m = 2) + (1 | year),
   comp_dat = stock_comp,
-  comp_rint = "year",
   pred_dat = pred_dat_stock_comp_ri,
   model = "dirichlet",
   include_re_preds = FALSE
@@ -181,8 +177,6 @@ stock_mod_ri <- fit_model(
   tmb_pars = model_inputs_ri$tmb_pars, 
   tmb_map = model_inputs_ri$tmb_map, 
   tmb_random  = model_inputs_ri$tmb_random,
-  fit_random = FALSE,
-  ignore_fix = FALSE,
   model_specs = model_inputs_ri$model_specs#,
   # nlminb_loops = 2, newton_loops = 1
 )
@@ -277,7 +271,8 @@ pred_comp <- purrr::map(stock_seq, function (x) {
 
 p <- ggplot(data = pred_comp, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(subarea~stock) +
+  facet_grid(area~stock) +
+  # facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_prob_est)) #+
 
