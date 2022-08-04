@@ -1,9 +1,5 @@
 ### MVN Random Intercepts Dirichlet
 ## Adapt stockseasonr model with MVN intercepts
-## NOTE: attempted to incorporate random smooths, but unclear how to proceed 
-## given parameters are a matrix, not vector
-## NOTE: related to above, separate predictive matrices are necessary in TMB
-## because of how smooths are stored
 ## Nov. 29, 2021
 ## Updated March 19 to explore composition at area levels
 ## Updated April 14 to subarea levels
@@ -16,8 +12,10 @@ library(TMB)
 # generating predictions for "average" year
 # compile(here::here("src", "dirichlet_mvn.cpp"))
 # dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
-compile(here::here("src", "dirichlet_ri.cpp"))
-dyn.load(dynlib(here::here("src", "dirichlet_ri")))
+# compile(here::here("src", "dirichlet_ri.cpp"))
+# dyn.load(dynlib(here::here("src", "dirichlet_ri")))
+compile(here::here("src", "dirichlet_ri_sdmTMB.cpp"))
+dyn.load(dynlib(here::here("src", "dirichlet_ri_sdmTMB")))
 
 
 # utility functions for prepping smooths 
@@ -127,10 +125,6 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
   map_dfr(., function(x) {
     expand.grid(
       reg = unique(x$reg),
-      # week = seq(min(x$week),
-      #            max(x$week),
-      #            by = 0.5
-      # ),
       month_n = seq(min(x$month_n),
                     max(x$month_n),
                     by = 0.1
@@ -143,7 +137,7 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
 area_key <- stock_comp %>% 
   select(subarea, subarea_original, area, reg, core_area) %>% 
   distinct()
-saveRDS(area_key, here::here("data", "rec", "subarea_key.RDS"))
+# saveRDS(area_key, here::here("data", "rec", "subarea_key.RDS"))
 # month_key <- stock_comp %>% 
 #   select(week, month_n) %>% 
 #   distinct()
