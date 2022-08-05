@@ -37,14 +37,15 @@ map_foo <- function(x, tmb_pars) {
   return(out_list)
 }
 
-make_inputs <- function(abund_formula = NULL, comp_formula = NULL, 
-                        abund_dat = NULL, comp_dat = NULL,
-                        abund_offset = NULL,
-                        # abund_rint = NULL, comp_rint = NULL,
-                        pred_dat = NULL,
-                        model = c("negbin", "dirichlet", "integrated"),
-                        # random_walk = FALSE,
-                        include_re_preds = FALSE) {
+fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL, 
+                             abund_dat = NULL, comp_dat = NULL,
+                             abund_offset = NULL,
+                             # abund_rint = NULL, comp_rint = NULL,
+                             pred_dat = NULL,
+                             model = c("negbin", "dirichlet", "integrated"),
+                             # random_walk = FALSE,
+                             # include_re_preds = FALSE,
+                             fit = TRUE) {
   
   # make sure necessary components are present
   if (model != "negbin") {
@@ -198,7 +199,6 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     obs_comp <- comp_wide[ , group_names] %>%
       as.matrix()
     
-    
     # generate main effects model matrix 
     # NOTE can't use sdmTMB because penalized smooths are not readily compatible
     # with multivariate response data 
@@ -290,15 +290,65 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
     # }
   }
   
-   
   # combine model specs to pass as logicals to fitting function
-  model_specs <- list(model = model, include_re_preds = include_re_preds)
+  model_specs <- list(model = model#, include_re_preds = include_re_preds
+                      )
   
   out_list <- list(model_specs = model_specs,
                    tmb_data = tmb_data, tmb_pars = tmb_pars, tmb_map = tmb_map, 
                    tmb_random = tmb_random)
+  
   if (model %in% c("dirichlet", "integrated")) {
     out_list <- c(out_list, list(wide_comp_dat = comp_wide))
+  }
+  
+  # fit
+  if (fit == TRUE) {
+    if (model == "negbin") tmb_model <- "negbin_rsplines_sdmTMB"
+    # use MVN model if random effects predictions necessary
+    if (model == "dirichlet") {
+      tmb_model <- #ifelse(include_re_preds == FALSE,
+        "dirichlet_ri_sdmTMB"#,
+      # "dirichlet_mvn")
+    }
+    if (model == "integrated") {
+      tmb_model <- #ifelse(include_re_preds == FALSE,
+        "negbin_rsplines_dirichlet_ri"#,
+      # "negbin_rsplines_dirichlet_mvn")
+    }
+    
+    obj <- TMB::MakeADFun(
+      data = tmb_data,
+      parameters = tmb_pars, 
+      map = tmb_map,
+      random = tmb_random,
+      DLL = tmb_model
+    )
+    opt <- stats::nlminb(obj$par, obj$fn, obj$gr)
+    
+    if (nlminb_loops > 1) {
+      for (i in seq(2, nlminb_loops, length = max(0, nlminb_loops - 1))) {
+        temp <- opt[c("iterations", "evaluations")]
+        opt <- stats::nlminb(
+          start = opt$par, objective = obj$fn, gradient = obj$gr)
+        opt[["iterations"]] <- opt[["iterations"]] + temp[["iterations"]]
+        opt[["evaluations"]] <- opt[["evaluations"]] + temp[["evaluations"]]
+      }
+    }
+    
+    if (newton_loops > 0) {
+      for (i in seq_len(newton_loops)) {
+        g <- as.numeric(obj$gr(opt$par))
+        h <- stats::optimHess(opt$par, fn = obj$fn, gr = obj$gr)
+        opt$par <- opt$par - solve(h, g)
+        opt$objective <- obj$fn(opt$par)
+      }
+    }
+    
+    sdr <- sdreport(obj)
+    ssdr <- summary(sdr)
+    
+    out_list <- c(out_list, list(sdr = sdr, ssdr = ssdr))
   }
   
   return(out_list)
@@ -317,6 +367,7 @@ make_inputs <- function(abund_formula = NULL, comp_formula = NULL,
 # nlminb_loops = 2
 # newton_loops = 2
 
+## INTEGRATED WITH ABOVE SO DEFUNCT
 
 fit_model <- function(tmb_data, tmb_pars, tmb_map = NULL, tmb_random = NULL,
                       # fit_random = TRUE, ignore_fix = FALSE, 
