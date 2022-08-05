@@ -56,7 +56,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          month_n = lubridate::month(date),
          sample_id = paste(month_n, reg, yday, year, sep = "_"),
          agg_new = case_when(
-           grepl("CR", pst_agg) ~ "Columbia",
+           grepl("CR", pst_agg) ~ "WA_OR_CA",
            grepl("CST", pst_agg) ~ "WA_OR_CA",
            # pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa") ~ "Col_SF",
            # pst_agg %in% c("CR-lower_sp", "CR-upper_sp") ~ "Col_Sp",
@@ -66,27 +66,39 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
                               "Fraser_Spring_4.2") | pst_agg == "FR-early" ~ "Fraser_Yearling",
            Region1Name %in% c("Fraser_Fall") ~ "Fraser_F",
            TRUE ~ pst_agg
-         )
+         ),
+         # simplify area assignments 
+         area_f = as.factor(as.numeric(gsub("([0-9]+).*$", "\\1", area))),
+         inshore = as.factor(ifelse(area_f == "21"))
   ) %>% 
   group_by(sample_id) %>% 
   mutate(nn = length(unique(id)) %>% as.numeric) %>% 
+  ungroup() %>% 
+  filter(!reg == "out")
+
+# calculate mean distance after consolidating subareas
+mean_dist <- comp1 %>% 
+  select(subarea, dist_123i) %>% 
+  distinct() %>% 
+  group_by(subarea) %>% 
+  summarize(dist_123i = mean(dist_123i)) %>% 
   ungroup()
 
 stock_comp <- comp1 %>%  
-  group_by(sample_id, subarea, subarea_original, area, reg, reg_c = region, 
+  group_by(sample_id, subarea, subarea_original, area_f, reg, 
+           reg_c = region, 
            week, month, month_n, year, nn, agg_new, core_area) %>% 
-  summarize(prob = sum(prob), .groups = "drop") %>% 
+  summarize(prob = sum(prob), 
+            .groups = "drop") %>% 
   ungroup() %>% 
-  droplevels() %>% 
-  filter(!reg == "out",
-         # week > 22 & week < 38
-         month_n < 10.1 & month_n > 1.9
+  filter(month_n < 10.1 & month_n > 1.9
          ) %>% 
   mutate(year = as.factor(year),
          reg = factor(reg, levels = c("SWVI", "JdFS", "SSoG")),
-         subarea = as.factor(subarea),
-         area = as.factor(area)
-         )
+         subarea = as.factor(subarea)
+         ) %>% 
+  droplevels() %>% 
+  left_join(., mean_dist, by = "subarea")
 
 
 # look at sample coverage in data passed to model
@@ -117,11 +129,11 @@ pred_dat_comp1 <- group_split(stock_comp, reg) %>%
 
 # add areas to composition dataset
 area_key <- stock_comp %>% 
-  select(subarea, subarea_original, area, reg, core_area) %>% 
+  select(subarea, subarea_original, dist_123i, area_f, reg, core_area) %>% 
   distinct()
 
 # subset predicted composition dataset
-pred_dat_stock_comp_ri <- pred_dat_comp1 %>% 
+pred_dat_comp <- pred_dat_comp1 %>% 
   left_join(., area_key, by = "reg") %>%
   filter(#core_area == "yes",
          month_n < 9.1 & month_n > 5.9
@@ -135,81 +147,66 @@ pred_dat_stock_comp_ri <- pred_dat_comp1 %>%
 
 source(here::here("R", "functions", "fit_new.R"))
 
-# no rand predictions
-model_inputs_ri <- make_inputs(
-  comp_formula = agg_new ~ 1 + subarea + 
-    s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
+fit1 <- fit_stockseasonr(
+  comp_formula = agg_new ~ 1 + area_f + 
+    s(month_n, bs = "tp", k = 4, m = 2) + 
+    (1 | year),
   comp_dat = stock_comp,
-  pred_dat = pred_dat_stock_comp_ri,
+  pred_dat = pred_dat_comp,
   model = "dirichlet",
-  include_re_preds = FALSE
+  fit = TRUE,
+  nlminb_loops = 2, newton_loops = 1
 )
-
-stock_mod_ri <- fit_model(
-  tmb_data = model_inputs_ri$tmb_data, 
-  tmb_pars = model_inputs_ri$tmb_pars, 
-  tmb_map = model_inputs_ri$tmb_map, 
-  tmb_random  = model_inputs_ri$tmb_random,
-  model_specs = model_inputs_ri$model_specs,
+# fails to converge with area included too
+fit2 <- fit_stockseasonr(
+  comp_formula = agg_new ~ 1 + #area_f +
+    s(dist_123i, bs = "tp", k = 3, m = 2) +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    (1 | year),
+  comp_dat = stock_comp,
+  pred_dat = pred_dat_comp,
+  model = "dirichlet",
+  fit = TRUE,
+  nlminb_loops = 2, newton_loops = 1
+)
+fit3 <- fit_stockseasonr(
+  comp_formula = agg_new ~ 1 + subarea + 
+    s(month_n, bs = "tp", k = 4, m = 2) + 
+    (1 | year),
+  comp_dat = stock_comp,
+  pred_dat = pred_dat_comp,
+  model = "dirichlet",
+  fit = TRUE,
   nlminb_loops = 2, newton_loops = 1
 )
 
+ssdr1 <- fit1$ssdr 
+ssdr2 <- fit2$ssdr 
 
-ssdr <- stock_mod_ri$ssdr 
-
-beta_mat <- ssdr[rownames(ssdr) == "B2_jk", 2] %>% 
+beta_mat <- ssdr2[rownames(ssdr2) == "B2_jk", 2] %>% 
   matrix(., 
-            nrow = ncol(model_inputs_ri$tmb_data$X2_ij),
-            ncol = ncol(model_inputs_ri$tmb_data$Y2_ik))
-rownames(beta_mat) <- colnames(model_inputs_ri$tmb_data$X2_ij)
-colnames(beta_mat) <- colnames(model_inputs_ri$tmb_data$Y2_ik)
+            nrow = ncol(fit2$tmb_data$X2_ij),
+            ncol = ncol(fit2$tmb_data$Y2_ik))
+rownames(beta_mat) <- colnames(fit2$tmb_data$X2_ij)
+colnames(beta_mat) <- colnames(fit2$tmb_data$Y2_ik)
 beta_mat
 
 dum <- model_inputs_ri$tmb_data$pred_X2_ij %*% beta_mat
 
-saveRDS(stock_mod_ri$ssdr, 
+saveRDS(fit1, 
         here::here("data", "model_fits", "subarea",
-                   "dirichlet_ri_mig_corridor.rds"))
+                   "afs_fit1.rds"))
+saveRDS(fit2, 
+        here::here("data", "model_fits", "subarea",
+                   "afs_fit2.rds"))
+saveRDS(fit3, 
+        here::here("data", "model_fits", "subarea",
+                   "afs_fit3.rds"))
 
-
-
-# as above but with week as a covariate
-model_inputs_ri2 <- make_inputs(
-  comp_formula = can_reg ~ subarea + 
-    s(week, bs = "cc", k = 4, m = 2) 
-    # s(month_n, bs = "cc", k = 4, m = 2, by = reg)
-  ,
-  # comp_knots = list(month_n = c(0, 12)),
-  comp_knots = list(week = c(0, 53)),
-  comp_dat = stock_comp,
-  comp_rint = "year",
-  pred_dat = pred_dat_stock_comp_ri,
-  model = "dirichlet",
-  include_re_preds = FALSE
-)
-
-stock_mod_ri2 <- fit_model(
-  tmb_data = model_inputs_ri2$tmb_data, 
-  tmb_pars = model_inputs_ri2$tmb_pars, 
-  tmb_map = model_inputs_ri2$tmb_map, 
-  tmb_random  = model_inputs_ri2$tmb_random,
-  fit_random = TRUE,
-  ignore_fix = TRUE,
-  model_specs = model_inputs_ri2$model_specs
-)
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 
-
-# random effects predictions 
-# ssdr_ri <- readRDS(
-#   here::here("data", "model_fits", "subarea",
-#              "dirichlet_mvn_mig_corridor.rds"))
-# fixed effects predictions 
-ssdr <- readRDS(
-  here::here("data", "model_fits", "subarea", 
-             "dirichlet_ri_mig_corridor.rds"))
-
+ssdr <- fit2$ssdr
 
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 pred_mu <- ssdr[rownames(ssdr) == "pred_Mu2", ]
@@ -225,21 +222,21 @@ link_preds <- data.frame(
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
   ) 
 
-stock_seq <- colnames(model_inputs_ri$tmb_data$Y2_ik)
+stock_seq <- colnames(fit2$tmb_data$Y2_ik)
 pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_stock_comp_ri
+  dum <- pred_dat_comp
   dum$stock <- x
   return(dum)
 }) %>%
   bind_rows() %>%
   cbind(., link_preds) %>% 
   mutate(
-    area_f = fct_reorder(as.factor(area), as.numeric(reg)),
-    stock = fct_relevel(
-      stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
-      "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", #"SOMN",
-      "WCVI", "Other"
-    )
+    area_f = fct_reorder(as.factor(area_f), as.numeric(reg))#,
+    # stock = fct_relevel(
+    #   stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
+    #   "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", #"SOMN",
+    #   "WCVI", "Other"
+    # )
   )
 
 p <- ggplot(data = pred_comp, aes(x = month_n)) +
@@ -258,9 +255,9 @@ p_ribbon <- p +
 
 ## compare to observations
 # number of samples in a daily observation
-long_dat <- model_inputs_ri$wide_comp_dat %>%
-  mutate(samp_nn = apply(model_inputs_ri$tmb_data$Y2_ik, 1, sum)) %>%
-  pivot_longer(cols = c(Other:WCVI), 
+long_dat <- fit2$wide_comp_dat %>%
+  mutate(samp_nn = apply(fit3$tmb_data$Y2_ik, 1, sum)) %>%
+  pivot_longer(cols = c(Fraser_S:Fraser_Yearling), 
                names_to = "stock", 
                values_to = "obs_count") %>%
   mutate(obs_ppn = obs_count / samp_nn) %>% 
