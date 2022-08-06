@@ -56,8 +56,9 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          ),
          reg = as.factor(reg),
          core_area = case_when(
+           subarea == "121B" ~ "no",
            reg %in% c("SWVI") ~ "yes", 
-           subarea %in% c("18BDE", "19B", "19C") ~ "yes",
+           subarea %in% c("18BDE", "19B", "19C", "20A") ~ "yes",
            TRUE ~ "no"
          ),
          week = lubridate::week(date),

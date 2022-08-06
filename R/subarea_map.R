@@ -25,15 +25,21 @@ area_key <- readRDS(here::here("data", "rec", "subarea_key.RDS"))
 
 creel_sub <- st_read(here::here(shp_path, "creelareaspfma_2021.shp")) %>% 
   st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
-  janitor::clean_names()
+  janitor::clean_names() %>% 
+  # adjust so that subareas in 20D are pooled
+  mutate(
+    subareaid = ifelse(grepl("20D", subareaid), "20D", subareaid)
+  )
 
 dum <- left_join(area_key, 
                  creel_sub %>% 
                    dplyr::select(subarea_original = subareaid, creelsub) ,
-          by = "subarea_original")
+          by = "subarea_original") %>% 
+  st_as_sf()
 
-ggplot() +
-  geom_sf(data = creel_sub) +
+ggplot(data = dum) +
+  geom_sf(aes(fill = core_area)) +
+  geom_sf_label(aes(label = subarea_original)) +
   coord_sf(xlim = c(-127, -122), ylim = c(48, 49.25))
 
 
