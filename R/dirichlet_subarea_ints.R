@@ -40,7 +40,8 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
            # consolidate subareas due to small sample sizes and doc issues w/
            # convergence
            subarea %in% c("19C", "19D", "19E") ~ "19CDE",
-           subarea %in% c("20C", "20D", "20E") ~ "20CDE",
+           subarea %in% c("20A", "20E") ~ "20AE",
+           subarea %in% c("20C", "20D") ~ "20CD",
            TRUE ~ subarea
          ),
          reg = case_when(
@@ -58,7 +59,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          core_area = case_when(
            subarea == "121B" ~ "no",
            reg %in% c("SWVI") ~ "yes", 
-           subarea %in% c("18BDE", "19B", "19C", "20A") ~ "yes",
+           subarea %in% c("18BDE", "19B", "19C", "20AE") ~ "yes",
            TRUE ~ "no"
          ),
          week = lubridate::week(date),
