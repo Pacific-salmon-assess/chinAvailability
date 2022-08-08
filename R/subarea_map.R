@@ -4,6 +4,9 @@
 library(sf)
 library(ggplot2)
 library(tidyverse)
+library(maptools)
+library(rmapshaper)
+library(mapdata)
 
 
 # parallelize based on operating system (should speed up some of the spatial
@@ -37,9 +40,21 @@ dum <- left_join(area_key,
           by = "subarea_original") %>% 
   st_as_sf()
 
-ggplot(data = dum) +
-  geom_sf(aes(fill = core_area)) +
-  geom_sf_label(aes(label = subarea_original)) +
-  coord_sf(xlim = c(-127, -122), ylim = c(48, 49.25))
 
+# import coastline SF dataframe
+coast <- readRDS(
+  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+  st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84"))
 
+subarea_map <- ggplot() +
+  geom_sf(data = coast, color = "black", fill = "white") +
+  geom_sf(data = dum, aes(fill = core_area)) +
+  scale_fill_discrete(name = "RKW Core\nArea") +
+  coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+pdf(here::here("figs", "afs_subarea_preds", "subarea_map.pdf"),
+    height = 5, width = 6.5)
+subarea_map
+dev.off()
