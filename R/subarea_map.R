@@ -38,7 +38,10 @@ dum <- left_join(area_key,
                  creel_sub %>% 
                    dplyr::select(subarea_original = subareaid, creelsub) ,
           by = "subarea_original") %>% 
-  st_as_sf()
+  st_as_sf() %>% 
+  mutate(
+    focal_subarea = ifelse(core_area == "yes", subarea, NA)
+  )
 
 
 # import coastline SF dataframe
@@ -48,13 +51,25 @@ coast <- readRDS(
 
 subarea_map <- ggplot() +
   geom_sf(data = coast, color = "black", fill = "white") +
-  geom_sf(data = dum, aes(fill = core_area)) +
-  scale_fill_discrete(name = "RKW Core\nArea") +
+  geom_sf(data = dum, aes(fill = focal_subarea)) +
+  scale_fill_brewer(type = "qual", palette = "Set1", na.value="grey60",
+                    name = "RKW Core\nArea") +
+  # scale_fill_discrete(name = "RKW Core\nArea") +
   coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
 
-pdf(here::here("figs", "afs_subarea_preds", "subarea_map.pdf"),
-    height = 5, width = 6.5)
+png(here::here("figs", "afs_subarea_preds", "subarea_map.png"),
+    height = 5, width = 6.5, units = "in", res = 250)
 subarea_map
 dev.off()
+
+
+ggplot() +
+  geom_sf(data = coast, color = "black", fill = "white") +
+  geom_sf(data = dum, aes(fill = core_area)) +
+  geom_sf_label(data = dum, aes(label = subarea_original)) +
+  # scale_fill_discrete(name = "RKW Core\nArea") +
+  coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())

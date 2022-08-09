@@ -295,15 +295,22 @@ p_obs <- ggplot() +
 
 
 # stacked ribbon plots
-stack_comp <- ggplot(pred_comp) +
+# subset areas to focus on core only
+cores <- area_key %>% filter(core_area == "yes") %>% pull(subarea)
+
+stack_comp <- pred_comp %>% filter(subarea %in% cores) %>% 
+  mutate(subarea = fct_relevel(
+    subarea, "21A", "121A", "20AE", "19B", "18BDE", "29DE"
+  )) %>% 
+  ggplot(.) +
   geom_area(aes(x = month_n, y = pred_prob_est, colour = stock, fill = stock), 
             stat = "identity") + 
-  facet_wrap(~subarea, scales = "free_y") +
-  scale_colour_brewer(type = "div", palette = 9) +
-  scale_fill_brewer(type = "div", palette = 9) +
+  facet_wrap(~subarea, nrow = 1) +
+  scale_colour_brewer(type = "div", palette = 1) +
+  scale_fill_brewer(type = "div", palette = 1) +
   ggsidekick::theme_sleek() +
   labs(x = "Month", y = "Predicted Stock Composition") +
-  theme(legend.position = "top") 
+  theme(legend.position = "right") 
 
 stack_comp_split <- split(pred_comp, pred_comp$subarea) %>% 
   purrr::map2(., names(.), function (x, y) {
@@ -323,8 +330,8 @@ p_ribbon
 p_obs
 dev.off()
 
-pdf(here::here("figs", "afs_subarea_preds", "stacked_ribbon_facet.pdf"),
-    height = 5, width = 6.5)
+png(here::here("figs", "afs_subarea_preds", "stacked_ribbon_facet.png"),
+    height = 2.5, width = 9, units = "in", res = 250)
 stack_comp
 dev.off()
 
