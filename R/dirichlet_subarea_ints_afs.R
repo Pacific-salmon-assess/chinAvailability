@@ -61,7 +61,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          week = lubridate::week(date),
          yday = lubridate::yday(date),
          month_n = lubridate::month(date),
-         sample_id = paste(month_n, reg, yday, year, sep = "_"),
+         sample_id = paste(month_n, subarea, week, year, sep = "_"),
          agg_new = case_when(
            grepl("CR", pst_agg) ~ "WA_OR_CA",
            grepl("CST", pst_agg) ~ "WA_OR_CA",
@@ -107,10 +107,24 @@ stock_comp <- comp1 %>%
   left_join(., mean_dist, by = "subarea")
 
 
+
+# stock_comp_area <- stock_comp
+# stock_comp_area_w <- stock_comp
+# stock_comp_reg <- stock_comp
+# stock_comp_reg_w <- stock_comp
+# 
+# comp_list <- list(stock_comp_area, stock_comp_area_w, stock_comp_reg, 
+#                   stock_comp_reg_w)
+# names(comp_list) <- c("subarea_yday", "subarea_week",
+#                       "reg_yday", "reg_week")
+# saveRDS(comp_list, here::here("data", "rec", "comp_dat_list.rds"))
+
+
+
 # look at sample coverage in data passed to model
 alpha_scale <- c(0.3, 0.95)
 names(alpha_scale) <- c("no", "yes")
-stock_comp %>%
+stock_comp_area_w %>%
   select(sample_id, year, reg, subarea, month_n, nn, core_area) %>%
   distinct() %>%
   ggplot() +
@@ -160,23 +174,6 @@ pred_dat_comp <- #pred_dat_comp1 %>%
 
 ## FIT MODEL -------------------------------------------------------------------
 
-
-
-fit1 <- fit_stockseasonr(
-  comp_formula = agg_new ~ 1 + area_f +
-    # s(month_n, bs = "tp", k = 4, m = 2) +
-    # (1 | reg) +
-    (1 | year),
-  comp_dat = stock_comp,
-  pred_dat = pred_dat_comp,
-  model = "dirichlet",
-  random_walk = TRUE,
-  fit = FALSE,
-  nlminb_loops = 2, newton_loops = 1
-)
-re2 <- fit1$ssdr[rownames(fit1$ssdr) == "re2", ]
-
-# 
 # n2 <- nrow(stock_comp)
 # n_re2 <- ncol(fit1$tmb_data$re_index2)
 # re2 <- fit1$tmb_pars$re2
