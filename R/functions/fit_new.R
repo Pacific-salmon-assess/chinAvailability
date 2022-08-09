@@ -18,12 +18,12 @@ library(sdmTMB)
 #   (1 | reg) +
 #   (1 | year)
 # abund_dat = catch;
-# comp_formula = can_reg ~ 1 + area + s(month_n, bs = "tp", k = 4, m = 2) + 
+# comp_formula = agg_new ~ 1 + area + #s(month_n, bs = "tp", k = 4, m = 2) +
+#   (1 | region) +
 #   (1 | year);
 # comp_dat = stock_comp
-# comp_rint = NULL #"year"
-# # pred_dat = pred_dat_catch
-# model = "dirichlet"
+# pred_dat = pred_dat_catch
+# model = "negbin"
 
 ## MAKE INPUTS  ----------------------------------------------------------------
 
@@ -37,13 +37,23 @@ map_foo <- function(x, tmb_pars) {
   return(out_list)
 }
 
+# helper function to generate random walk index when multiple random intercept
+# variables are present; re_indexes should be matrix 
+# (i.e. sdmTMB_dummy$tmb_data$RE_indexes)
+rw_index_foo <- function(re_indexes) {
+  rw_index <- NULL
+  for (g in 1:ncol(re_indexes)) {
+    rw_index <- c(rw_index, sort(unique(re_indexes[ , g])))
+  }
+  return(rw_index)
+}
+
 fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL, 
                              abund_dat = NULL, comp_dat = NULL,
                              abund_offset = NULL,
-                             # abund_rint = NULL, comp_rint = NULL,
                              pred_dat = NULL,
                              model = c("negbin", "dirichlet", "integrated"),
-                             # random_walk = FALSE,
+                             random_walk = FALSE,
                              # include_re_preds = FALSE,
                              fit = TRUE,
                              nlminb_loops = 1L, newton_loops = 0L) {
@@ -105,6 +115,12 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       sdmTMB_dummy_p <- sdmTMB_dummy
     }
     
+    if (random_walk == TRUE) {
+      rw_index <- rw_index_foo(sdmTMB_dummy$tmb_data$RE_indexes)
+    } else {
+      rw_index <- 0
+    }
+    
     # make abundance tmb inputs
     abund_tmb_data <- list(
       y1_i = sdmTMB_dummy$tmb_data$y_i %>% as.numeric(),
@@ -115,6 +131,8 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       Zs = sdmTMB_dummy$tmb_data$Zs, # optional smoother basis function matrices
       Xs = sdmTMB_dummy$tmb_data$Xs, # optional smoother linear effect matrix
       offset_i = offset,
+      random_walk = as.numeric(random_walk),
+      rw_index1 = rw_index,
       has_smooths = has_smooths,
       b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
       has_preds = has_preds,
@@ -224,6 +242,14 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
         pred_X2_ij <- X2_ij
       } 
     
+    # generate vector equal to length re2 indicating which random effects should
+    # be estimated as random walk
+    if (random_walk == TRUE) {
+      rw_index <- rw_index_foo(sdmTMB_dummy$tmb_data$RE_indexes)
+    } else {
+      rw_index <- 0
+    }
+    
     # make composition tmb inputs
     comp_tmb_data <- list(
       Y2_ik = obs_comp,
@@ -231,6 +257,8 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       re_index2 = sdmTMB_dummy$tmb_data$RE_indexes,
       ln_sigma_re_index2 = sdmTMB_dummy$tmb_data$ln_tau_G_index,
       nobs_re2 = sdmTMB_dummy$tmb_data$nobs_RE, # number of random intercepts
+      random_walk = as.numeric(random_walk),
+      rw_index2 = rw_index,
       has_preds = has_preds,
       pred_X2_ij = pred_X2_ij
     )

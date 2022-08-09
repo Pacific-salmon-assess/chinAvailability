@@ -9,8 +9,6 @@ library(TMB)
 library(sdmTMB)
 
 
-# utility functions for prepping smooths 
-source(here::here("R", "functions", "utils.R"))
 # data prep and model fitting functions
 source(here::here("R", "functions", "fit_new.R"))
 
@@ -73,28 +71,18 @@ pred_dat_catch <- group_split(catch, reg) %>%
 
 ## COMPARE FIT -----------------------------------------------------------------
 
-tmb_inputs <- make_inputs(
+abund_mod <- fit_stockseasonr(
   abund_formula = catch ~ 1 +
     s(month_n, bs = "tp", k = 4, m = 2) +
-    (1 | reg) +
     (1 | year)
   ,
   abund_dat = catch,
   abund_offset = "offset",
+  random_walk = TRUE,
   pred_dat = catch,
   model = "negbin",
-  include_re_preds = FALSE
-)
-
-abund_mod <- fit_model(
-  tmb_data = tmb_inputs$tmb_data, 
-  tmb_pars = tmb_inputs$tmb_pars, 
-  tmb_map = tmb_inputs$tmb_map,
-  tmb_random  = tmb_inputs$tmb_random,
-  model_specs = tmb_inputs$model_specs
-)
-abund_mod$sdr
-
+  fit = TRUE,
+  nlminb_loops = 2, newton_loops = 1)
 
 m3 <- sdmTMB(catch ~ 1 +
                s(month_n, bs = "tp", k = 4, m = 2) +

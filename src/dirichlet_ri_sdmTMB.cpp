@@ -14,13 +14,14 @@ Type objective_function<Type>::operator() ()
   DATA_IMATRIX(re_index2);   // matrix of random intercept levels (a n-by-h matrix) 
   DATA_IVECTOR(ln_sigma_re_index2);  // vector of random intercept deviance estimates (h)
   DATA_IVECTOR(nobs_re2);   // number of random intercepts (h)
-  
+  DATA_INTEGER(random_walk); // should RIs be random walk
+  DATA_IVECTOR(rw_index2);   // vector flagging first level of RI for RW
+
   //predictions
   DATA_INTEGER(has_preds);  // whether or not predictions included
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
 
   // Conditionals
-  // DATA_INTEGER(random_walk);
 
   // PARAMETERS ----------------------------------------------------------------
 
@@ -88,20 +89,20 @@ Type objective_function<Type>::operator() ()
 
   
   // Probability of random intercepts
-  // if (random_walk) {
-  //   for (int h = 0; h < n_rfac2; h++) {
-  //     if (h == 0) {
-  //       jnll -= dnorm(re2(h), Type(0.0), exp(ln_sigma_re2), true);  
-  //     }
-  //     if (h > 0) {
-  //       jnll -= dnorm(re2(h), re2(h - 1), exp(ln_sigma_re2), true);
-  //     }
-  //   } 
-  // } else {
+  if (random_walk) {
+    for (int h = 0; h < re2.size(); h++) {
+      if (rw_index2(h) == 0) {
+        jnll -= dnorm(re2(h), Type(0.0), exp(ln_sigma_re2(ln_sigma_re_index2(h))), true);  
+      }
+      if (rw_index2(h) > 0) {
+        jnll -= dnorm(re2(h), re2(h - 1), exp(ln_sigma_re2(ln_sigma_re_index2(h))), true);
+      }
+    } 
+  } else {
     for (int h = 0; h < re2.size(); h++) {
       jnll -= dnorm(re2(h), Type(0.0), exp(ln_sigma_re2(ln_sigma_re_index2(h))), true);
     }
-  // }
+  }
   
   
   // PREDICTIONS ---------------------------------------------------------------

@@ -137,7 +137,7 @@ stock_comp %>%
 area_key <- stock_comp %>% 
   select(subarea, subarea_original, area_f, reg, core_area) %>% 
   distinct()
-saveRDS(area_key, here::here("data", "rec", "subarea_key.RDS"))
+# saveRDS(area_key, here::here("data", "rec", "subarea_key.RDS"))
 
 
 # subset predicted composition dataset
@@ -159,6 +159,46 @@ pred_dat_comp <- #pred_dat_comp1 %>%
 
 
 ## FIT MODEL -------------------------------------------------------------------
+
+
+
+fit1 <- fit_stockseasonr(
+  comp_formula = agg_new ~ 1 + area_f +
+    # s(month_n, bs = "tp", k = 4, m = 2) +
+    # (1 | reg) +
+    (1 | year),
+  comp_dat = stock_comp,
+  pred_dat = pred_dat_comp,
+  model = "dirichlet",
+  random_walk = TRUE,
+  fit = FALSE,
+  nlminb_loops = 2, newton_loops = 1
+)
+re2 <- fit1$ssdr[rownames(fit1$ssdr) == "re2", ]
+
+# 
+# n2 <- nrow(stock_comp)
+# n_re2 <- ncol(fit1$tmb_data$re_index2)
+# re2 <- fit1$tmb_pars$re2
+# re_index2 <- fit1$tmb_data$re_index2
+# nobs_re2 <- fit1$tmb_data$nobs_re2
+# 
+# mu2_i <- eta_re2_i <- rep(0, length.out = n2)
+# for (i in seq_len(n2)) {
+#   temp <- 0
+#   for (g in seq_len(n_re2)) {
+#     if (g == 1) eta_re2_i[i] <- re2[re_index2[i, g]]
+#     if (g > 1) {
+#       dum <- temp
+#       temp <- nobs_re2[g - 1] + dum
+#       eta_re2_i[i] <- re2[re_index2[i, g] + temp]
+#     } 
+#   }
+# }
+
+
+# tt <- sdmTMB_dummy$tmb_data$RE_indexes 
+
 
 source(here::here("R", "functions", "fit_new.R"))
 

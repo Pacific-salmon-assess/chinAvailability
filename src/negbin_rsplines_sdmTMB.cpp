@@ -26,6 +26,8 @@ Type objective_function<Type>::operator() ()
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
   DATA_VECTOR(offset_i); // optional offset
+  DATA_INTEGER(random_walk); // should RIs be random walk
+  DATA_IVECTOR(rw_index1);   // vector flagging first level of RI for RW
   // for penalized regression splines
   DATA_INTEGER(has_smooths);  // whether or not smooths are included
   DATA_IVECTOR(b_smooth_start);
@@ -121,14 +123,25 @@ Type objective_function<Type>::operator() ()
   // ADREPORT(s2);
 
   // Probability of random coefficients (add counter for random walk)
-  for(int h = 0; h < re1.size(); h++){
-    // if (h == 0) {
-        jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);  
-  }
-  //   if (h > 0) {
-  //     jnll -= dnorm(re1(h), re1(h - 1), exp(ln_sigma_re1), true);
-  //   }
+  // for(int h = 0; h < re1.size(); h++){
+  //   // if (h == 0) {
+  //       jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);  
   // }
+  // Probability of random intercepts
+  if (random_walk) {
+    for (int h = 0; h < re1.size(); h++) {
+      if (rw_index1(h) == 0) {
+        jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);  
+      }
+      if (rw_index1(h) > 0) {
+        jnll -= dnorm(re1(h), re1(h - 1), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);
+      }
+    } 
+  } else {
+    for (int h = 0; h < re1.size(); h++) {
+      jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);
+    }
+  }
 
 
   // PREDICTIONS ---------------------------------------------------------------
