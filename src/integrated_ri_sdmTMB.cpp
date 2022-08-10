@@ -15,9 +15,7 @@ struct LOM_t : vector<matrix<Type> > {
 template<class Type>
 Type objective_function<Type>::operator() () 
 {
-  // load namespace with multivariate distributions
-  using namespace density;
-
+  
   // DATA ----------------------------------------------------------------------
 
   // abundance data
@@ -43,16 +41,16 @@ Type objective_function<Type>::operator() ()
   DATA_IVECTOR(rw_index2);   // vector flagging first level of RI for RW
   
   //abundance predictions
-  // DATA_MATRIX(pred_X1_ij);      // matrix for FE predictions
-  // DATA_STRUCT(pred_Zs, LOM_t);  // [L]ist [O]f (basis function matrices) [Matrices]
-  // DATA_MATRIX(pred_Xs);         // smoother linear effect matrix 
-  // //composition predictions
-  // DATA_MATRIX(pred_X2_ij);      // matrix for composition FE predictions
+  DATA_MATRIX(pred_X1_ij);      // matrix for FE predictions
+  DATA_STRUCT(pred_Zs, LOM_t);  // [L]ist [O]f (basis function matrices) [Matrices]
+  DATA_MATRIX(pred_Xs);         // smoother linear effect matrix 
+  //composition predictions
+  DATA_MATRIX(pred_X2_ij);      // matrix for composition FE predictions
 
   // shared 
   DATA_INTEGER(random_walk);    // should RIs be random walk
-  // DATA_INTEGER(has_preds);      // whether or not predictions included
-  // DATA_INTEGER(n_predX);        // number of predictions (same for both model components)
+  DATA_INTEGER(has_preds);      // whether or not predictions included
+  DATA_INTEGER(n_predX);        // number of predictions (same for both model components)
 
   // PARAMETERS ----------------------------------------------------------------
 
@@ -160,30 +158,29 @@ Type objective_function<Type>::operator() ()
   
   
   // LIKELIHOOD ----------------------------------------------------------------
-
+  
   // abundance likelihood
-  // Type s1, s2;
-  // for (int i = 0; i < n1; i++) {
-  //   s1 = log(mu_i(i)); // log(mu_i)
-  //   s2 = 2. * s1 - ln_phi; // log(var - mu)
-  //   jnll -= dnbinom_robust(y1_i(i), s1, s2, true);
-  // }
+  Type s1, s2;
+  for (int i = 0; i < n1; i++) {
+    s1 = log(mu_i(i)); // log(mu_i)
+    s2 = 2. * s1 - ln_phi; // log(var - mu)
+    jnll -= dnbinom_robust(y1_i(i), s1, s2, true);
+  }
 
-  // if (random_walk) {
-  //   for (int h = 0; h < re1.size(); h++) {
-  //     if (rw_index1(h) == 0) {
-  //       jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);  
-  //     }
-  //     if (rw_index1(h) > 0) {
-  //       jnll -= dnorm(re1(h), re1(h - 1), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);
-  //     }
-  //   } 
-  // } else {
-  //   for (int h = 0; h < re1.size(); h++) {
-  //     jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);
-  //   }
-  // }
-
+  if (random_walk) {
+    for (int h = 0; h < re1.size(); h++) {
+      if (rw_index1(h) == 0) {
+        jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);  
+      }
+      if (rw_index1(h) > 0) {
+        jnll -= dnorm(re1(h), re1(h - 1), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);
+      }
+    } 
+  } else {
+    for (int h = 0; h < re1.size(); h++) {
+      jnll -= dnorm(re1(h), Type(0.0), exp(ln_sigma_re1(ln_sigma_re_index1(h))), true);
+    }
+  }
 
   // composition likelihood
   Type jll = 0; // initialize joint log-likelihood
@@ -199,7 +196,7 @@ Type objective_function<Type>::operator() ()
     }
   }
 
-  jnll = -jll; // switch back to negative LL
+  jnll -= jll; 
   
   if (random_walk) {
     for (int h = 0; h < re2.size(); h++) {
@@ -215,80 +212,80 @@ Type objective_function<Type>::operator() ()
       jnll -= dnorm(re2(h), Type(0.0), exp(ln_sigma_re2(ln_sigma_re_index2(h))), true);
     }
   }
-  
+
   
   // PREDICTIONS ---------------------------------------------------------------
   
-  // if (has_preds) {
+  if (has_preds) {
     
-  //   // abundance predictions
-  //   vector<Type> pred_mu1 = pred_X1_ij * b1_j;
+    // abundance predictions
+    vector<Type> pred_mu1 = pred_X1_ij * b1_j;
   
-  //   vector<Type> pred_smooth_i(n_predX);
-  //   pred_smooth_i.setZero();
+    vector<Type> pred_smooth_i(n_predX);
+    pred_smooth_i.setZero();
     
-  //   if (has_smooths) {
-  //     for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
-  //       vector<Type> beta_s(pred_Zs(s).cols());
-  //       beta_s.setZero();
-  //       for (int j = 0; j < beta_s.size(); j++) {
-  //         beta_s(j) = b_smooth(b_smooth_start(s) + j);
-  //       }
-  //       pred_smooth_i += pred_Zs(s) * beta_s;
-  //     }
-  //     pred_smooth_i += pred_Xs * bs;
-  //   }
+    if (has_smooths) {
+      for (int s = 0; s < b_smooth_start.size(); s++) { // iterate over # of smooth elements
+        vector<Type> beta_s(pred_Zs(s).cols());
+        beta_s.setZero();
+        for (int j = 0; j < beta_s.size(); j++) {
+          beta_s(j) = b_smooth(b_smooth_start(s) + j);
+        }
+        pred_smooth_i += pred_Zs(s) * beta_s;
+      }
+      pred_smooth_i += pred_Xs * bs;
+    }
   
-  //   // combine fixed and smoothed predictions in link space
-  //   for (int m = 0; m < n_predX; m++) {
-  //     pred_mu1(m) += pred_smooth_i(m);
-  //   }
+    // combine fixed and smoothed predictions in link space
+    for (int m = 0; m < n_predX; m++) {
+      pred_mu1(m) += pred_smooth_i(m);
+    }
 
-  //   // composition predictions
-  //   matrix<Type> pred_Mu2(n_predX, n_cat);    //pred FE on log scale
-  //   matrix<Type> pred_Gamma(n_predX, n_cat);  //transformed pred effects 
-  //   vector<Type> pred_Gamma_plus(n_predX);        
-  //   vector<Type> pred_theta(n_predX); 
-  //   matrix<Type> pred_Pi(n_predX, n_cat);      // predicted counts in real 
-  //   vector<Type> pred_n_plus(n_predX); 
-  //   matrix<Type> pred_Pi_prop(n_predX, n_cat); // predicted counts as ppn.
-  //   matrix<Type> logit_pred_Pi_prop(n_predX, n_cat); 
+    // composition predictions
+    matrix<Type> pred_Mu2(n_predX, n_cat);    //pred FE on log scale
+    matrix<Type> pred_Gamma(n_predX, n_cat);  //transformed pred effects 
+    vector<Type> pred_Gamma_plus(n_predX);        
+    vector<Type> pred_theta(n_predX); 
+    matrix<Type> pred_Pi(n_predX, n_cat);      // predicted counts in real 
+    vector<Type> pred_n_plus(n_predX); 
+    matrix<Type> pred_Pi_prop(n_predX, n_cat); // predicted counts as ppn.
+    matrix<Type> logit_pred_Pi_prop(n_predX, n_cat); 
   
-  //   pred_Mu2 = pred_X2_ij * B2_jk; 
+    pred_Mu2 = pred_X2_ij * B2_jk; 
   
-  //   pred_Gamma = exp(pred_Mu2.array());
-  //   pred_Gamma_plus = pred_Gamma.rowwise().sum();
-  //   pred_theta = 1 / (pred_Gamma_plus + 1);
-  //   for(int m = 0; m < n_predX; m++) {
-  //     for(int k = 0; k < n_cat; k++) {
-  //       pred_Pi(m, k) = pred_Gamma(m, k) / pred_theta(m);
-  //     }
-  //   }
-  //   pred_n_plus = pred_Pi.rowwise().sum();
-  //   for(int m = 0; m < n_predX; m++) {
-  //     for(int k = 0; k < n_cat; k++) {
-  //       pred_Pi_prop(m, k) = pred_Pi(m, k) / pred_n_plus(m);
-  //       logit_pred_Pi_prop(m, k) = logit(pred_Pi_prop(m, k));
-  //     }
-  //   }
+    pred_Gamma = exp(pred_Mu2.array());
+    pred_Gamma_plus = pred_Gamma.rowwise().sum();
+    pred_theta = 1 / (pred_Gamma_plus + 1);
+    for(int m = 0; m < n_predX; m++) {
+      for(int k = 0; k < n_cat; k++) {
+        pred_Pi(m, k) = pred_Gamma(m, k) / pred_theta(m);
+      }
+    }
+    pred_n_plus = pred_Pi.rowwise().sum();
+    for(int m = 0; m < n_predX; m++) {
+      for(int k = 0; k < n_cat; k++) {
+        pred_Pi_prop(m, k) = pred_Pi(m, k) / pred_n_plus(m);
+        logit_pred_Pi_prop(m, k) = logit(pred_Pi_prop(m, k));
+      }
+    }
   
-  //   // combined predictions
-  //   vector<Type> real_pred_mu1 = exp(pred_mu1); // calculate real values for summing
-  //   matrix<Type> pred_mu1_Pi(n_predX, n_cat);
-  //   for (int m = 0; m < n_predX; m++) {
-  //     for (int k = 0; k < n_cat; k++) {
-  //       pred_mu1_Pi(m, k) = real_pred_mu1(m) * pred_Pi_prop(m, k);
-  //     }
-  //   }
-  //   matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
+    // combined predictions
+    vector<Type> real_pred_mu1 = exp(pred_mu1); // calculate real values for summing
+    matrix<Type> pred_mu1_Pi(n_predX, n_cat);
+    for (int m = 0; m < n_predX; m++) {
+      for (int k = 0; k < n_cat; k++) {
+        pred_mu1_Pi(m, k) = real_pred_mu1(m) * pred_Pi_prop(m, k);
+      }
+    }
+    matrix<Type> log_pred_mu1_Pi = log(pred_mu1_Pi.array());
   
 
-  //   ADREPORT(pred_mu1);
-  //   ADREPORT(pred_Mu2);
-  //   ADREPORT(logit_pred_Pi_prop);
-  //   ADREPORT(log_pred_mu1_Pi);
+    ADREPORT(pred_mu1);
+    ADREPORT(pred_Mu2);
+    ADREPORT(logit_pred_Pi_prop);
+    ADREPORT(log_pred_mu1_Pi);
 
-  // }
+  }
   
   return jnll;
   
