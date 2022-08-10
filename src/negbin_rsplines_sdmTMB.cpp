@@ -26,19 +26,20 @@ Type objective_function<Type>::operator() ()
   DATA_STRUCT(Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(Xs); // smoother linear effect matrix
   DATA_VECTOR(offset_i); // optional offset
-  DATA_INTEGER(random_walk); // should RIs be random walk
   DATA_IVECTOR(rw_index1);   // vector flagging first level of RI for RW
   // for penalized regression splines
   DATA_INTEGER(has_smooths);  // whether or not smooths are included
   DATA_IVECTOR(b_smooth_start);
   
   //predictions
-  DATA_INTEGER(has_preds);  // whether or not predictions included
   DATA_MATRIX(pred_X1_ij); // matrix for FE predictions
   DATA_STRUCT(pred_Zs, LOM_t); // [L]ist [O]f (basis function matrices) [Matrices]
   DATA_MATRIX(pred_Xs); // smoother linear effect matrix 
   // DATA_IVECTOR(pred_re_index1);
-   
+
+  DATA_INTEGER(random_walk); // should RIs be random walk
+  DATA_INTEGER(has_preds);  // whether or not predictions included
+  DATA_INTEGER(n_predX);        // number of predictions (same for both model components)
 
   // PARAMETERS ----------------------------------------------------------------
   
@@ -56,7 +57,7 @@ Type objective_function<Type>::operator() ()
 
   int n1 = y1_i.size();
   int n_re1 = re_index1.cols();      // number of random intercepts
-  int n_predX1 = pred_X1_ij.rows(); // number of predictions   
+  // int n_predX = pred_X1_ij.rows(); // number of predictions   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
 
@@ -150,7 +151,7 @@ Type objective_function<Type>::operator() ()
     vector<Type> pred_mu1 = pred_X1_ij * b1_j;
   
     // smoothers
-    vector<Type> pred_smooth_i(n_predX1);
+    vector<Type> pred_smooth_i(n_predX);
     pred_smooth_i.setZero();
     
     if (has_smooths) {
@@ -166,12 +167,12 @@ Type objective_function<Type>::operator() ()
     }
   
     // combine fixed and smoothed predictions
-    for (int i = 0; i < n_predX1; i++) {
+    for (int i = 0; i < n_predX; i++) {
       pred_mu1(i) += pred_smooth_i(i);
     }
   
     // // add random intercepts 
-    // for (int i = 0; i < n_predX1; i++) {
+    // for (int i = 0; i < n_predX; i++) {
     //   pred_mu1(i) += re1(pred_re_index1(i));
     // }    
   

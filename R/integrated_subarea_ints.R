@@ -118,8 +118,7 @@ pred_dat1 <- expand.grid(
       month_n = seq(min(catch$month_n),
                     max(catch$month_n),
                     by = 0.1
-      )
-      )
+      ))
 
 # add areas to composition dataset
 area_key <- stock_comp %>% 
@@ -139,22 +138,30 @@ pred_dat <- pred_dat1 %>%
 source(here::here("R", "functions", "fit_new.R"))
 
 # no rand predictions
-model_inputs_ri <- make_inputs(
-  comp_formula = can_reg ~ 1 + area + 
-    s(month_n, bs = "tp", k = 5, m = 2) + (1 | year),
+fit1 <- fit_stockseasonr(
+  abund_formula = catch ~ reg + 
+    s(month_n, bs = "tp", k = 5, m = 2),# + (1 | year),
+  abund_dat = catch, 
+  abund_offset = catch$offset,
+  comp_formula = can_reg ~ reg + 
+    s(month_n, bs = "tp", k = 5, m = 2), # +
+    # (1 | year),
   comp_dat = stock_comp,
-  pred_dat = pred_dat_stock_comp_ri,
-  model = "dirichlet",
-  include_re_preds = FALSE
+  pred_dat = NULL, #pred_dat,
+  model = "integrated",
+  fit = TRUE,
+  nlminb_loops = 2
 )
 
-stock_mod_ri <- fit_model(
-  tmb_data = model_inputs_ri$tmb_data, 
-  tmb_pars = model_inputs_ri$tmb_pars, 
-  tmb_map = model_inputs_ri$tmb_map, 
-  tmb_random  = model_inputs_ri$tmb_random,
-  model_specs = model_inputs_ri$model_specs#,
-  # nlminb_loops = 2, newton_loops = 1
+fit_i <- fit_stockseasonr(
+  abund_formula = catch ~ 1 + reg,
+  abund_dat = catch, 
+  abund_offset = catch$offset,
+  comp_formula = can_reg ~ 1 + reg,
+  comp_dat = stock_comp,
+  # pred_dat = pred_dat,
+  model = "integrated",
+  fit = TRUE
 )
 
 

@@ -4,7 +4,6 @@
 # Dec. 7, 2021
 
 # Dev TO DO:
-# 1) Add RW back into RIs 
 # 2) Generate random predictions
 
 library(tidyverse)
@@ -12,18 +11,16 @@ library(mgcv)
 library(TMB)
 library(sdmTMB)
 
- 
-abund_formula = catch ~ 1 + area +
-  # s(month_n, bs = "tp", k = 4, m = 2) +
-  #(1 | reg) +
-  (1 | year)
-abund_dat = catch;
-comp_formula = agg_new ~ 1 + area + #s(month_n, bs = "tp", k = 4, m = 2) +
-  #(1 | region) +
-  (1 | year);
-comp_dat = stock_comp
-pred_dat = pred_dat
-model = "integrated"
+#  
+# abund_formula = catch ~ 1 + area + (1 | year)
+# abund_dat = catch
+# abund_offset = catch$offset
+# comp_formula = can_reg ~ 1 + area +
+#   (1 | year)
+# comp_dat = stock_comp
+# pred_dat = pred_dat
+# model = "integrated"
+# random_walk = FALSE
 
 ## MAKE INPUTS  ----------------------------------------------------------------
 
@@ -88,6 +85,7 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       do_fit = FALSE
     )
     
+    
     # generate offset separately
     if (is.null(offset)) {
       offset <- rep(0, length(y_i))
@@ -104,7 +102,8 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       pred_dat[resp] <- 0
       
       sdmTMB_dummy_p <- sdmTMB::sdmTMB(
-        abund_formula,
+        # exclude REs from predictive dataset
+        glmmTMB::splitForm(abund_formula)$fixedFormula,
         data = pred_dat,
         spatial = "off",
         do_fit = FALSE
@@ -152,7 +151,7 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
     # }
     
     abund_tmb_pars <- list(
-      b1_j = rep(0, ncol(abund_tmb_data$X1_ij)),
+      b1_j = rnorm(ncol(abund_tmb_data$X1_ij), 0, 0.5),
       ln_phi = log(1.5),
       bs = if (has_smooths) {
         sdmTMB_dummy$tmb_params$bs %>% as.vector() 
@@ -265,7 +264,9 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
     tmb_data <- c(tmb_data, comp_tmb_data)
     
     comp_tmb_pars <- list(
-      B2_jk = matrix(0,
+      B2_jk = matrix(rnorm(ncol(X2_ij) * ncol(obs_comp),
+                           0,
+                           0.5),
                      nrow = ncol(X2_ij),
                      ncol = ncol(obs_comp)
       ),
@@ -274,7 +275,10 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       re2 = rnorm(n = length(sdmTMB_dummy$tmb_params$RE %>% as.vector()),
                   0,
                   0.5),
-      ln_sigma_re2 = sdmTMB_dummy$tmb_params$ln_tau_G %>% as.vector()
+      ln_sigma_re2 = rnorm(n = length(sdmTMB_dummy$tmb_params$ln_tau_G %>% 
+                                        as.vector()),
+                           0,
+                           0.5)
     )
     tmb_pars <- c(tmb_pars, comp_tmb_pars)
     
@@ -319,6 +323,27 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
     # }
   }
   
+  # dimensions of predictions identical for both model components?
+  if (model == "integrated" & has_preds == 1) {
+    if(nrow(comp_tmb_data$pred_X2_ij) != nrow(abund_tmb_data$pred_X1_ij)) {
+      stop("Composition and abundance predictions are not symmetrical.")
+    }
+  }
+    
+  
+  # number of predictions 
+  n_predX <- ifelse(model %in% c("dirichlet", "integrated"),
+                   nrow(comp_tmb_data$pred_X2_ij),
+                    nrow(abund_tmb_data$pred_X1_ij))
+  
+  # add data components that are present for both model types
+  shared_tmb_data <- list(
+    random_walk = as.numeric(random_walk),
+    has_preds = has_preds,
+    n_predX = n_predX
+  )
+  tmb_data <- c(tmb_data, shared_tmb_data)
+  
   # combine model specs to pass as logicals to fitting function
   model_specs <- list(model = model#, include_re_preds = include_re_preds
                       )
@@ -342,7 +367,7 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
     }
     if (model == "integrated") {
       tmb_model <- #ifelse(include_re_preds == FALSE,
-        "negbin_rsplines_dirichlet_ri"#,
+        "integrated_ri_sdmTMB"#,
       # "negbin_rsplines_dirichlet_mvn")
     }
     

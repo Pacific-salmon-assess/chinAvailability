@@ -14,14 +14,15 @@ Type objective_function<Type>::operator() ()
   DATA_IMATRIX(re_index2);   // matrix of random intercept levels (a n-by-h matrix) 
   DATA_IVECTOR(ln_sigma_re_index2);  // vector of random intercept deviance estimates (h)
   DATA_IVECTOR(nobs_re2);   // number of random intercepts (h)
-  DATA_INTEGER(random_walk); // should RIs be random walk
   DATA_IVECTOR(rw_index2);   // vector flagging first level of RI for RW
 
   //predictions
-  DATA_INTEGER(has_preds);  // whether or not predictions included
   DATA_MATRIX(pred_X2_ij);    // model matrix for predictions
 
-  // Conditionals
+  DATA_INTEGER(random_walk); // should RIs be random walk
+  DATA_INTEGER(has_preds);  // whether or not predictions included
+  DATA_INTEGER(n_predX);        // number of predictions (same for both model components)
+
 
   // PARAMETERS ----------------------------------------------------------------
 
@@ -35,7 +36,7 @@ Type objective_function<Type>::operator() ()
   int n2 = Y2_ik.rows();         // number of observations
   int n_re2 = re_index2.cols();      // number of random intercepts
   int n_cat = Y2_ik.cols();         // number of categories
-  int n_predX2 = pred_X2_ij.rows();   // number of covariates to make predictions on
+  // int n_predX2 = pred_X2_ij.rows();   // number of covariates to make predictions on
 
   // Matrix for intermediate objects
   matrix<Type> Mu2_ik(n2, n_cat); // matrix of combined fixed/random eff
@@ -108,27 +109,27 @@ Type objective_function<Type>::operator() ()
   // PREDICTIONS ---------------------------------------------------------------
   
   if (has_preds) {
-    matrix<Type> pred_Mu2(n_predX2, n_cat);    //pred FE on log scale
-    matrix<Type> pred_Gamma(n_predX2, n_cat);  //transformed pred effects 
-    vector<Type> pred_Gamma_plus(n_predX2);        
-    vector<Type> pred_theta(n_predX2); 
-    matrix<Type> pred_Pi(n_predX2, n_cat);      // predicted counts in real 
-    vector<Type> pred_n_plus(n_predX2); 
-    matrix<Type> pred_Pi_prop(n_predX2, n_cat); // predicted counts as ppn.
-    matrix<Type> logit_pred_Pi_prop(n_predX2, n_cat); 
+    matrix<Type> pred_Mu2(n_predX, n_cat);    //pred FE on log scale
+    matrix<Type> pred_Gamma(n_predX, n_cat);  //transformed pred effects 
+    vector<Type> pred_Gamma_plus(n_predX);        
+    vector<Type> pred_theta(n_predX); 
+    matrix<Type> pred_Pi(n_predX, n_cat);      // predicted counts in real 
+    vector<Type> pred_n_plus(n_predX); 
+    matrix<Type> pred_Pi_prop(n_predX, n_cat); // predicted counts as ppn.
+    matrix<Type> logit_pred_Pi_prop(n_predX, n_cat); 
   
     pred_Mu2 = pred_X2_ij * B2_jk; 
   
     pred_Gamma = exp(pred_Mu2.array());
     pred_Gamma_plus = pred_Gamma.rowwise().sum();
     pred_theta = 1 / (pred_Gamma_plus + 1);
-    for(int m = 0; m < n_predX2; m++) {
+    for(int m = 0; m < n_predX; m++) {
       for(int k = 0; k < n_cat; k++) {
         pred_Pi(m, k) = pred_Gamma(m, k) / pred_theta(m);
       }
     }
     pred_n_plus = pred_Pi.rowwise().sum();
-    for(int m = 0; m < n_predX2; m++) {
+    for(int m = 0; m < n_predX; m++) {
       for(int k = 0; k < n_cat; k++) {
         pred_Pi_prop(m, k) = pred_Pi(m, k) / pred_n_plus(m);
         logit_pred_Pi_prop(m, k) = logit(pred_Pi_prop(m, k));

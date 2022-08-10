@@ -10,6 +10,8 @@ library(TMB)
 # tmb models - use MVN if time-varying predictions are required, use RI if 
 compile(here::here("src", "dirichlet_ri_sdmTMB.cpp"))
 dyn.load(dynlib(here::here("src", "dirichlet_ri_sdmTMB")))
+compile(here::here("src", "negbin_rsplines_sdmTMB.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines_sdmTMB")))
 
 
 # utility functions for prepping smooths 
