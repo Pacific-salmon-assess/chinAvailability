@@ -13,17 +13,17 @@ library(TMB)
 library(sdmTMB)
 
  
-# abund_formula = catch ~ 1 +
-#   s(month_n, bs = "tp", k = 4, m = 2) +
-#   (1 | reg) +
-#   (1 | year)
-# abund_dat = catch;
-# comp_formula = agg_new ~ 1 + area + #s(month_n, bs = "tp", k = 4, m = 2) +
-#   (1 | region) +
-#   (1 | year);
-# comp_dat = stock_comp
-# pred_dat = pred_dat_catch
-# model = "negbin"
+abund_formula = catch ~ 1 + area +
+  # s(month_n, bs = "tp", k = 4, m = 2) +
+  #(1 | reg) +
+  (1 | year)
+abund_dat = catch;
+comp_formula = agg_new ~ 1 + area + #s(month_n, bs = "tp", k = 4, m = 2) +
+  #(1 | region) +
+  (1 | year);
+comp_dat = stock_comp
+pred_dat = pred_dat
+model = "integrated"
 
 ## MAKE INPUTS  ----------------------------------------------------------------
 
@@ -131,11 +131,11 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
       Zs = sdmTMB_dummy$tmb_data$Zs, # optional smoother basis function matrices
       Xs = sdmTMB_dummy$tmb_data$Xs, # optional smoother linear effect matrix
       offset_i = offset,
-      random_walk = as.numeric(random_walk),
+      # random_walk = as.numeric(random_walk),
       rw_index1 = rw_index,
       has_smooths = has_smooths,
       b_smooth_start = sdmTMB_dummy$tmb_data$b_smooth_start,
-      has_preds = has_preds,
+      # has_preds = has_preds,
       pred_X1_ij = sdmTMB_dummy_p$tmb_data$X_ij[[1]],
       pred_Zs = sdmTMB_dummy_p$tmb_data$Zs,
       pred_Xs = sdmTMB_dummy_p$tmb_data$Xs

@@ -55,7 +55,7 @@ Type objective_function<Type>::operator() ()
   // DERIVED -------------------------------------------------------------------
 
   int n1 = y1_i.size();
-  int n_re = re_index1.cols();      // number of random intercepts
+  int n_re1 = re_index1.cols();      // number of random intercepts
   int n_predX1 = pred_X1_ij.rows(); // number of predictions   
 
   Type jnll = 0.0; // initialize joint negative log likelihood
@@ -97,7 +97,7 @@ Type objective_function<Type>::operator() ()
  mu_i.setZero();
  for (int i = 0; i < n1; i++) {
     int temp = 0;
-    for (int g = 0; g < n_re; g++) {
+    for (int g = 0; g < n_re1; g++) {
       if (g == 0) eta_re_i(i) += re1(re_index1(i, g));
       if (g > 0) {
         temp += nobs_re1(g - 1);
