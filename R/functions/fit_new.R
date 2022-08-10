@@ -12,13 +12,13 @@ library(TMB)
 library(sdmTMB)
 
 #  
-# abund_formula = catch ~ 1 + area + (1 | year)
+# abund_formula = catch ~ 1 + area #+ (1 | year)
 # abund_dat = catch
 # abund_offset = catch$offset
-# comp_formula = can_reg ~ 1 + area +
-#   (1 | year)
+# comp_formula = pst_agg ~ 1 + area #+
+#   # (1 | year)
 # comp_dat = stock_comp
-# pred_dat = pred_dat
+# pred_dat = NULL
 # model = "integrated"
 # random_walk = FALSE
 
@@ -151,7 +151,7 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
     # }
     
     abund_tmb_pars <- list(
-      b1_j = rnorm(ncol(abund_tmb_data$X1_ij), 0, 0.5),
+      b1_j = rep(0, ncol(abund_tmb_data$X1_ij)),
       ln_phi = log(1.5),
       bs = if (has_smooths) {
         sdmTMB_dummy$tmb_params$bs %>% as.vector() 
@@ -264,9 +264,7 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
     tmb_data <- c(tmb_data, comp_tmb_data)
     
     comp_tmb_pars <- list(
-      B2_jk = matrix(rnorm(ncol(X2_ij) * ncol(obs_comp),
-                           0,
-                           0.5),
+      B2_jk = matrix(0,
                      nrow = ncol(X2_ij),
                      ncol = ncol(obs_comp)
       ),

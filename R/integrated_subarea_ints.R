@@ -9,6 +9,10 @@ library(TMB)
 
 # tmb models - use MVN if time-varying predictions are required, use RI if 
 # generating predictions for "average" year
+compile(here::here("src", "dirichlet_ri_sdmTMB.cpp"))
+dyn.load(dynlib(here::here("src", "dirichlet_ri_sdmTMB")))
+compile(here::here("src", "negbin_rsplines_sdmTMB.cpp"))
+dyn.load(dynlib(here::here("src", "negbin_rsplines_sdmTMB")))
 compile(here::here("src", "integrated_ri_sdmTMB.cpp"))
 dyn.load(dynlib(here::here("src", "integrated_ri_sdmTMB")))
 
@@ -54,7 +58,7 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          ),
          pst_agg = case_when(
            pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa", "CA_ORCST", 
-                          "CR-lower_sp", "CR-upper_sp", "PSD", 
+                          "CR-lower_sp", "CR-upper_sp", 
                           "NBC_SEAK", "WACST") ~ "other",
            TRUE ~ pst_agg
          )
@@ -67,7 +71,7 @@ stock_comp <- comp1 %>%
   group_by(sample_id, 
            #subarea, subarea_original, 
            area, reg, reg_c = region, 
-           week, month, month_n, year, nn, can_reg
+           week, month, month_n, year, nn, pst_agg
            # , core_area
            ) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
@@ -129,8 +133,7 @@ area_key <- stock_comp %>%
 pred_dat <- pred_dat1 %>% 
   left_join(., area_key, by = "reg") %>%
   filter(month_n < 9 & month_n > 5
-         ) #%>% 
-  # select(-core_area) 
+         )
 
 
 ## FIT MODEL -------------------------------------------------------------------
@@ -139,170 +142,99 @@ source(here::here("R", "functions", "fit_new.R"))
 
 # no rand predictions
 fit1 <- fit_stockseasonr(
-  abund_formula = catch ~ reg + 
-    s(month_n, bs = "tp", k = 5, m = 2),# + (1 | year),
+  abund_formula = catch ~ 1 + area +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    (1 | year),
   abund_dat = catch, 
   abund_offset = catch$offset,
-  comp_formula = can_reg ~ reg + 
-    s(month_n, bs = "tp", k = 5, m = 2), # +
-    # (1 | year),
+  comp_formula = pst_agg ~ 1 + area +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    (1 | year),
   comp_dat = stock_comp,
-  pred_dat = NULL, #pred_dat,
+  pred_dat = pred_dat,
   model = "integrated",
   fit = TRUE,
   nlminb_loops = 2
 )
 
-fit_i <- fit_stockseasonr(
-  abund_formula = catch ~ 1 + reg,
-  abund_dat = catch, 
-  abund_offset = catch$offset,
-  comp_formula = can_reg ~ 1 + reg,
-  comp_dat = stock_comp,
-  # pred_dat = pred_dat,
-  model = "integrated",
-  fit = TRUE
-)
-
-
-ssdr <- stock_mod_ri$ssdr 
+ssdr <- fit1$ssdr 
 
 beta_mat <- ssdr[rownames(ssdr) == "B2_jk", 2] %>% 
   matrix(., 
-            nrow = ncol(model_inputs_ri$tmb_data$X2_ij),
-            ncol = ncol(model_inputs_ri$tmb_data$Y2_ik))
-rownames(beta_mat) <- colnames(model_inputs_ri$tmb_data$X2_ij)
-colnames(beta_mat) <- colnames(model_inputs_ri$tmb_data$Y2_ik)
+            nrow = ncol(fit1$tmb_data$X2_ij),
+            ncol = ncol(fit1$tmb_data$Y2_ik))
+rownames(beta_mat) <- colnames(fit1$tmb_data$X2_ij)
+colnames(beta_mat) <- colnames(fit1$tmb_data$Y2_ik)
 beta_mat
 
-dum <- model_inputs_ri$tmb_data$pred_X2_ij %*% beta_mat
 
-saveRDS(stock_mod_ri$ssdr, 
-        here::here("data", "model_fits", "subarea",
-                   "dirichlet_ri_mig_corridor.rds"))
-
-
-
-# as above but with week as a covariate
-model_inputs_ri2 <- make_inputs(
-  comp_formula = can_reg ~ subarea + 
-    s(week, bs = "cc", k = 4, m = 2) 
-    # s(month_n, bs = "cc", k = 4, m = 2, by = reg)
-  ,
-  # comp_knots = list(month_n = c(0, 12)),
-  comp_knots = list(week = c(0, 53)),
-  comp_dat = stock_comp,
-  comp_rint = "year",
-  pred_dat = pred_dat_stock_comp_ri,
-  model = "dirichlet",
-  include_re_preds = FALSE
-)
-
-stock_mod_ri2 <- fit_model(
-  tmb_data = model_inputs_ri2$tmb_data, 
-  tmb_pars = model_inputs_ri2$tmb_pars, 
-  tmb_map = model_inputs_ri2$tmb_map, 
-  tmb_random  = model_inputs_ri2$tmb_random,
-  fit_random = TRUE,
-  ignore_fix = TRUE,
-  model_specs = model_inputs_ri2$model_specs
-)
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
 
 
-# random effects predictions 
-# ssdr_ri <- readRDS(
-#   here::here("data", "model_fits", "subarea",
-#              "dirichlet_mvn_mig_corridor.rds"))
-# fixed effects predictions 
-ssdr <- readRDS(
-  here::here("data", "model_fits", "subarea", 
-             "dirichlet_ri_mig_corridor.rds"))
-
-
+## stock composition
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-pred_mu <- ssdr[rownames(ssdr) == "pred_Mu2", ]
 
 link_preds <- data.frame(
   link_prob_est = logit_pred_ppn[ , "Estimate"],
-  link_prob_se =  logit_pred_ppn[ , "Std. Error"],
-  pred_mu = pred_mu[ , "Estimate"]
-) %>% 
+  link_prob_se =  logit_pred_ppn[ , "Std. Error"]
+) %>%
   mutate(
     pred_prob_est = plogis(link_prob_est),
     pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
-  ) 
+  )
 
-stock_seq <- colnames(model_inputs_ri$tmb_data$Y2_ik)
+stock_seq <- colnames(fit1$tmb_data$Y2_ik)
 pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_stock_comp_ri
+  dum <- pred_dat
   dum$stock <- x
   return(dum)
 }) %>%
   bind_rows() %>%
-  cbind(., link_preds) %>% 
-  mutate(
-    area_f = fct_reorder(as.factor(area), as.numeric(reg)),
-    stock = fct_relevel(
-      stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
-      "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", #"SOMN",
-      "WCVI", "Other"
-    )
-  )
+  cbind(., link_preds) 
 
-p <- ggplot(data = pred_comp, aes(x = month_n)) +
+
+ggplot(data = pred_comp, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(area~stock) +
-  # facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est)) #+
-
-p_ribbon <- p +
-  geom_ribbon(data = pred_comp,
-              aes(ymin = pred_prob_low, ymax = pred_prob_up),
+  geom_line(aes(y = pred_prob_est, colour = reg)) +
+  geom_ribbon(aes(ymin = pred_prob_low, ymax = pred_prob_up),
               alpha = 0.2)
 
 
+## stock-specific abundance
+log_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
 
-## compare to observations
-# number of samples in a daily observation
-long_dat <- model_inputs_ri$wide_comp_dat %>%
-  mutate(samp_nn = apply(model_inputs_ri$tmb_data$Y2_ik, 1, sum)) %>%
-  pivot_longer(cols = c(Other:WCVI), 
-               names_to = "stock", 
-               values_to = "obs_count") %>%
-  mutate(obs_ppn = obs_count / samp_nn) %>% 
-  filter(subarea %in% pred_comp$subarea,
-         month_n %in% stock_comp$month_n
-         ) 
+log_abund_preds <- data.frame(
+  link_abund_est = log_abund[ , "Estimate"],
+  link_abund_se = log_abund[ , "Std. Error"]
+) %>% 
+  mutate(
+    pred_abund_est = exp(link_abund_est),
+    pred_abund_low = exp(link_abund_est + (qnorm(0.025) * link_abund_se)),
+    pred_abund_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
+  ) 
 
-p_obs <- ggplot() +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(subarea~stock) +
+stock_seq2 <- c(colnames(fit1$tmb_data$Y2_ik))
+
+pred_abund <- purrr::map(stock_seq2, function (x) {
+  dum <- pred_dat
+  dum$stock <- x
+  return(dum)
+}) %>%
+  bind_rows() %>%
+  cbind(., log_abund_preds) %>% 
+  mutate(stock = fct_reorder(factor(stock), -pred_abund_est))
+
+p <- ggplot(data = pred_abund, aes(x = month_n)) +
+  labs(y = "Predicted Abundance Index", x = "Month") +
+  facet_grid(area~stock, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  geom_jitter(data = long_dat,
-              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
-  geom_line(data = pred_comp, aes(x = month_n, y = pred_prob_est), 
-            colour = "red") +
-  scale_size_continuous() +
-  theme(legend.position = "top")
+  geom_line(aes(y = pred_abund_est))
 
-
-# stacked bar plots
-pred_bar <- pred_comp %>% 
-  filter(month_n %in% c("6", "7", "8", "9")) %>% 
-  ggplot(.) +
-  geom_col(aes(x = month_n, y = pred_prob_est, fill = stock)) +
-  facet_wrap(~subarea, scales = "free_y") +
-  scale_fill_brewer(type = "div", palette = 9) +
-  theme(legend.position = "top")
-
-
-pdf(here::here("figs", "jdf_subarea_preds", "subarea_month.pdf"))
-p
-p_ribbon
-p_obs
-pred_bar
-dev.off()
+p_ribbon <- p +
+  geom_ribbon(data = x,
+              aes(ymin = pred_abund_low, ymax = pred_abund_up, fill = year),
+              alpha = 0.2)
