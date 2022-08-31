@@ -76,18 +76,19 @@ abund_mod <- fit_stockseasonr(
     s(month_n, bs = "tp", k = 4, m = 2) +
     (1 | year)
   ,
-  abund_dat = catch,
-  abund_offset = "offset",
-  random_walk = TRUE,
+  abund_dat = catch, 
+  abund_offset = catch$offset,
   pred_dat = catch,
   model = "negbin",
   fit = TRUE,
-  nlminb_loops = 2, newton_loops = 1)
+  nlminb_loops = 2
+)
+abund_mod$sdr
 
 m3 <- sdmTMB(catch ~ 1 +
                s(month_n, bs = "tp", k = 4, m = 2) +
-               (1 | reg) +
-               (1 | year),
+               (1 | year)
+             ,
              offset = catch$offset,
              data = catch, 
              spatial = "off", family = sdmTMB::nbinom2())

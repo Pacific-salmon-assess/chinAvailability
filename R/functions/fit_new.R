@@ -51,7 +51,6 @@ fit_stockseasonr <- function(abund_formula = NULL, comp_formula = NULL,
                              pred_dat = NULL,
                              model = c("negbin", "dirichlet", "integrated"),
                              random_walk = FALSE,
-                             # include_re_preds = FALSE,
                              fit = TRUE,
                              nlminb_loops = 1L, newton_loops = 0L) {
   
