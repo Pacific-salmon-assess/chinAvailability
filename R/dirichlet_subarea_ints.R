@@ -6,7 +6,7 @@
 
 library(tidyverse)
 library(TMB)
-
+library(stockseasonr)
 
 # tmb models - use MVN if time-varying predictions are required, use RI if 
 # generating predictions for "average" year
@@ -14,8 +14,8 @@ library(TMB)
 # dyn.load(dynlib(here::here("src", "dirichlet_mvn")))
 # compile(here::here("src", "dirichlet_ri.cpp"))
 # dyn.load(dynlib(here::here("src", "dirichlet_ri")))
-compile(here::here("src", "dirichlet_ri_sdmTMB.cpp"))
-dyn.load(dynlib(here::here("src", "dirichlet_ri_sdmTMB")))
+# compile(here::here("src", "dirichlet_ri_sdmTMB.cpp"))
+# dyn.load(dynlib(here::here("src", "dirichlet_ri_sdmTMB")))
 
 
 # utility functions for prepping smooths 
@@ -162,25 +162,36 @@ pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
 
 ## FIT MODEL -------------------------------------------------------------------
 
-source(here::here("R", "functions", "fit_new.R"))
+# source(here::here("R", "functions", "fit_new.R"))
 
 # no rand predictions
-model_inputs_ri <- make_inputs(
-  comp_formula = can_reg ~ 1 + area + 
-    s(month_n, bs = "tp", k = 5, m = 2) + (1 | year),
+# model_inputs_ri <- make_inputs(
+#   comp_formula = can_reg ~ 1 + area + 
+#     s(month_n, bs = "tp", k = 5, m = 2) + (1 | year),
+#   comp_dat = stock_comp,
+#   pred_dat = pred_dat_stock_comp_ri,
+#   model = "dirichlet",
+#   include_re_preds = FALSE
+# )
+# 
+# stock_mod_ri <- fit_model(
+#   tmb_data = model_inputs_ri$tmb_data, 
+#   tmb_pars = model_inputs_ri$tmb_pars, 
+#   tmb_map = model_inputs_ri$tmb_map, 
+#   tmb_random  = model_inputs_ri$tmb_random,
+#   model_specs = model_inputs_ri$model_specs#,
+#   # nlminb_loops = 2, newton_loops = 1
+# )
+
+stock_mod_ri <- fit_stockseasonr(
+  comp_formula = can_reg ~ 1 + subarea + 
+    s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
   comp_dat = stock_comp,
   pred_dat = pred_dat_stock_comp_ri,
   model = "dirichlet",
-  include_re_preds = FALSE
-)
-
-stock_mod_ri <- fit_model(
-  tmb_data = model_inputs_ri$tmb_data, 
-  tmb_pars = model_inputs_ri$tmb_pars, 
-  tmb_map = model_inputs_ri$tmb_map, 
-  tmb_random  = model_inputs_ri$tmb_random,
-  model_specs = model_inputs_ri$model_specs#,
-  # nlminb_loops = 2, newton_loops = 1
+  random_walk = TRUE,
+  fit = TRUE,
+  nlminb_loops = 2, newton_loops = 1
 )
 
 
