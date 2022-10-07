@@ -20,9 +20,13 @@ creel_spatial <- readRDS(
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
 
 # recreational composition data since through 2021 (clean to match rec_raw)
-rec_raw_new <- read.csv(here::here("data", "rec", "sc_biodata_oct6_22.csv"),
+rec_raw_new <- read.csv(#here::here("data", "rec", "sc_biodata_jul8_21.csv"),
+  here::here("data", "rec", "sc_biodata_oct6_22.csv"),
                         stringsAsFactors = FALSE, na.strings=c("","NA")) %>% 
   janitor::clean_names(.) 
+
+# remove duplicates, id numbers w/ multiple in columns, check unique vals are
+# correct, merge with id2
 
 wide_rec <- rec_raw_new %>% 
   # change US area 7 (near San Juan island) to SSoG
@@ -63,8 +67,6 @@ wide_rec <- rec_raw_new %>%
 weird_sizes <- wide_rec %>%
   filter(length_mm < 150 | length_mm > 1500) %>%
   select(biokey, length_mm, new_disposition, contains("size"))
-# write.csv(weird_sizes, here::here("data", "rec", "southcoast_size_errors.csv"),
-#           row.names = FALSE)
 
 corrected_sizes <- read.csv(
   here::here("data", "rec", "southcoast_size_errors_corrected.csv")
@@ -73,6 +75,12 @@ corrected_sizes <- read.csv(
     new_length_mm = ifelse(is.na(new_length_mm), "remove", new_length_mm)
   ) %>% 
   select(biokey, new_length_mm)
+
+write.csv(weird_sizes %>% 
+            filter(!biokey %in% corrected_sizes$biokey),
+          here::here("data", "rec", "southcoast_size_errors.csv"),
+          row.names = FALSE)
+
 
 wide_rec2 <- full_join(wide_rec, corrected_sizes, by = "biokey") %>%
   mutate(
