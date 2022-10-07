@@ -20,7 +20,7 @@ creel_spatial <- readRDS(
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
 
 # recreational composition data since through 2021 (clean to match rec_raw)
-rec_raw_new <- read.csv(here::here("data", "rec", "sc_biodata_jul8_21.csv"),
+rec_raw_new <- read.csv(here::here("data", "rec", "sc_biodata_oct6_22.csv"),
                         stringsAsFactors = FALSE, na.strings=c("","NA")) %>% 
   janitor::clean_names(.) 
 
@@ -60,9 +60,9 @@ wide_rec <- rec_raw_new %>%
     )
 
 # correct some size entries
-# weird_sizes <- wide_rec %>% 
-#   filter(length_mm < 150 | length_mm > 1500) %>%
-#   select(biokey, length_mm, new_disposition, contains("size")) 
+weird_sizes <- wide_rec %>%
+  filter(length_mm < 150 | length_mm > 1500) %>%
+  select(biokey, length_mm, new_disposition, contains("size"))
 # write.csv(weird_sizes, here::here("data", "rec", "southcoast_size_errors.csv"),
 #           row.names = FALSE)
 
