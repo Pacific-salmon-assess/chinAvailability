@@ -3,8 +3,11 @@
 
 library(tidyverse)
 
-# stock key 
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2022.rds"))
+# stock keys (old and new version have slightly different stock formats, keep
+# both)
+stock_key1 <- readRDS(here::here("data", "rec", "finalStockList_Jan2022.rds"))
+stock_key2 <- readRDS(here::here("data", "rec", "finalStockList_Oct2022.rds"))
+stock_key <- rbind(stock_key1, stock_key2) %>% distinct()
 
 # spatial data for creel subareas in southern bc to use as a covariate
 creel_spatial <- readRDS(
@@ -63,8 +66,34 @@ wide_rec <- rec_raw_new %>%
     month_n = lubridate::month(date)
     )
 
+
+# check to see if true duplicates by grouping by biokey then checking to see if 
+# fork lengths and resolved stock id match
+dups <- wide_rec %>% 
+  group_by(biokey) %>%
+  filter(n() > 1) %>% 
+  mutate(row_id = row_number()) 
+
+biokey_seq <- unique(dups$biokey)
+code_vec <- NULL
+for (i in seq_along(biokey_seq)) {
+  dum <- dups %>% filter(biokey == biokey_seq[i])
+  if (!is.na(dum$length_mm[1]) & dum$length_mm[1] != dum$length_mm[2]) {
+    code_vec <- c(code_vec, biokey_seq[i])
+  } else if (dum$resolved_stock_origin[1] != dum$resolved_stock_origin[2]) {
+    code_vec <- c(code_vec, biokey_seq[i])
+  }
+}
+
+# all duplicates appear to be valid so remove second entry
+wide_rec2 <- wide_rec %>% 
+  group_by(biokey) %>% 
+  mutate(row_id = row_number()) %>% 
+  filter(!row_id == "2") %>% 
+  ungroup()
+
 # correct some size entries
-weird_sizes <- wide_rec %>%
+weird_sizes <- wide_rec2 %>%
   filter(length_mm < 150 | length_mm > 1500) %>%
   select(biokey, length_mm, new_disposition, contains("size"))
 
@@ -76,13 +105,14 @@ corrected_sizes <- read.csv(
   ) %>% 
   select(biokey, new_length_mm)
 
-write.csv(weird_sizes %>% 
-            filter(!biokey %in% corrected_sizes$biokey),
-          here::here("data", "rec", "southcoast_size_errors.csv"),
-          row.names = FALSE)
+# export then paste/add corrections into southcoast_size_errors_corrected.csv
+# write.csv(weird_sizes %>% 
+#             filter(!biokey %in% corrected_sizes$biokey),
+#           here::here("data", "rec", "southcoast_size_errors.csv"),
+#           row.names = FALSE)
 
 
-wide_rec2 <- full_join(wide_rec, corrected_sizes, by = "biokey") %>%
+wide_rec3 <- full_join(wide_rec2, corrected_sizes, by = "biokey") %>%
   mutate(
     fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) 
   ) 
@@ -91,7 +121,7 @@ wide_rec2 <- full_join(wide_rec, corrected_sizes, by = "biokey") %>%
 # GSI CLEAN --------------------------------------------------------------------
 
 # trim for GSI purposes
-wide_rec2_trim <- wide_rec2 %>% 
+wide_rec3_trim <- wide_rec3 %>% 
   filter(
     !is.na(resolved_stock_source),
     # for now remove all samples that don't also DNA data (unrepresentative 
@@ -123,7 +153,7 @@ wide_rec2_trim <- wide_rec2 %>%
 
 # replace 0 probabilities with v. small values (just to be safe); then recalc
 # ppns
-prbs <- wide_rec2_trim %>% 
+prbs <- wide_rec3_trim %>% 
   select(starts_with("prob")) %>% 
   as.matrix()
 prbs[prbs == 0] <- .00001
@@ -132,7 +162,7 @@ new_prbs <- prbs / row_sums
 
 
 #pivot to long (probs and stock IDs separately) and join 
-probs <- wide_rec2_trim %>% 
+probs <- wide_rec3_trim %>% 
   # replace with updated probabilities from above
   select(-starts_with("prob")) %>% 
   cbind(., new_prbs) %>% 
@@ -141,14 +171,14 @@ probs <- wide_rec2_trim %>%
                values_to = "prob") %>%
   select(id, rank, prob)
 
-regions <- wide_rec2_trim %>% 
+regions <- wide_rec3_trim %>% 
   select(id, starts_with("region")) %>% 
   pivot_longer(., cols = starts_with("region"), names_to = "rank", 
                names_pattern = "region_(.+)_rollup",
                values_to = "region") %>%
   select(id, rank, region)
 
-long_rec <- wide_rec2_trim %>% 
+long_rec <- wide_rec3_trim %>% 
   select(-starts_with("prob"), -starts_with("region")) %>% 
   pivot_longer(., cols = starts_with("stock"), names_to = "rank", 
                names_pattern = "stock_(.+)",
@@ -169,19 +199,17 @@ long_rec <- wide_rec2_trim %>%
   left_join(., creel_spatial %>% select(creelsub, dist_123i),
             by = "creelsub")
 
-# stocks_to_add <- long_dat %>% 
-#   filter(
-#     is.na(Region1Name)
-#   ) %>% 
-#   select(
-#     temp_stock, region
-#   ) %>% 
-#   arrange(temp_stock) %>% 
-#   distinct()
-# saveRDS(stocks_to_add, 
-#         here::here("data", "rec", "southcoast_missing_stocks.rds"))
-
-
+stocks_to_add <- long_rec %>%
+  filter(
+    is.na(Region1Name)
+  ) %>%
+  select(
+    stock, region
+  ) %>%
+  arrange(stock) %>%
+  distinct()
+saveRDS(stocks_to_add,
+        here::here("data", "rec", "southcoast_missing_stocks.rds"))
 
 ## export
 saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
@@ -189,7 +217,7 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
 ## CLEAN SIZE ------------------------------------------------------------------
 
-wide_size <- wide_rec2 %>% 
+wide_size <- wide_rec3 %>% 
   select(id = biokey, fl, month_n, year, area, area_n, 
          region = cap_region) %>% 
   #remove missing and non-sensical size_classes
