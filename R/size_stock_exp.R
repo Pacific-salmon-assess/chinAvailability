@@ -98,7 +98,3 @@ month_ppn_core_area <- trim_comp %>%
   facet_grid(mid_reg~reg)
 
 
-pdf(here::here("figs", "size_exp", "size_ppn_core_area.pdf"), 
-    height = 9, width = 9)
-month_ppn_core_area
-dev.off()

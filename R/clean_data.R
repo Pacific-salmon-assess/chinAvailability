@@ -218,8 +218,8 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 ## CLEAN SIZE ------------------------------------------------------------------
 
 wide_size <- wide_rec3 %>% 
-  select(id = biokey, fl, month_n, year, area, area_n, 
-         region = cap_region) %>% 
+  select(id = biokey, date, month, year, cap_region, area, area_n, subarea, 
+         legal, fl = length_mm, sex, ad = adipose_fin_clipped) %>%
   #remove missing and non-sensical size_classes
   filter(
     !is.na(fl),
@@ -231,28 +231,29 @@ wide_size <- wide_rec3 %>%
       fl, 
       breaks = c(-Inf, 450, 600, 750, 900, Inf), 
       labels=c("<45", "45-60", "60-75", "75-90", ">90")
-    )
+    ),
+    month_n = lubridate::month(date)
   ) 
 
 # visualize sample coverage through space and time
 size_n <- wide_size %>% 
-  group_by(month_n, year, region) %>% 
+  group_by(month_n, year, cap_region) %>% 
   tally() 
 
 ggplot(size_n) +
   geom_raster(aes(x = month_n, y = year, fill = n)) +
-  facet_wrap(~region)
+  facet_wrap(~cap_region)
 
 wide_size %>%
-  group_by(size_bin, year, region) %>%
+  group_by(size_bin, year, cap_region) %>%
   summarize(n = length(unique(id))) %>%
-  group_by(year, region) %>% 
+  group_by(year, cap_region) %>% 
   mutate(total_n = sum(n),
          ppn_obs = n / total_n) %>% 
   ggplot(., aes(x = as.factor(year), y = ppn_obs, fill = size_bin)) +
   geom_bar(position="stack", stat="identity") +
   ggsidekick::theme_sleek() +
-  facet_wrap(~region)
+  facet_wrap(~cap_region)
 
 
 # # export size data as proportions

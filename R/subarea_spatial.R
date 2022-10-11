@@ -31,7 +31,10 @@ creel_utm <- st_read(here::here(shp_path, "creelareaspfma_2021.shp")) %>%
 sf_cent <- st_centroid(creel_utm)
 
 ggplot() +
-  geom_sf(data = creel_utm)
+  geom_sf(data = creel_utm %>% 
+            filter(statarea %in% c("20", "18", "19", "29", "121",
+                                   "21")),
+          aes(fill = subareaid))
 
 
 # subset and check

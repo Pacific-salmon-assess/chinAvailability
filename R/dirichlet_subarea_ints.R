@@ -25,184 +25,173 @@ source(here::here("R", "functions", "fit_new.R"))
 
 
 # pre-cleaning: aggregate at PST, remove sublegals
-comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
-  filter(!legal == "sublegal",
-         #remove subareas 19A, 18A w/ very small sample sizes 
-         # (and outside study area)
-         !subarea %in% c("19A", "18A")) %>% 
-  rename(stock_region = region, region = cap_region) %>% 
-  mutate(month_n = lubridate::month(date),
-         subarea_original = subarea,
-         subarea = case_when(
-           subarea %in% c("18B", "18D", "18E") ~ "18BDE",
-           subarea %in% c("21B") ~ "21A",
-           subarea %in% c("US7") ~ "19B",
-           # consolidate subareas due to small sample sizes and doc issues w/
-           # convergence
-           subarea %in% c("19C", "19D", "19E") ~ "19CDE",
-           subarea %in% c("20A", "20E") ~ "20AE",
-           subarea %in% c("20C", "20D") ~ "20CD",
-           TRUE ~ subarea
-         ),
-         reg = case_when(
-           # subarea == "123I" ~ "SWVI", # qu
-           #correction for subarea 21A IDd as SSoG
-           subarea == "21A" ~ "SWVI",
-           area %in% c("121", "21") ~ "SWVI",
-           subarea == "19C" ~ "SSoG",
-           area %in% c("20W", "20E", "19JDF") ~ "JdFS",
-           area %in% c("18", "19GST") ~ "SSoG",
-           # area  ~ "SSoG",
-           TRUE ~ "out"
-         ),
-         reg = as.factor(reg),
-         core_area = case_when(
-           subarea == "121B" ~ "no",
-           reg %in% c("SWVI") ~ "yes", 
-           subarea %in% c("18BDE", "19B", "19C", "20AE") ~ "yes",
-           TRUE ~ "no"
-         ),
-         week = lubridate::week(date),
-         yday = lubridate::yday(date),
-         month_n = lubridate::month(date),
-         # sample_id = paste(month_n, reg, week, year, sep = "_"),
-         sample_id = paste(month_n, reg, yday, year, sep = "_"),
-         can_reg = case_when(
-           pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa", "CA_ORCST", 
-                          "CR-lower_sp", "CR-upper_sp", "PSD", 
-                          "NBC_SEAK", "WACST") ~ "Other",
-           Region1Name == "SOMN" ~ "ECVI",
-           # Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
-           #                    "Fraser_Spring_4.2") ~ "Fraser_Yearling",
-           TRUE ~ Region1Name
-         ),
-         pst_agg = case_when(
-           pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa", "CA_ORCST", 
-                          "CR-lower_sp", "CR-upper_sp", "PSD", 
-                          "NBC_SEAK", "WACST") ~ "other",
-           TRUE ~ pst_agg
-         )
-  ) %>% 
-  group_by(sample_id) %>% 
-  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
-  ungroup()
+size_in <- readRDS(here::here("data", "rec", "rec_size.rds"))
+comp_in <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
+  rename(stock_region = region) %>% 
+  mutate(
+    agg_new = case_when(
+      grepl("CR", pst_agg) ~ "WA_OR_CA",
+      grepl("CST", pst_agg) ~ "WA_OR_CA",
+      pst_agg == "NBC_SEAK" ~ "SOG",
+      Region1Name %in% c("Fraser_Summer_4.1") ~ "Fraser_S",
+      Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
+                         "Fraser_Spring_4.2") | pst_agg == "FR-early" ~ "Fraser_Yearling",
+      Region1Name %in% c("Fraser_Fall") ~ "Fraser_F",
+      TRUE ~ pst_agg
+    )
+  )
 
-stock_comp <- comp1 %>%  
+# trim size and gsi data
+trim_foo <- function(dat_in) {
+  dat_in %>%
+    filter(!legal == "sublegal"#,
+           #remove subareas 19A, 18A w/ very small sample sizes 
+           # (and outside study area)
+           # !subarea %in% c("19A", "18A")
+           ) %>% 
+    rename(region = cap_region) %>% 
+    mutate(
+      month_n = lubridate::month(date),
+      subarea_original = subarea,
+      subarea = case_when(
+        subarea == "121C" ~ "121A", #based on fihsing location
+        subarea %in% c("18B", "18D", "18E") ~ "18BDE",
+        subarea %in% c("21B") ~ "21A",
+        subarea %in% c("US7") ~ "19B",
+        # consolidate subareas due to small sample sizes and doc issues w/
+        # convergence
+        subarea %in% c("19C", "19D", "19E") ~ "19CDE",
+        subarea %in% c("20B", "20C") ~ "20BC",
+        subarea %in% c("20A", "20E") ~ "20AE",
+        subarea %in% c("20DB", "20DI", "20DO") ~ "20D",
+        subarea %in% c("29G", "29F") ~ "29FG",
+        # subarea == "29E" ~ "29DE",
+        grepl("29D", subarea) ~ "29D",
+        subarea %in% c("29-11", "29I") ~ "29D", 
+        subarea %in% c("29B", "29C") ~ "29BC",
+        TRUE ~ subarea
+      ),
+      reg = case_when(
+        subarea == "21A" ~ "SWVI",
+        area %in% c("121", "21") ~ "SWVI",
+        subarea %in% c("19D", "19E") ~ "JdFS",
+        area == "20" ~ "JdFS",
+        area %in% c("18", "19", "29") ~ "SSoG",
+        TRUE ~ "out"
+      ),
+      reg = as.factor(reg),
+      core_area = case_when(
+        subarea == "121B" ~ "no",
+        subarea == "29DE" ~ "yes",
+        reg %in% c("SWVI") ~ "yes", 
+        subarea %in% c("18BDE", "19B", "19C", "20AE") ~ "yes",
+        TRUE ~ "no"
+      ),
+      week = lubridate::week(date),
+      yday = lubridate::yday(date),
+      month_n = lubridate::month(date),
+      sample_id = paste(month_n, subarea, week, year, sep = "_"),
+      area_f = as.factor(as.numeric(gsub("([0-9]+).*$", "\\1", area)))
+    ) %>% 
+    group_by(sample_id) %>% 
+    mutate(nn = length(unique(id)) %>% as.numeric) %>% 
+    ungroup()
+} 
+
+trim_size <- trim_foo(size_in) %>% 
   group_by(sample_id, subarea, subarea_original, area, reg, reg_c = region, 
-           week, month, month_n, year, nn, can_reg, core_area) %>% 
+           week, month, month_n, year, nn, size_bin, core_area) %>% 
+  summarize(prob = length(unique(id)), .groups = "drop")  %>% 
+  ungroup() %>% 
+  filter(
+    month_n < 10.1 & month_n > 1.9,
+    !reg == "out" 
+  ) %>% 
+  mutate(year = as.factor(year),
+         reg = as.factor(reg),
+         subarea = as.factor(subarea)
+  ) %>% 
+  droplevels() 
+
+trim_stock <- comp_in %>%
+  trim_foo() %>% 
+  group_by(sample_id, subarea, subarea_original, area_f, reg, reg_c = region, 
+           week, month, month_n, year, nn, agg_new, core_area) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
-  droplevels() %>% 
-  filter(!reg == "out",
-         # week > 22 & week < 38
-         month_n < 10.1 & month_n > 1.9
-         ) %>% 
+  filter(
+    month_n < 10.1 & month_n > 1.9,
+    !reg == "out" 
+  ) %>% 
   mutate(year = as.factor(year),
-         reg = factor(reg, levels = c("SWVI", "JdFS", "SSoG")),
-         subarea = as.factor(subarea),
-         area = as.factor(area)
-         )
+         reg = as.factor(reg),
+         subarea = as.factor(subarea)
+  ) %>% 
+  droplevels() 
+
 
 
 # look at sample coverage in data passed to model
-# alpha_scale <- c(0.3, 0.95)
-# names(alpha_scale) <- c("no", "yes")
-# 
-# png(here::here("figs", "data_coverage", "comp_model_inputs.png"), height = 5,
-#     width = 5, units = "in", res = 200)
-# stock_comp %>% 
-#   select(sample_id, year, reg, subarea, month_n, nn, core_area) %>% 
-#   distinct() %>% 
-#   ggplot() +
-#   geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg, 
-#                   shape = core_area),
-#               alpha = 0.5, width = 0.25) +
-#   facet_wrap(~fct_reorder(subarea, as.numeric(reg))) +
-#   ggsidekick::theme_sleek()
-# dev.off()
+alpha_scale <- c(0.3, 0.95)
+names(alpha_scale) <- c("no", "yes")
 
+trim_size %>%
+  select(sample_id, year, reg, subarea, subarea_original, month_n,
+         nn, core_area) %>%
+  distinct() %>%
+  ggplot() +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg,
+                  shape = core_area),
+              alpha = 0.5, width = 0.25) +
+  facet_wrap(~fct_reorder(subarea, as.numeric(reg))) +
+  ggsidekick::theme_sleek()
 
-# prediction datasets 
-pred_dat_comp1 <- group_split(stock_comp, reg) %>%
-  map_dfr(., function(x) {
-    expand.grid(
-      reg = unique(x$reg),
-      month_n = seq(min(x$month_n),
-                    max(x$month_n),
-                    by = 0.1
-      ),
-      year = unique(x$year)
-    ) 
-  }) 
 
 # add areas to composition dataset
-area_key <- stock_comp %>% 
-  select(subarea, subarea_original, area, reg, core_area) %>% 
+area_key <- trim_stock %>% 
+  select(subarea, subarea_original, area_f, reg, core_area) %>% 
   distinct()
 # saveRDS(area_key, here::here("data", "rec", "subarea_key.RDS"))
-# month_key <- stock_comp %>% 
-#   select(week, month_n) %>% 
-#   distinct()
 
 # subset predicted composition dataset
-pred_dat_stock_comp <- pred_dat_comp1 %>% 
+pred_dat_comp <- expand.grid(
+    reg = unique(trim_stock$reg),
+    month_n = seq(min(trim_stock$month_n),
+                  max(trim_stock$month_n),
+                  by = 0.1
+    )
+  ) %>% 
   left_join(., area_key, by = "reg") %>%
-  filter(core_area == "yes",
-         month_n < 9.1 & month_n > 5.9
-         ) %>% 
+  filter(#core_area == "yes",
+    month_n < 9.1 & month_n > 4.9
+  ) %>% 
   select(-core_area) %>% 
-  mutate(week = month_n * 4)
-
-# remove random effects from predictions to generate estimates for "average"
-# year
-pred_dat_stock_comp_ri <- pred_dat_stock_comp %>%
-  select(-year) %>%
-  distinct()
+  mutate(week = month_n * 4) 
 
 
-## FIT MODEL -------------------------------------------------------------------
+## FIT MODELS ------------------------------------------------------------------
 
-# source(here::here("R", "functions", "fit_new.R"))
-
-# no rand predictions
-# model_inputs_ri <- make_inputs(
-#   comp_formula = can_reg ~ 1 + area + 
-#     s(month_n, bs = "tp", k = 5, m = 2) + (1 | year),
-#   comp_dat = stock_comp,
-#   pred_dat = pred_dat_stock_comp_ri,
-#   model = "dirichlet",
-#   include_re_preds = FALSE
-# )
-# 
-# stock_mod_ri <- fit_model(
-#   tmb_data = model_inputs_ri$tmb_data, 
-#   tmb_pars = model_inputs_ri$tmb_pars, 
-#   tmb_map = model_inputs_ri$tmb_map, 
-#   tmb_random  = model_inputs_ri$tmb_random,
-#   model_specs = model_inputs_ri$model_specs#,
-#   # nlminb_loops = 2, newton_loops = 1
-# )
+library(stockseasonr)
 
 stock_mod_ri <- fit_stockseasonr(
-  comp_formula = can_reg ~ 1 + subarea + 
+  comp_formula = agg_new ~ 1 + subarea + 
     s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
-  comp_dat = stock_comp,
-  pred_dat = pred_dat_stock_comp_ri,
+  comp_dat = trim_stock,
+  pred_dat = pred_dat_comp,
   model = "dirichlet",
   random_walk = TRUE,
   fit = TRUE,
   nlminb_loops = 2, newton_loops = 1
 )
 
-
 ssdr <- stock_mod_ri$ssdr 
 
 beta_mat <- ssdr[rownames(ssdr) == "B2_jk", 2] %>% 
   matrix(., 
-            nrow = ncol(model_inputs_ri$tmb_data$X2_ij),
-            ncol = ncol(model_inputs_ri$tmb_data$Y2_ik))
-rownames(beta_mat) <- colnames(model_inputs_ri$tmb_data$X2_ij)
-colnames(beta_mat) <- colnames(model_inputs_ri$tmb_data$Y2_ik)
+            nrow = ncol(stock_mod_ri$tmb_data$X2_ij),
+            ncol = ncol(stock_mod_ri$tmb_data$Y2_ik))
+rownames(beta_mat) <- colnames(stock_mod_ri$tmb_data$X2_ij)
+colnames(beta_mat) <- colnames(stock_mod_ri$tmb_data$Y2_ik)
 beta_mat
 
 dum <- model_inputs_ri$tmb_data$pred_X2_ij %*% beta_mat
@@ -211,6 +200,9 @@ saveRDS(stock_mod_ri$ssdr,
         here::here("data", "model_fits", "subarea",
                    "dirichlet_ri_mig_corridor.rds"))
 
+
+
+# 
 
 
 # as above but with week as a covariate
@@ -265,26 +257,25 @@ link_preds <- data.frame(
     pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
   ) 
 
-stock_seq <- colnames(model_inputs_ri$tmb_data$Y2_ik)
+stock_seq <- colnames(stock_mod_ri$tmb_data$Y2_ik)
 pred_comp <- purrr::map(stock_seq, function (x) {
-  dum <- pred_dat_stock_comp_ri
+  dum <- pred_dat_comp
   dum$stock <- x
   return(dum)
 }) %>%
   bind_rows() %>%
   cbind(., link_preds) %>% 
   mutate(
-    area_f = fct_reorder(as.factor(area), as.numeric(reg)),
+    area_f = fct_reorder(area_f, as.numeric(reg)),
     stock = fct_relevel(
-      stock, "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
-      "Fraser_Summer_4.1", "Fraser_Fall", "ECVI", #"SOMN",
-      "WCVI", "Other"
+      stock, "Fraser_Yearling", "Fraser_S", "Fraser_F",
+      "SOG", "PSD", "WCVI", "WA_OR_CA"
     )
   )
 
 p <- ggplot(data = pred_comp, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(area~stock) +
+  facet_grid(subarea~stock) +
   # facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_prob_est)) #+

@@ -67,8 +67,6 @@ comp1 <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
          agg_new = case_when(
            grepl("CR", pst_agg) ~ "WA_OR_CA",
            grepl("CST", pst_agg) ~ "WA_OR_CA",
-           # pst_agg %in% c("CR-upper_su/fa", "CR-lower_fa") ~ "Col_SF",
-           # pst_agg %in% c("CR-lower_sp", "CR-upper_sp") ~ "Col_Sp",
            pst_agg == "NBC_SEAK" ~ "SOG",
            Region1Name %in% c("Fraser_Summer_4.1") ~ "Fraser_S",
            Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
