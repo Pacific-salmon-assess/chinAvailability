@@ -67,9 +67,11 @@ dev.off()
 
 ggplot() +
   geom_sf(data = coast, color = "black", fill = "white") +
-  geom_sf(data = dum, aes(fill = core_area)) +
-  geom_sf_label(data = dum, aes(label = subarea_original)) +
+  geom_sf(data = creel_sub %>% 
+            filter(statarea > 20 & statarea < 28), 
+          aes(fill = as.factor(statarea))) +
+  # geom_sf_label(data = dum, aes(label = subarea_original)) +
   # scale_fill_discrete(name = "RKW Core\nArea") +
-  coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
+  coord_sf(xlim = c(-130, -123), ylim = c(48, 53)) +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())

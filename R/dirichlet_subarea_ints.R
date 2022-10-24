@@ -99,7 +99,7 @@ trim_foo <- function(dat_in) {
 } 
 
 trim_size <- trim_foo(size_in) %>% 
-  group_by(sample_id, subarea, subarea_original, area, reg, reg_c = region, 
+  group_by(sample_id, subarea, subarea_original, area_f, reg, reg_c = region, 
            week, month, month_n, year, nn, size_bin, core_area) %>% 
   summarize(prob = length(unique(id)), .groups = "drop")  %>% 
   ungroup() %>% 
@@ -109,7 +109,8 @@ trim_size <- trim_foo(size_in) %>%
   ) %>% 
   mutate(year = as.factor(year),
          reg = as.factor(reg),
-         subarea = as.factor(subarea)
+         subarea = as.factor(subarea),
+         prob = as.numeric(prob)
   ) %>% 
   droplevels() 
 
@@ -173,9 +174,38 @@ pred_dat_comp <- expand.grid(
 
 library(stockseasonr)
 
-stock_mod_ri <- fit_stockseasonr(
+# stock_mod_ri <- fit_stockseasonr(
+#   comp_formula = agg_new ~ 1 + subarea + 
+#     s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
+#   comp_dat = trim_stock,
+#   pred_dat = pred_dat_comp,
+#   model = "dirichlet",
+#   random_walk = TRUE,
+#   fit = TRUE,
+#   nlminb_loops = 2, newton_loops = 1
+# )
+# 
+# ssdr <- stock_mod_ri$ssdr 
+# 
+# beta_mat <- ssdr[rownames(ssdr) == "B2_jk", 2] %>% 
+#   matrix(., 
+#             nrow = ncol(stock_mod_ri$tmb_data$X2_ij),
+#             ncol = ncol(stock_mod_ri$tmb_data$Y2_ik))
+# rownames(beta_mat) <- colnames(stock_mod_ri$tmb_data$X2_ij)
+# colnames(beta_mat) <- colnames(stock_mod_ri$tmb_data$Y2_ik)
+# beta_mat
+# 
+# dum <- model_inputs_ri$tmb_data$pred_X2_ij %*% beta_mat
+# 
+# saveRDS(stock_mod_ri$ssdr, 
+#         here::here("data", "model_fits", "subarea",
+#                    "dirichlet_ri_mig_corridor.rds"))
+
+
+# as above but with week as a covariate
+stock_mod_ri2 <- fit_stockseasonr(
   comp_formula = agg_new ~ 1 + subarea + 
-    s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
+    s(week, bs = "tp", k = 4, m = 2) + (1 | year),
   comp_dat = trim_stock,
   pred_dat = pred_dat_comp,
   model = "dirichlet",
@@ -184,64 +214,23 @@ stock_mod_ri <- fit_stockseasonr(
   nlminb_loops = 2, newton_loops = 1
 )
 
-ssdr <- stock_mod_ri$ssdr 
+ssdr2 <- stock_mod_ri2$ssdr 
 
-beta_mat <- ssdr[rownames(ssdr) == "B2_jk", 2] %>% 
+beta_mat2 <- ssdr[rownames(ssdr2) == "B2_jk", 2] %>% 
   matrix(., 
-            nrow = ncol(stock_mod_ri$tmb_data$X2_ij),
-            ncol = ncol(stock_mod_ri$tmb_data$Y2_ik))
-rownames(beta_mat) <- colnames(stock_mod_ri$tmb_data$X2_ij)
-colnames(beta_mat) <- colnames(stock_mod_ri$tmb_data$Y2_ik)
-beta_mat
+         nrow = ncol(stock_mod_ri2$tmb_data$X2_ij),
+         ncol = ncol(stock_mod_ri2$tmb_data$Y2_ik))
+rownames(beta_mat2) <- colnames(stock_mod_ri2$tmb_data$X2_ij)
+colnames(beta_mat2) <- colnames(stock_mod_ri2$tmb_data$Y2_ik)
+beta_mat2
 
-dum <- model_inputs_ri$tmb_data$pred_X2_ij %*% beta_mat
-
-saveRDS(stock_mod_ri$ssdr, 
+saveRDS(stock_mod_ri2$ssdr, 
         here::here("data", "model_fits", "subarea",
-                   "dirichlet_ri_mig_corridor.rds"))
+                   "dirichlet_ri_mig_corridor_week.rds"))
 
 
-
-# 
-
-
-# as above but with week as a covariate
-model_inputs_ri2 <- make_inputs(
-  comp_formula = can_reg ~ subarea + 
-    s(week, bs = "cc", k = 4, m = 2) 
-    # s(month_n, bs = "cc", k = 4, m = 2, by = reg)
-  ,
-  # comp_knots = list(month_n = c(0, 12)),
-  comp_knots = list(week = c(0, 53)),
-  comp_dat = stock_comp,
-  comp_rint = "year",
-  pred_dat = pred_dat_stock_comp_ri,
-  model = "dirichlet",
-  include_re_preds = FALSE
-)
-
-stock_mod_ri2 <- fit_model(
-  tmb_data = model_inputs_ri2$tmb_data, 
-  tmb_pars = model_inputs_ri2$tmb_pars, 
-  tmb_map = model_inputs_ri2$tmb_map, 
-  tmb_random  = model_inputs_ri2$tmb_random,
-  fit_random = TRUE,
-  ignore_fix = TRUE,
-  model_specs = model_inputs_ri2$model_specs
-)
 
 ## EVALUATE MODEL PREDS --------------------------------------------------------
-
-
-# random effects predictions 
-# ssdr_ri <- readRDS(
-#   here::here("data", "model_fits", "subarea",
-#              "dirichlet_mvn_mig_corridor.rds"))
-# fixed effects predictions 
-ssdr <- readRDS(
-  here::here("data", "model_fits", "subarea", 
-             "dirichlet_ri_mig_corridor.rds"))
-
 
 logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 pred_mu <- ssdr[rownames(ssdr) == "pred_Mu2", ]
@@ -273,7 +262,8 @@ pred_comp <- purrr::map(stock_seq, function (x) {
     )
   )
 
-p <- ggplot(data = pred_comp, aes(x = month_n)) +
+
+p <- ggplot(data = pred_comp_comb, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(subarea~stock) +
   # facet_grid(subarea~stock) +
@@ -327,3 +317,72 @@ p_ribbon
 p_obs
 pred_bar
 dev.off()
+
+
+
+# SIZE COMP MODEL --------------------------------------------------------------
+
+# as above but with week as a covariate
+size_mod_ri <- fit_stockseasonr(
+  comp_formula = size_bin ~ 1 + subarea + 
+    s(week, bs = "tp", k = 4, m = 2) + (1 | year),
+  comp_dat = trim_size,
+  pred_dat = pred_dat_comp,
+  model = "dirichlet",
+  random_walk = TRUE,
+  fit = TRUE,
+  nlminb_loops = 2, newton_loops = 1
+)
+
+ssdr_size <- size_mod_ri$ssdr 
+
+beta_mat <- ssdr_size[rownames(ssdr_size) == "B2_jk", 2] %>% 
+  matrix(., 
+         nrow = ncol(size_mod_ri$tmb_data$X2_ij),
+         ncol = ncol(size_mod_ri$tmb_data$Y2_ik))
+rownames(beta_mat) <- colnames(size_mod_ri$tmb_data$X2_ij)
+colnames(beta_mat) <- colnames(size_mod_ri$tmb_data$Y2_ik)
+beta_mat
+
+saveRDS(size_mod_ri$ssdr, 
+        here::here("data", "model_fits", "subarea",
+                   "size_week.rds"))
+
+
+
+logit_pred_ppn <- ssdr_size[rownames(ssdr_size) == "logit_pred_Pi_prop", ]
+pred_mu <- ssdr_size[rownames(ssdr_size) == "pred_Mu2", ]
+
+link_preds <- data.frame(
+  link_prob_est = logit_pred_ppn[ , "Estimate"],
+  link_prob_se =  logit_pred_ppn[ , "Std. Error"],
+  pred_mu = pred_mu[ , "Estimate"]
+) %>% 
+  mutate(
+    pred_prob_est = plogis(link_prob_est),
+    pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
+    pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
+  ) 
+
+size_seq <- colnames(size_mod_ri$tmb_data$Y2_ik)
+pred_comp_size <- purrr::map(size_seq, function (x) {
+  dum <- pred_dat_comp
+  dum$size_bin <- x
+  return(dum)
+}) %>%
+  bind_rows() %>%
+  cbind(., link_preds) %>% 
+  mutate(
+    area_f = fct_reorder(area_f, as.numeric(reg)),
+    size_bin = fct_relevel(
+      size_bin, "<45", "45-60", "60-75", "75-90", ">90"
+    )
+  )
+
+
+ggplot(data = pred_comp_size, aes(x = month_n)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(area_f~size_bin) +
+  # facet_grid(subarea~stock) +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_prob_est, colour = subarea))

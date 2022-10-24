@@ -229,7 +229,7 @@ wide_size <- wide_rec3 %>%
     fl = as.numeric(fl),
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 450, 600, 750, 900, Inf), 
+      breaks = c(-Inf, 451, 601, 751, 901, Inf), 
       labels=c("<45", "45-60", "60-75", "75-90", ">90")
     ),
     month_n = lubridate::month(date)
