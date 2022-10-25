@@ -118,6 +118,13 @@ wide_rec3 <- full_join(wide_rec2, corrected_sizes, by = "biokey") %>%
   ) 
 
 
+# location data from CWT recoveries
+cwt_locs <- read.csv(here::here("data", "spatial", "cwt_coordinate_lookup.csv"))
+
+unique(wide_rec3$fishing_location)[1:10]
+
+cwt_locs %>% filter(grepl("Sidney", description))
+
 # GSI CLEAN --------------------------------------------------------------------
 
 # trim for GSI purposes
