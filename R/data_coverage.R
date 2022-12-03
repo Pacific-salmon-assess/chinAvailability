@@ -7,29 +7,42 @@ library(tidyverse)
 # samples up to 2019 generated in Chinook distribution project
 # rec_raw <- readRDS(here::here("data", "rec", "recIndProbsLong.rds"))
 
+### TEMPORARY AMALGAMATION ONLY
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   rename(stock_region = region, region = cap_region) %>% 
   mutate(month_n = lubridate::month(date),
          subarea = case_when(
+           # subarea %in% c("18B", "18D", "18E") ~ "18BDE",
            subarea %in% c("21B") ~ "21A",
            subarea %in% c("US7") ~ "19B",
+           subarea %in% c("29-11", "29I") ~ "29B",
+           subarea %in% c("29DW", "29DE") ~ "29D",
+           # subarea %in% c("121C") ~ "121BC",
+           # consolidate subareas due to small sample sizes and doc issues w/
+           # convergence
+           # subarea %in% c("19C", "19D", "19E") ~ "19CDE",
+           # subarea %in% c("20A", "20E") ~ "20AE",
+           # subarea %in% c("20C", "20D") ~ "20CD",
+           # subarea %in% c("29G", "29F") ~ "29FG",
+           # subarea == "29E" ~ "29DE",
+           # grepl("29D", subarea) ~ "29DE",
+           # subarea %in% c("29B", "29C") ~ "29BC",
            TRUE ~ subarea
          ),
-         reg_f = case_when(
-           # subarea == "123I" ~ "SWVI", # qu
-           #correction for subarea 21A IDd as SSoG
+         reg = case_when(
            subarea == "21A" ~ "SWVI",
            area %in% c("121", "21") ~ "SWVI",
            subarea == "19C" ~ "SSoG",
            area %in% c("20W", "20E", "19JDF") ~ "JdFS",
-           area %in% c("18", "19GST") ~ "SSoG",
-           # area  ~ "SSoG",
+           area %in% c("18", "19GST", "29") ~ "SSoG",
            TRUE ~ "out"
          ),
-         reg_f = as.factor(reg_f),
+         reg = as.factor(reg),
          core_area = case_when(
-           reg_f %in% c("SWVI") ~ "yes", 
-           subarea %in% c("18B", "19B", "19C") ~ "yes",
+           subarea == "121B" ~ "no",
+           subarea == "29DE" ~ "yes",
+           reg %in% c("SWVI") ~ "yes", 
+           subarea %in% c("18BDE", "19B", "19C", "20AE") ~ "yes",
            TRUE ~ "no"
          )
   ) 
@@ -170,7 +183,7 @@ subset_stock_comp <- ggplot() +
   geom_bar(data = subarea_comp_dat, 
            aes(fill = pst_agg, y = agg_ppn, x = month_n, alpha = core_area),
            position="stack", stat="identity") +
-  scale_fill_manual(name = "Stock", values = stock_pal) +
+  scale_fill_discrete(name = "Stock") +
   scale_alpha_manual(name = "Core Area", values = alpha_scale) +
   geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
             position = position_dodge(width = 0.9), size = 2.5,
@@ -187,6 +200,36 @@ dev.off()
 png(here::here("figs", "data_coverage", "mean_monthly_stock_comp_subarea.png"),
     height = 7, width = 10, units = "in", res = 250)
 subset_stock_comp
+dev.off()
+
+
+## bubble plot
+# alpha_scale <- c(0.3, 0.95)
+# names(alpha_scale) <- c("no", "yes")
+png(here::here("figs", "data_coverage", "weekly_bubble_subarea.png"),
+    height = 7, width = 7, units = "in", res = 250)
+rec_raw %>%
+  filter(!reg == "out") %>% 
+  mutate(
+    week = lubridate::week(date),
+    month_n = lubridate::month(date),
+    sample_id = paste(month_n, subarea, week, year, sep = "_")
+    ) %>% 
+  group_by(sample_id) %>% 
+  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
+  ungroup() %>% 
+  select(sample_id, year, reg, subarea, month_n, nn) %>%
+  distinct() %>%
+  ggplot() +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg),
+              alpha = 0.5, width = 0.25) +
+  facet_wrap(~fct_reorder(subarea, as.numeric(reg)),
+             ncol = 3) +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "null"
+  ) +
+  labs(x = "Month", y = "Year")
 dev.off()
 
 
