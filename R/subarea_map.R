@@ -65,13 +65,19 @@ subarea_map
 dev.off()
 
 
+### NITINAT FOCUSED MAP --------------------------------------------------------
+
+nitinat_areas <- creel_sub %>% 
+  filter(
+    # subareaid %in% c("23I", "23J", "123I") |
+      statarea %in% c("123", "23")
+  ) 
+
 ggplot() +
   geom_sf(data = coast, color = "black", fill = "white") +
-  geom_sf(data = creel_sub %>% 
-            filter(statarea > 20 & statarea < 28), 
-          aes(fill = as.factor(statarea))) +
-  # geom_sf_label(data = dum, aes(label = subarea_original)) +
-  # scale_fill_discrete(name = "RKW Core\nArea") +
-  coord_sf(xlim = c(-130, -123), ylim = c(48, 53)) +
+  geom_sf(data = nitinat_areas,
+          aes(fill = as.factor(subareaid))) +
+  scale_alpha_manual(values = alpha_pal) +
+  coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
