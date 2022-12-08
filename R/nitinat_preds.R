@@ -29,11 +29,11 @@ comp_in <- comp_in_raw %>%
       grepl("CR", pst_agg) ~ "other",
       grepl("CST", pst_agg) ~ "other",
       pst_agg == "NBC_SEAK" ~ "other",
-      grepl("Fraser", Region1Name) | pst_agg == "FR-early" ~ "Fraser",
-      # Region1Name %in% c("Fraser_Summer_4.1") ~ "Fraser_S",
-      # Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
-      #                    "Fraser_Spring_4.2") | pst_agg == "FR-early" ~ "Fraser_Yearling",
-      # Region1Name %in% c("Fraser_Fall") ~ "Fraser_F",
+      # grepl("Fraser", Region1Name) | pst_agg == "FR-early" ~ "Fraser",
+      Region1Name %in% c("Fraser_Summer_4.1") ~ "Fraser_S",
+      Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
+                         "Fraser_Spring_4.2") | pst_agg == "FR-early" ~ "Fraser_Yearling",
+      Region1Name %in% c("Fraser_Fall") ~ "Fraser_F",
       TRUE ~ pst_agg
     ),
     subarea_original = subarea,
@@ -87,7 +87,7 @@ trim_stock <- comp_in %>%
   mutate(
     year = as.factor(year),
     subarea = as.factor(subarea),
-    agg_new = paste("stock", agg_new, sep = "_")
+    agg_new = paste("stock", agg_new, sep = "-")
   ) %>% 
   droplevels() 
 
@@ -103,12 +103,12 @@ pred_dat_comp <- expand.grid(
   month_n = seq(min(trim_stock$month_n),
                 max(trim_stock$month_n),
                 by = 0.1
-  ),
-  year = unique(trim_stock$year)
+  )#,
+  # year = unique(trim_stock$year)
 ) %>% 
   left_join(., area_key, by = "subarea") %>%
   filter(
-    zone == "core",
+    zone %in% c("core", "intermediate"),
     month_n < 9.1 & month_n > 4.9
   )
 
@@ -123,7 +123,9 @@ fit_core <- fit_stockseasonr(
   comp_formula = agg_new ~ 1 + subarea + 
     s(month_n, bs = "tp", k = 3), #+ (1 | year),
   comp_dat = core_stock,
-  pred_dat = pred_dat_comp,
+  pred_dat = pred_dat_comp %>% 
+    filter(zone == "core",
+           month_n < 8.1 & month_n > 5.9),
   model = "dirichlet",
   random_walk = FALSE,
   fit = TRUE,
@@ -176,7 +178,7 @@ fit_full <- fit_stockseasonr(
 ## MAKE PREDICTIONS ------------------------------------------------------------
 
 
-clean_pred_foo <- function(fit) {
+clean_pred_foo <- function(fit, preds) {
   # make predictions
   ssdr <- fit$ssdr
   logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
@@ -195,31 +197,32 @@ clean_pred_foo <- function(fit) {
   
   stock_seq <- colnames(fit$tmb_data$Y2_ik)
   pred_out <- purrr::map(stock_seq, function (x) {
-    dum <- pred_dat_comp
+    dum <- preds
     dum$stock <- x
     return(dum)
   }) %>%
     bind_rows() %>%
-    cbind(., link_preds) %>% 
-    mutate(
-      area_f = fct_reorder(area_f, as.numeric(zone))#,
-      # stock = fct_relevel(
-      #   stock, "Fraser_Yearling", "Fraser_S", "Fraser_F",
-      #   "SOG", "PSD", "WCVI", "WA_OR_CA"
-      # )
-    )
+    cbind(., link_preds) 
   
   # make mean observations
   obs_out <- fit$wide_comp_dat %>%
     mutate(samp_nn = apply(fit$tmb_data$Y2_ik, 1, sum)) %>%
-    pivot_longer(cols = starts_with("stock_"), 
+    pivot_longer(cols = starts_with("stock-"), 
                  names_to = "stock", 
                  values_to = "obs_count",
-                 names_prefix = "stock_") %>%
+                 names_prefix = "stock-") %>%
     mutate(obs_ppn = obs_count / samp_nn) %>% 
-    filter(subarea %in% pred_dat_comp$subarea,
-           month_n %in% pred_dat_comp$month_n
-    ) 
+    filter(subarea %in% preds$subarea,
+           month_n %in% preds$month_n
+    ) %>% 
+    mutate(
+      subarea = fct_reorder(subarea, as.numeric(zone)),
+      stock = factor(
+        stock,
+        levels = c("Nitinat", "SWVI", "Fraser_Yearling", "Fraser_S", "Fraser_F",
+                   "PSD", "SOG", "other")
+      )
+    )
   
   mean_obs_out <- obs_out %>% 
     # focus only on months with adequate data 
@@ -234,15 +237,24 @@ clean_pred_foo <- function(fit) {
   )
 }
 
-core_pred_list <- clean_pred_foo(fit_core)
-int_pred_list1 <- clean_pred_foo(fit_intermediate)
-full_pred_list <- clean_pred_foo(fit_full)
+core_pred_list <- clean_pred_foo(fit_core,
+                                 preds = pred_dat_comp %>% 
+                                   filter(
+                                     zone == "core",
+                                     month_n < 8.1 & month_n > 5.9
+                                   ))
+int_pred_list1 <- clean_pred_foo(fit_intermediate,
+                                 preds = pred_dat_comp)
+full_pred_list <- clean_pred_foo(fit_full,
+                                 preds = pred_dat_comp)
 
 comb_preds <- purrr::map2(
-  list(core_pred_list$preds,
-       int_pred_list1$preds,
-       # int_pred_list2$preds,
-       full_pred_list$preds),
+  list(
+    core_pred_list$preds,
+    int_pred_list1$preds,
+    # int_pred_list2$preds,
+    full_pred_list$preds
+  ),
   c("core", "int", "full_rw"),
   ~ {
     .x %>% 
@@ -253,11 +265,21 @@ comb_preds <- purrr::map2(
 ) %>% 
   bind_rows() %>% 
   mutate(
-    stock = str_split(stock, "_") %>% 
+    stock = str_split(stock, "-") %>% 
       purrr::map(., ~ .x[2]) %>% 
       as.character() %>% 
       c()
-  )
+  ) %>% 
+  mutate(
+    subarea = fct_reorder(subarea, as.numeric(zone)),
+    stock = factor(
+      stock, 
+      levels = c("Nitinat", "SWVI", "Fraser_Yearling", "Fraser_S", "Fraser_F",
+                 "PSD", "SOG", "other")
+    )
+  ) %>% 
+  select(-area_f, -reg) %>% 
+  distinct()
 
 p <- ggplot(data = comb_preds, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
@@ -279,6 +301,23 @@ p_obs <- p +
   theme(legend.position = "top")
 
 
+## stacked composition plot
+stack_comp <- ggplot(data = comb_preds, aes(x = month_n)) +
+  geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
+            stat = "identity") +
+  scale_fill_brewer(name = "Stock Group", palette = "Spectral") +
+  scale_colour_brewer(name = "Stock Group", palette = "Spectral") +
+  labs(y = "Predicted Composition") +
+  theme_classic() +
+  theme(legend.position = "right",
+        axis.text = element_text(size=9),
+        plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
+  ) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
+  facet_grid(model~subarea)
+
+
+
 png(here::here("figs", "nitinat_preds", "pred_ribbons.png"),
     height = 5, width = 6.5, units = "in", res = 250)
 p_ribbon
@@ -289,6 +328,44 @@ png(here::here("figs", "nitinat_preds", "pred_vs_obs.png"),
 p_obs
 dev.off()
 
+png(here::here("figs", "nitinat_preds", "stack_comp.png"),
+    height = 5, width = 6.5, units = "in", res = 250)
+stack_comp
+dev.off()
+
+# single model versions of above
+pdf(here::here("figs", "nitinat_preds", "stack_comp_preds_fullmodel.pdf"),
+    height = 6, width = 9)
+ggplot(data = comb_preds %>% 
+         filter(model == "int"), 
+       aes(x = month_n)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(subarea~stock) +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_prob_est))  +
+  geom_jitter(data = full_pred_list$obs_dat,
+              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
+  geom_point(data = full_pred_list$mean_dat,
+             aes(x = month_n, y = mean_obs_ppn), alpha = 0.6, color = "blue") +
+  scale_size_continuous() +
+  theme(legend.position = "top")
+
+ggplot(data = comb_preds %>% 
+         filter(model == "int"), 
+       aes(x = month_n)) +
+  geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
+            stat = "identity") +
+  scale_fill_brewer(name = "Stock Group", palette = "Spectral") +
+  scale_colour_brewer(name = "Stock Group", palette = "Spectral") +
+  labs(y = "Predicted Composition") +
+  theme_classic() +
+  theme(legend.position = "top",
+        axis.text = element_text(size=9),
+        plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
+  ) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
+  facet_grid(~subarea)
+dev.off()
 
 
 ## EXPLORATORY FIGS ------------------------------------------------------------
@@ -338,9 +415,9 @@ ggplot() +
            position = "stack", stat = "identity") +
   scale_fill_discrete(name = "Stock") +
   labs(x = "Month", y = "Agg Probability") +
-  # geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
-  #           position = position_dodge(width = 0.9), size = 2.5,
-  #           vjust = -0.5) +
+  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
+            position = position_dodge(width = 0.9), size = 2.5,
+            vjust = -0.5) +
   facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
   ggsidekick::theme_sleek()
 dev.off()
