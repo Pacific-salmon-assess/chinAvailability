@@ -16,14 +16,19 @@ library(stockseasonr)
 
 ## DATA CLEAN ------------------------------------------------------------------
 
-comp_in <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
+comp_in_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) 
+comp_in <- comp_in_raw %>% 
   rename(stock_region = region) %>% 
   mutate(
     # define stock groups
     agg_new = case_when(
-      grepl("CR", pst_agg) ~ "WA_OR_CA",
-      grepl("CST", pst_agg) ~ "WA_OR_CA",
-      pst_agg == "NBC_SEAK" ~ "SOG",
+      grepl("NITINAT", stock) ~ "Nitinat",
+      grepl("SWVI", resolved_stock_rollup) ~ "SWVI",
+      grepl("NWVI", resolved_stock_rollup) ~ "other",
+      pst_agg == "WCVI" ~ "SWVI",
+      grepl("CR", pst_agg) ~ "other",
+      grepl("CST", pst_agg) ~ "other",
+      pst_agg == "NBC_SEAK" ~ "other",
       grepl("Fraser", Region1Name) | pst_agg == "FR-early" ~ "Fraser",
       # Region1Name %in% c("Fraser_Summer_4.1") ~ "Fraser_S",
       # Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
@@ -59,10 +64,10 @@ trim_stock <- comp_in %>%
       !zone == "out"
     ) %>% 
     mutate(
+      month = lubridate::month(date, label = TRUE),
       month_n = lubridate::month(date),
       week = lubridate::week(date),
       yday = lubridate::yday(date),
-      month_n = lubridate::month(date),
       sample_id = paste(month_n, subarea, #week,
                         year, sep = "_"),
       area_f = as.factor(as.numeric(gsub("([0-9]+).*$", "\\1", area)))
@@ -79,8 +84,10 @@ trim_stock <- comp_in %>%
     month_n < 10.1 & month_n > 1.9,
     !reg == "out" 
   ) %>% 
-  mutate(year = as.factor(year),
-         subarea = as.factor(subarea)
+  mutate(
+    year = as.factor(year),
+    subarea = as.factor(subarea),
+    agg_new = paste("stock", agg_new, sep = "_")
   ) %>% 
   droplevels() 
 
@@ -205,15 +212,18 @@ clean_pred_foo <- function(fit) {
   # make mean observations
   obs_out <- fit$wide_comp_dat %>%
     mutate(samp_nn = apply(fit$tmb_data$Y2_ik, 1, sum)) %>%
-    pivot_longer(cols = c(PSD:SOG), 
+    pivot_longer(cols = starts_with("stock_"), 
                  names_to = "stock", 
-                 values_to = "obs_count") %>%
+                 values_to = "obs_count",
+                 names_prefix = "stock_") %>%
     mutate(obs_ppn = obs_count / samp_nn) %>% 
-    filter(subarea %in% pred_comp$subarea,
-           month_n %in% pred_comp$month_n
+    filter(subarea %in% pred_dat_comp$subarea,
+           month_n %in% pred_dat_comp$month_n
     ) 
   
   mean_obs_out <- obs_out %>% 
+    # focus only on months with adequate data 
+    filter(month_n > 5 & month_n < 9) %>% 
     group_by(stock, month_n, subarea) %>% 
     summarize(mean_obs_ppn = mean(obs_ppn), .groups = "drop")
   
@@ -241,7 +251,13 @@ comb_preds <- purrr::map2(
       )
   }
 ) %>% 
-  bind_rows()
+  bind_rows() %>% 
+  mutate(
+    stock = str_split(stock, "_") %>% 
+      purrr::map(., ~ .x[2]) %>% 
+      as.character() %>% 
+      c()
+  )
 
 p <- ggplot(data = comb_preds, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
@@ -322,9 +338,9 @@ ggplot() +
            position = "stack", stat = "identity") +
   scale_fill_discrete(name = "Stock") +
   labs(x = "Month", y = "Agg Probability") +
-  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
-            position = position_dodge(width = 0.9), size = 2.5,
-            vjust = -0.5) +
+  # geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
+  #           position = position_dodge(width = 0.9), size = 2.5,
+  #           vjust = -0.5) +
   facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
   ggsidekick::theme_sleek()
 dev.off()
