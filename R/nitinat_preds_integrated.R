@@ -181,33 +181,6 @@ pred_dat_comp <- expand.grid(
 
 ## FIT MODEL -------------------------------------------------------------------
 
-core_catch <- catch_subarea %>% 
-  filter(zone == "core")
-core_stock <- trim_stock %>% 
-  filter(zone == "core")
-
-fit_core <- fit_stockseasonr(
-  abund_formula = catch ~ 1 +
-    s(month_n, bs = "tp", k = 4, m = 2) +
-    subarea +
-    (1 | year),
-  abund_dat = core_catch,
-  abund_offset = "offset",
-  comp_formula = agg_new ~ 1 + subarea +
-    s(month_n, bs = "tp", k = 3), #+ (1 | year),
-  comp_dat = core_stock,
-  pred_dat = pred_dat_comp %>%
-    filter(zone == "core",
-           month_n < 8.1 & month_n > 5.9),
-  model = "integrated",
-  random_walk = FALSE,
-  fit = TRUE,
-  nlminb_loops = 2,
-  newton_loops = 1,
-  silent = FALSE
-)
-
-
 int_catch <- catch_subarea %>% 
   filter(
     zone %in% c("core", "intermediate"),
@@ -242,11 +215,13 @@ fit_intermediate <- fit_stockseasonr(
 
 full_catch <- catch_subarea %>% 
   filter(
-    month_n %in% c("5", "6", "7", "8", "9")
+    month_n %in% c(#"5", 
+      "6", "7", "8", "9")
   )
 full_stock <- trim_stock %>% 
   filter(
-    month_n %in% c("5", "6", "7", "8", "9")
+    month_n %in% c(#"5",
+      "6", "7", "8", "9")
   )
 
 fit_full <- fit_stockseasonr(
@@ -260,7 +235,7 @@ fit_full <- fit_stockseasonr(
     s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
   comp_dat = full_stock,
   pred_dat = pred_dat_comp,
-  model = "dirichlet",
+  model = "integrated",
   random_walk = TRUE,
   fit = TRUE,
   nlminb_loops = 2,
@@ -272,25 +247,23 @@ fit_full <- fit_stockseasonr(
 ## MAKE PREDICTIONS ------------------------------------------------------------
 
 
-clean_pred_foo <- function(fit, preds) {
+clean_int_pred_foo <- function(fit, preds) {
   # make predictions
   ssdr <- fit$ssdr
-  logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-  pred_mu <- ssdr[rownames(ssdr) == "pred_Mu2", ]
-  
+  log_pred_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
+
   link_preds <- data.frame(
-    link_prob_est = logit_pred_ppn[ , "Estimate"],
-    link_prob_se =  logit_pred_ppn[ , "Std. Error"],
-    pred_mu = pred_mu[ , "Estimate"]
+    link_abund_est = log_pred_abund[ , "Estimate"],
+    link_abund_se =  log_pred_abund[ , "Std. Error"]
   ) %>% 
     mutate(
-      pred_prob_est = plogis(link_prob_est),
-      pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
-      pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
+      pred_ppn_mu_est = exp(link_abund_est),
+      pred_ppn_mu_low = exp(link_abund_est + (qnorm(0.025) * link_abund_se)),
+      pred_ppn_mu_up = exp(link_abund_est + (qnorm(0.975) * link_abund_se))
     ) 
   
   stock_seq <- colnames(fit$tmb_data$Y2_ik)
-  pred_out <- purrr::map(stock_seq, function (x) {
+  purrr::map(stock_seq, function (x) {
     dum <- preds
     dum$stock <- x
     return(dum)
@@ -298,59 +271,22 @@ clean_pred_foo <- function(fit, preds) {
     bind_rows() %>%
     cbind(., link_preds) 
   
-  # make mean observations
-  obs_out <- fit$wide_comp_dat %>%
-    mutate(samp_nn = apply(fit$tmb_data$Y2_ik, 1, sum)) %>%
-    pivot_longer(cols = starts_with("stock-"), 
-                 names_to = "stock", 
-                 values_to = "obs_count",
-                 names_prefix = "stock-") %>%
-    mutate(obs_ppn = obs_count / samp_nn) %>% 
-    filter(subarea %in% preds$subarea,
-           month_n %in% preds$month_n
-    ) %>% 
-    mutate(
-      subarea = fct_reorder(subarea, as.numeric(zone)),
-      stock = factor(
-        stock,
-        levels = c("Nitinat", "SWVI", 
-                   # "Fraser",
-                   "Fraser_Yearling", "Fraser_S", "Fraser_F",
-                   "PSD", "SOG", "other")
-      )
-    )
-  
-  mean_obs_out <- obs_out %>% 
-    # focus only on months with adequate data 
-    filter(month_n > 5 & month_n < 9) %>% 
-    group_by(stock, month_n, subarea) %>% 
-    summarize(mean_obs_ppn = mean(obs_ppn), .groups = "drop")
-  
-  list(
-    preds = pred_out,
-    obs_dat = obs_out,
-    mean_dat = mean_obs_out
-  )
 }
 
-core_pred_list <- clean_pred_foo(fit_core,
-                                 preds = pred_dat_comp %>% 
-                                   filter(
-                                     zone == "core",
-                                     month_n < 8.1 & month_n > 5.9
-                                   ))
-int_pred_list1 <- clean_pred_foo(fit_intermediate,
+int_preds <- clean_int_pred_foo(fit_intermediate,
                                  preds = pred_dat_comp)
-full_pred_list <- clean_pred_foo(fit_full,
+full_preds <- clean_int_pred_foo(fit_full,
                                  preds = pred_dat_comp)
+
 
 comb_preds <- purrr::map2(
   list(
-    core_pred_list$preds,
-    int_pred_list1$preds,
-    full_pred_list$preds
+    # core_preds,
+    int_preds,
+    full_preds
   ),
-  c("core", "int", "full_rw"),
+  c(#"core",
+    "int", "full"),
   ~ {
     .x %>% 
       mutate(
@@ -378,15 +314,15 @@ comb_preds <- purrr::map2(
   select(-area_f, -reg) %>% 
   distinct()
 
-p <- ggplot(data = comb_preds, aes(x = month_n)) +
+p <- ggplot(data = comb_preds %>% filter(model == "int"), aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(subarea~stock) +
+  facet_grid(subarea~stock, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est, color = model)) 
+  geom_line(aes(y = pred_ppn_mu_est, color = model))
 
 p_ribbon <- p +
   geom_ribbon(data = comb_preds,
-              aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = model),
+              aes(ymin = pred_ppn_mu_low, ymax = pred_ppn_mu_up, fill = model),
               alpha = 0.2)
 
 p_obs <- p +

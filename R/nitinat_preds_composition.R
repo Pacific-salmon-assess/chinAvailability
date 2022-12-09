@@ -183,12 +183,10 @@ clean_pred_foo <- function(fit, preds) {
   # make predictions
   ssdr <- fit$ssdr
   logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-  pred_mu <- ssdr[rownames(ssdr) == "pred_Mu2", ]
-  
+
   link_preds <- data.frame(
     link_prob_est = logit_pred_ppn[ , "Estimate"],
-    link_prob_se =  logit_pred_ppn[ , "Std. Error"],
-    pred_mu = pred_mu[ , "Estimate"]
+    link_prob_se =  logit_pred_ppn[ , "Std. Error"]
   ) %>% 
     mutate(
       pred_prob_est = plogis(link_prob_est),
