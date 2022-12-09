@@ -1,21 +1,85 @@
-### Nitinat Stock Composition Estimates
-## Generate estimates of composition and stock-specific abundance for area near
+### Nitinat Stock Specific Abundance Estimates
+## Generate estimates of stock-specific abundance for area near
 ## Nitinat Lake (21-0 and 121-1). 
+## Analogue to nitinat_preds_composition.R which has different seasonal 
+## and spatial coverage
 ## To evaluate data quality and model performance generate:
-## 1) Exploratory plots of sampling intensity relative SWVI and JdF
-## 2) Observed stock composition, observed CPUE, and observed CPUE * abundance
+## 1) Exploratory plots of catch effort
+## 2) Observed observed CPUE and observed CPUE * composition 
+##    (comp in other script)
 ## 3) Model predictions for restricted (21-0 and 121-1), intermediate (all 
 ## 21 and 121) and full (SWVI and JdF) datasets. 
-## Dec. 5, 2022
+## Dec. 8, 2022
 
 library(tidyverse)
 # library(TMB)
 library(stockseasonr)
 
 
-
 ## DATA CLEAN ------------------------------------------------------------------
 
+
+## clean catch data first since more constrained 
+catch_subarea_raw <- readRDS(here::here("data", "rec", "rec_creel_subarea.rds"))
+catch_subarea <- catch_subarea_raw %>% 
+  mutate(
+    subarea_original = subarea,
+    subarea = case_when(
+      subarea %in% c("21A", "121C") ~ "21A-121C",
+      subarea %in% c("20DO", "20D", "20C") ~ "20D-20C",
+      subarea %in% c("20A", "20E") ~ "20A-20E",
+      TRUE ~ subarea
+    ),
+    # define core areas 
+    zone = case_when(
+      subarea %in% c("121A", "21A-121C") ~ "core",
+      subarea %in% c("121B", "20A-20E", "20E", "123R"
+                     # , "Area 20 (WCVI)", "Area 20 (West)"
+      ) ~ "intermediate",
+      subarea %in% c("20B", "20D-20C", "23J"
+                     # "Area 20 (East)",
+      ) ~ "full",
+      TRUE ~ "out"
+    ),
+    zone = factor(zone, levels = c("core", "intermediate", "full", "out")),
+    # correct apparently missing effort data
+    effort = ifelse(catch == "0" & is.na(effort),
+                    0,
+                    effort)
+  ) %>%
+  # remove sublegals then sum catch pooling clip rates and AD marks
+  filter(
+    !zone == "out",
+    legal == "legal"#,
+    # subarea_est == "yes"
+  ) %>% 
+  # first sum by original subarea to combine all catches (effort the same)
+  group_by(
+    month_n, year, subarea, subarea_original, zone, effort
+  ) %>% 
+  summarize(
+    catch = sum(catch),
+    .groups = "drop"
+  ) %>% 
+  # then sum by new subarea to combine catch AND effort
+  group_by(
+    month_n, year, subarea, zone
+  ) %>% 
+  summarize(
+    catch = sum(catch),
+    effort = sum(effort),
+    cpue = catch / effort,
+    offset = log(effort),
+    year = as.factor(year),
+    .groups = "drop"
+  ) %>% 
+  # remove 0 CPUE observations (skeptical)
+  filter(
+    !is.na(cpue)
+  )
+
+
+## clean composition and filter to match catch
 comp_in_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) 
 comp_in <- comp_in_raw %>% 
   rename(stock_region = region) %>% 
@@ -32,7 +96,8 @@ comp_in <- comp_in_raw %>%
       # grepl("Fraser", Region1Name) | pst_agg == "FR-early" ~ "Fraser",
       Region1Name %in% c("Fraser_Summer_4.1") ~ "Fraser_S",
       Region1Name %in% c("Fraser_Summer_5.2", "Fraser_Spring_5.2",
-                         "Fraser_Spring_4.2") | pst_agg == "FR-early" ~ "Fraser_Yearling",
+                         "Fraser_Spring_4.2") | pst_agg == "FR-early" ~
+        "Fraser_Yearling",
       Region1Name %in% c("Fraser_Fall") ~ "Fraser_F",
       TRUE ~ pst_agg
     ),
@@ -47,13 +112,13 @@ comp_in <- comp_in_raw %>%
     # define core areas 
     zone = case_when(
       subarea %in% c("121A", "21A-121C") ~ "core",
-      subarea %in% c("121B", "20A-20E", "20E", #"123U",
+      subarea %in% c("121B", "20A-20E", #"20E", "20A", #"123U",
                      "123R") ~ "intermediate",
       subarea %in% c("20B", "20D-20C", #"20E",
                      "23J") ~ "full",
       TRUE ~ "out"
     ),
-    zone = factor(zone, levels = c("core", "intermediate", "full"))
+    zone = factor(zone, levels = c("core", "intermediate", "full", "out"))
   ) 
   
 
@@ -61,7 +126,8 @@ comp_in <- comp_in_raw %>%
 trim_stock <- comp_in %>%
     filter(
       !legal == "sublegal",
-      !zone == "out"
+      !zone == "out",
+      subarea %in% catch_subarea$subarea
     ) %>% 
     mutate(
       month = lubridate::month(date, label = TRUE),
@@ -103,30 +169,37 @@ pred_dat_comp <- expand.grid(
   month_n = seq(min(trim_stock$month_n),
                 max(trim_stock$month_n),
                 by = 0.1
-  )#,
-  # year = unique(trim_stock$year)
-) %>% 
+  )
+  ) %>% 
   left_join(., area_key, by = "subarea") %>%
   filter(
     zone %in% c("core", "intermediate"),
-    month_n < 9.1 & month_n > 4.9
+    month_n < 9.1 & month_n > 5.9
   )
+
 
 
 ## FIT MODEL -------------------------------------------------------------------
 
-
+core_catch <- catch_subarea %>% 
+  filter(zone == "core")
 core_stock <- trim_stock %>% 
   filter(zone == "core")
 
 fit_core <- fit_stockseasonr(
-  comp_formula = agg_new ~ 1 + subarea + 
+  abund_formula = catch ~ 1 +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    subarea +
+    (1 | year),
+  abund_dat = core_catch,
+  abund_offset = "offset",
+  comp_formula = agg_new ~ 1 + subarea +
     s(month_n, bs = "tp", k = 3), #+ (1 | year),
   comp_dat = core_stock,
-  pred_dat = pred_dat_comp %>% 
+  pred_dat = pred_dat_comp %>%
     filter(zone == "core",
            month_n < 8.1 & month_n > 5.9),
-  model = "dirichlet",
+  model = "integrated",
   random_walk = FALSE,
   fit = TRUE,
   nlminb_loops = 2,
@@ -135,6 +208,11 @@ fit_core <- fit_stockseasonr(
 )
 
 
+int_catch <- catch_subarea %>% 
+  filter(
+    zone %in% c("core", "intermediate"),
+    month_n %in% c("6", "7", "8", "9")
+  )
 int_stock <- trim_stock %>% 
   filter(
     zone %in% c("core", "intermediate"),
@@ -142,13 +220,19 @@ int_stock <- trim_stock %>%
   )
 
 fit_intermediate <- fit_stockseasonr(
+  abund_formula = catch ~ 1 +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    subarea +
+    (1 | year),
+  abund_dat = int_catch,
+  abund_offset = "offset",
   comp_formula = agg_new ~ 1 + subarea +  
     s(month_n, bs = "tp", k = 4, m = 2)
   + (1 | year),
   comp_dat = int_stock,
   pred_dat = pred_dat_comp,
-  model = "dirichlet",
-  random_walk = FALSE,
+  model = "integrated",
+  random_walk = TRUE,
   fit = TRUE,
   nlminb_loops = 2,
   newton_loops = 1,
@@ -156,12 +240,22 @@ fit_intermediate <- fit_stockseasonr(
 )
 
 
+full_catch <- catch_subarea %>% 
+  filter(
+    month_n %in% c("5", "6", "7", "8", "9")
+  )
 full_stock <- trim_stock %>% 
   filter(
     month_n %in% c("5", "6", "7", "8", "9")
   )
 
 fit_full <- fit_stockseasonr(
+  abund_formula = catch ~ 1 +
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    subarea +
+    (1 | year),
+  abund_dat = full_catch,
+  abund_offset = "offset",
   comp_formula = agg_new ~ 1 + subarea + 
     s(month_n, bs = "tp", k = 4, m = 2) + (1 | year),
   comp_dat = full_stock,
@@ -219,7 +313,9 @@ clean_pred_foo <- function(fit, preds) {
       subarea = fct_reorder(subarea, as.numeric(zone)),
       stock = factor(
         stock,
-        levels = c("Nitinat", "SWVI", "Fraser_Yearling", "Fraser_S", "Fraser_F",
+        levels = c("Nitinat", "SWVI", 
+                   # "Fraser",
+                   "Fraser_Yearling", "Fraser_S", "Fraser_F",
                    "PSD", "SOG", "other")
       )
     )
@@ -252,7 +348,6 @@ comb_preds <- purrr::map2(
   list(
     core_pred_list$preds,
     int_pred_list1$preds,
-    # int_pred_list2$preds,
     full_pred_list$preds
   ),
   c("core", "int", "full_rw"),
@@ -274,7 +369,9 @@ comb_preds <- purrr::map2(
     subarea = fct_reorder(subarea, as.numeric(zone)),
     stock = factor(
       stock, 
-      levels = c("Nitinat", "SWVI", "Fraser_Yearling", "Fraser_S", "Fraser_F",
+      levels = c("Nitinat", "SWVI", 
+                 # "Fraser",
+                 "Fraser_Yearling", "Fraser_S", "Fraser_F",
                  "PSD", "SOG", "other")
     )
   ) %>% 
@@ -333,6 +430,8 @@ png(here::here("figs", "nitinat_preds", "stack_comp.png"),
 stack_comp
 dev.off()
 
+
+
 # single model versions of above
 pdf(here::here("figs", "nitinat_preds", "stack_comp_preds_fullmodel.pdf"),
     height = 6, width = 9)
@@ -370,17 +469,26 @@ dev.off()
 
 ## EXPLORATORY FIGS ------------------------------------------------------------
 
-# look at sample coverage in data passed to model
-png(here::here("figs", "nitinat_preds", "sample_coverage.png"),
-    height = 5, width = 6.5, units = "in", res = 250)
-trim_stock %>%
-  select(sample_id, year, subarea_original, month_n, nn, zone) %>%
-  distinct() %>%
+
+## Look at available catch data
+catch_sampling <- catch_subarea %>%
+  group_by(year, subarea, month_n, zone) %>%
+  tally() %>%
   ggplot() +
-  geom_jitter(aes(x = month_n, y = year, size = nn, colour = zone),
+  geom_jitter(aes(x = month_n, y = year, size = n, colour = zone),
               alpha = 0.5, width = 0.25) +
-  facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
+  facet_wrap(~fct_reorder(subarea, as.numeric(as.factor(zone)))) +
   ggsidekick::theme_sleek()
+
+seasonal_cpue <- ggplot(catch_subarea) +
+  geom_boxplot(aes(x = as.factor(month_n), y = cpue, fill = zone)) +
+  facet_wrap(~fct_reorder(subarea, as.numeric(as.factor(zone)))) +
+  ggsidekick::theme_sleek()
+
+
+pdf(here::here("figs", "nitinat_preds", "catch_effort_raw.pdf"))
+catch_sampling
+seasonal_cpue
 dev.off()
 
 
@@ -392,38 +500,15 @@ mean_comp <- trim_stock %>%
   summarize(
     agg_prob = sum(prob),
     agg_ppn = agg_prob / total_samples,
-    n_years = length(unique(year)),
     .groups = "drop"
   ) %>% 
   ungroup() %>% 
-  distinct() %>% 
-  mutate(
-    total_years = length(unique(trim_stock$year)),
-    ppn_years = n_years /total_years
-  )
+  distinct() 
 
 labs <- mean_comp %>% 
   dplyr::select(month_n, subarea_original, zone, total_samples) %>% 
   distinct() 
 
-
-png(here::here("figs", "nitinat_preds", "observed_composition.png"),
-    height = 5, width = 7.5, units = "in", res = 250)
-ggplot() + 
-  geom_bar(data = mean_comp, 
-           aes(fill = agg_new, y = agg_ppn, x = month_n, alpha = ppn_years),
-           position = "stack", stat = "identity") +
-  scale_fill_discrete(name = "Stock") +
-  labs(x = "Month", y = "Agg Probability") +
-  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
-            position = position_dodge(width = 0.9), size = 2.5,
-            vjust = -0.5) +
-  facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
-  ggsidekick::theme_sleek()
-dev.off()
-
-png(here::here("figs", "nitinat_preds", "observed_composition_nofade.png"),
-    height = 5, width = 7.5, units = "in", res = 250)
 ggplot() + 
   geom_bar(data = mean_comp, 
            aes(fill = agg_new, y = agg_ppn, x = month_n),
@@ -435,7 +520,23 @@ ggplot() +
             vjust = -0.5) +
   facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
   ggsidekick::theme_sleek()
-dev.off()
+
+
+# observed stock-specific CPUE
+stock_cpue <- left_join(trim_stock, catch_subarea, 
+          by = c("month_n", "zone", "subarea", "year")) %>% 
+  filter(
+    !is.na(catch)
+  ) %>% 
+  mutate(
+    stock_cpue = ((prob / nn) * catch) / effort
+  ) 
+
+ggplot(data = stock_cpue, aes(x = month_n)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(subarea~agg_new, scales = "free_y") +
+  ggsidekick::theme_sleek() +
+  geom_point(aes(y = stock_cpue, fill = zone), shape = 21) 
 
 
 ## MAP OF AREA -----------------------------------------------------------------
