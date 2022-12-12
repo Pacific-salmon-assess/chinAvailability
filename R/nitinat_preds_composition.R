@@ -95,7 +95,9 @@ trim_stock <- comp_in %>%
 
 # make predictive dataframe
 area_key <- trim_stock %>% 
-  select(subarea, area_f, reg, zone) %>% 
+  select(subarea, 
+         # area_f, reg,
+         zone) %>% 
   distinct()
 
 # subset predicted composition dataset
@@ -255,7 +257,7 @@ comb_preds <- purrr::map2(
     int_pred_list1$preds,
     full_pred_list$preds
   ),
-  c("core", "int", "full_rw"),
+  c("core", "int", "full"),
   ~ {
     .x %>% 
       mutate(
@@ -279,9 +281,15 @@ comb_preds <- purrr::map2(
                  "Fraser_Yearling", "Fraser_S", "Fraser_F",
                  "PSD", "SOG", "other")
     )
-  ) %>% 
-  select(-area_f, -reg) %>% 
-  distinct()
+  )
+
+# export for use in RMD
+saveRDS(comb_preds,
+        here::here(
+          "data", "model_fits", "nitinat_only", "composition_preds.RDS"
+        ))
+
+
 
 p <- ggplot(data = comb_preds, aes(x = month_n)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +

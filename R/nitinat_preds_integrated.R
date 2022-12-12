@@ -320,6 +320,13 @@ comb_preds <- purrr::map2(
   ) %>% 
   distinct()
 
+# export for use in RMD
+saveRDS(comb_preds,
+        here::here(
+          "data", "model_fits", "nitinat_only", "integrated_preds.RDS"
+        ))
+
+
 p <- ggplot(data = comb_preds, aes(x = month_n)) +
   labs(y = "Predicted Index of Abundance", x = "Month") +
   facet_grid(subarea~stock, scales = "free_y") +
