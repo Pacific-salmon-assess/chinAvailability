@@ -61,7 +61,8 @@ catch_subarea <- catch_subarea_raw %>%
     catch = sum(catch),
     .groups = "drop"
   ) %>% 
-  # then sum by new subarea to combine catch AND effort
+  # then sum by new subarea to combine catch AND effort across originally distinct
+  # subareas
   group_by(
     month_n, year, subarea, zone
   ) %>% 
@@ -73,6 +74,7 @@ catch_subarea <- catch_subarea_raw %>%
     year = as.factor(year),
     .groups = "drop"
   ) %>% 
+  distinct() %>% 
   # remove 0 CPUE observations (skeptical)
   filter(
     !is.na(cpue)
@@ -160,7 +162,8 @@ trim_stock <- comp_in %>%
 
 # make predictive dataframe
 area_key <- trim_stock %>% 
-  select(subarea, area_f, reg, zone) %>% 
+  select(subarea, #area_f, reg, 
+         zone) %>% 
   distinct()
 
 # subset predicted composition dataset
@@ -194,7 +197,7 @@ int_stock <- trim_stock %>%
 
 fit_intermediate <- fit_stockseasonr(
   abund_formula = catch ~ 1 +
-    s(month_n, bs = "tp", k = 4, m = 2) +
+    s(month_n, bs = "tp", k = 3, m = 2) +
     subarea +
     (1 | year),
   abund_dat = int_catch,
@@ -226,7 +229,7 @@ full_stock <- trim_stock %>%
 
 fit_full <- fit_stockseasonr(
   abund_formula = catch ~ 1 +
-    s(month_n, bs = "tp", k = 4, m = 2) +
+    s(month_n, bs = "tp", k = 3, m = 2) +
     subarea +
     (1 | year),
   abund_dat = full_catch,
@@ -250,11 +253,15 @@ fit_full <- fit_stockseasonr(
 clean_int_pred_foo <- function(fit, preds) {
   # make predictions
   ssdr <- fit$ssdr
+  # log_pred_mu1 <- ssdr[rownames(ssdr) == "log_pred_mu1", ]
   log_pred_abund <- ssdr[rownames(ssdr) == "log_pred_mu1_Pi", ]
+  # logit_pnn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
 
   link_preds <- data.frame(
     link_abund_est = log_pred_abund[ , "Estimate"],
-    link_abund_se =  log_pred_abund[ , "Std. Error"]
+    link_abund_se =  log_pred_abund[ , "Std. Error"]#,
+    # link_ppn_est = logit_pnn[ , "Estimate"],
+    # link_ppn_se =  logit_pnn[ , "Std. Error"]
   ) %>% 
     mutate(
       pred_ppn_mu_est = exp(link_abund_est),
@@ -263,7 +270,7 @@ clean_int_pred_foo <- function(fit, preds) {
     ) 
   
   stock_seq <- colnames(fit$tmb_data$Y2_ik)
-  purrr::map(stock_seq, function (x) {
+  dd <- purrr::map(stock_seq, function (x) {
     dum <- preds
     dum$stock <- x
     return(dum)
@@ -311,11 +318,10 @@ comb_preds <- purrr::map2(
                  "PSD", "SOG", "other")
     )
   ) %>% 
-  select(-area_f, -reg) %>% 
   distinct()
 
-p <- ggplot(data = comb_preds %>% filter(model == "int"), aes(x = month_n)) +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
+p <- ggplot(data = comb_preds, aes(x = month_n)) +
+  labs(y = "Predicted Index of Abundance", x = "Month") +
   facet_grid(subarea~stock, scales = "free_y") +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_ppn_mu_est, color = model))
@@ -325,81 +331,24 @@ p_ribbon <- p +
               aes(ymin = pred_ppn_mu_low, ymax = pred_ppn_mu_up, fill = model),
               alpha = 0.2)
 
-p_obs <- p +
-  geom_jitter(data = full_pred_list$obs_dat,
-              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
-  geom_point(data = full_pred_list$mean_dat,
-              aes(x = month_n, y = mean_obs_ppn), alpha = 0.6, color = "blue") +
-  scale_size_continuous() +
-  theme(legend.position = "top")
 
-
-## stacked composition plot
-stack_comp <- ggplot(data = comb_preds, aes(x = month_n)) +
-  geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
-            stat = "identity") +
-  scale_fill_brewer(name = "Stock Group", palette = "Spectral") +
-  scale_colour_brewer(name = "Stock Group", palette = "Spectral") +
-  labs(y = "Predicted Composition") +
-  theme_classic() +
-  theme(legend.position = "right",
-        axis.text = element_text(size=9),
-        plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
-  ) +
-  coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
-  facet_grid(model~subarea)
-
-
-
-png(here::here("figs", "nitinat_preds", "pred_ribbons.png"),
+png(here::here("figs", "nitinat_preds", "pred_ribbons_abund.png"),
     height = 5, width = 6.5, units = "in", res = 250)
 p_ribbon
 dev.off()
 
-png(here::here("figs", "nitinat_preds", "pred_vs_obs.png"),
-    height = 5, width = 6.5, units = "in", res = 250)
-p_obs
-dev.off()
-
-png(here::here("figs", "nitinat_preds", "stack_comp.png"),
-    height = 5, width = 6.5, units = "in", res = 250)
-stack_comp
-dev.off()
-
-
 
 # single model versions of above
-pdf(here::here("figs", "nitinat_preds", "stack_comp_preds_fullmodel.pdf"),
+pdf(here::here("figs", "nitinat_preds", "abund_preds_fullmodel.pdf"),
     height = 6, width = 9)
-ggplot(data = comb_preds %>% 
-         filter(model == "int"), 
+ggplot(data = comb_preds %>% filter(model == "full"), 
        aes(x = month_n)) +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(subarea~stock) +
+  labs(y = "Predicted Index of Abundance", x = "Month") +
+  facet_grid(subarea~stock, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  geom_line(aes(y = pred_prob_est))  +
-  geom_jitter(data = full_pred_list$obs_dat,
-              aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.2) +
-  geom_point(data = full_pred_list$mean_dat,
-             aes(x = month_n, y = mean_obs_ppn), alpha = 0.6, color = "blue") +
-  scale_size_continuous() +
-  theme(legend.position = "top")
-
-ggplot(data = comb_preds %>% 
-         filter(model == "int"), 
-       aes(x = month_n)) +
-  geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
-            stat = "identity") +
-  scale_fill_brewer(name = "Stock Group", palette = "Spectral") +
-  scale_colour_brewer(name = "Stock Group", palette = "Spectral") +
-  labs(y = "Predicted Composition") +
-  theme_classic() +
-  theme(legend.position = "top",
-        axis.text = element_text(size=9),
-        plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
-  ) +
-  coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
-  facet_grid(~subarea)
+  geom_line(aes(y = pred_ppn_mu_est)) +
+  geom_ribbon(aes(ymin = pred_ppn_mu_low, ymax = pred_ppn_mu_up),
+              alpha = 0.2)
 dev.off()
 
 
@@ -427,95 +376,3 @@ catch_sampling
 seasonal_cpue
 dev.off()
 
-
-## observed stock composition
-mean_comp <- trim_stock %>%
-  group_by(subarea_original, month) %>% 
-  mutate(total_samples = sum(prob)) %>% 
-  group_by(subarea_original, zone, month, month_n, total_samples, agg_new) %>% 
-  summarize(
-    agg_prob = sum(prob),
-    agg_ppn = agg_prob / total_samples,
-    .groups = "drop"
-  ) %>% 
-  ungroup() %>% 
-  distinct() 
-
-labs <- mean_comp %>% 
-  dplyr::select(month_n, subarea_original, zone, total_samples) %>% 
-  distinct() 
-
-ggplot() + 
-  geom_bar(data = mean_comp, 
-           aes(fill = agg_new, y = agg_ppn, x = month_n),
-           position = "stack", stat = "identity") +
-  scale_fill_discrete(name = "Stock") +
-  labs(x = "Month", y = "Agg Probability") +
-  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
-            position = position_dodge(width = 0.9), size = 2.5,
-            vjust = -0.5) +
-  facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
-  ggsidekick::theme_sleek()
-
-
-# observed stock-specific CPUE
-stock_cpue <- left_join(trim_stock, catch_subarea, 
-          by = c("month_n", "zone", "subarea", "year")) %>% 
-  filter(
-    !is.na(catch)
-  ) %>% 
-  mutate(
-    stock_cpue = ((prob / nn) * catch) / effort
-  ) 
-
-ggplot(data = stock_cpue, aes(x = month_n)) +
-  labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_grid(subarea~agg_new, scales = "free_y") +
-  ggsidekick::theme_sleek() +
-  geom_point(aes(y = stock_cpue, fill = zone), shape = 21) 
-
-
-## MAP OF AREA -----------------------------------------------------------------
-
-
-# import coastline SF dataframe
-coast <- readRDS(
-  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
-  st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84"))
-
-
-nitinat_areas <- st_read(here::here(shp_path, "creelareaspfma_2021.shp")) %>% 
-  st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
-  janitor::clean_names() %>% 
-  # adjust so that subareas in 20D are pooled
-  mutate(
-    subareaid = ifelse(grepl("20D", subareaid), "20D", subareaid)
-  ) %>% 
-  filter(
-    subareaid %in% c("23I", "23J", "123I") |
-      statarea %in% c("21", "121", "20"#, "123", "23")
-      )
-  ) %>% 
-  mutate(
-    core_area = ifelse(
-      subareaid %in% c("121A", "21A", "21B"),
-      "core",
-      "outside"
-    )
-  )
-
-alpha_pal <- c(0.1, 1.0)
-names(alpha_pal) <- unique(nitinat_areas$core_area)
-
-
-png(here::here("figs", "nitinat_preds", "subarea_map.png"),
-    height = 5, width = 6.5, units = "in", res = 250)
-ggplot() +
-  geom_sf(data = coast, color = "black", fill = "white") +
-  geom_sf(data = nitinat_areas,
-          aes(fill = as.factor(subareaid), alpha = core_area)) +
-  scale_alpha_manual(values = alpha_pal) +
-  coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank())
-dev.off()
