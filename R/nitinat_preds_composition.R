@@ -44,7 +44,6 @@ comp_in <- comp_in_raw %>%
       # subarea %in% c("20A", "20E") ~ "20A-20E",
       TRUE ~ subarea
     ),
-    # subarea = ifelse(subarea %in% c("20DO", "20D"), "20D", subarea),
     # define core areas 
     zone = case_when(
       subarea %in% c("121A", "21A-121C") ~ "core",
@@ -56,29 +55,29 @@ comp_in <- comp_in_raw %>%
     ),
     zone = factor(zone, levels = c("core", "intermediate", "full", "out"))
   ) 
-  
+
 
 # filter a bit
 trim_stock <- comp_in %>%
-    filter(
-      !legal == "sublegal",
-      !zone == "out"
-    ) %>% 
-    mutate(
-      month = lubridate::month(date, label = TRUE),
-      month_n = lubridate::month(date),
-      week = lubridate::week(date),
-      yday = lubridate::yday(date),
-      sample_id = paste(month_n, subarea, #week,
-                        year, sep = "_"),
-      area_f = as.factor(as.numeric(gsub("([0-9]+).*$", "\\1", area)))
-    ) %>% 
-    group_by(sample_id) %>% 
-    mutate(nn = length(unique(id)) %>% as.numeric) %>% 
-    ungroup() %>% 
+  filter(
+    !legal == "sublegal",
+    !zone == "out"
+  ) %>% 
+  mutate(
+    month = lubridate::month(date, label = TRUE),
+    month_n = lubridate::month(date),
+    week = lubridate::week(date),
+    biweek = ceiling(week / 2),
+    yday = lubridate::yday(date),
+    sample_id = paste(month_n, subarea, #week,
+                      year, sep = "_"),
+    area_f = as.factor(as.numeric(gsub("([0-9]+).*$", "\\1", area)))
+  ) %>% 
+  group_by(sample_id) %>% 
+  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
+  ungroup() %>% 
   group_by(sample_id, subarea, subarea_original, area_f, reg = cap_region, 
-           #week, 
-           month, month_n, year, nn, agg_new, zone) %>% 
+          month, month_n, year, nn, agg_new, zone) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   ungroup() %>% 
   filter(
@@ -115,9 +114,7 @@ pred_dat_comp <- expand.grid(
     month_n < 9.1 & month_n > 4.9
   )
 
-
 ## FIT MODEL -------------------------------------------------------------------
-
 
 core_stock <- trim_stock %>% 
   filter(zone == "core")
@@ -142,6 +139,7 @@ int_stock <- trim_stock %>%
   filter(
     zone %in% c("core", "intermediate"),
     month_n %in% c("6", "7", "8", "9")
+    # biweek > 10
   )
 
 fit_intermediate <- fit_stockseasonr(
@@ -382,25 +380,62 @@ dev.off()
 
 ## EXPLORATORY FIGS ------------------------------------------------------------
 
+# reimport data for biweekly samplie sizes
+# filter a bit
+trim_stock_biweekly <- comp_in %>%
+  filter(
+    !legal == "sublegal",
+    !zone == "out"
+  ) %>% 
+  mutate(
+    month = lubridate::month(date, label = TRUE),
+    month_n = lubridate::month(date),
+    week = lubridate::week(date),
+    biweek = ceiling(week / 2),
+    yday = lubridate::yday(date),
+    sample_id = paste(biweek, subarea, #week,
+                      year, sep = "_"),
+    area_f = as.factor(as.numeric(gsub("([0-9]+).*$", "\\1", area)))
+  ) %>% 
+  filter(month_n < 10.1 & month_n > 1.9) %>% 
+  group_by(sample_id) %>% 
+  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
+  ungroup() %>% 
+  group_by(sample_id, subarea, subarea_original, area_f, reg = cap_region, 
+           biweek, year, nn, agg_new, zone) %>% 
+  summarize(prob = sum(prob), .groups = "drop") %>% 
+  ungroup() %>% 
+  mutate(
+    year = as.factor(year),
+    subarea = as.factor(subarea),
+    agg_new = paste("stock", agg_new, sep = "-")
+  ) %>% 
+  droplevels() 
+
+
 # look at sample coverage in data passed to model
-png(here::here("figs", "nitinat_preds", "sample_coverage.png"),
+png(here::here("figs", "nitinat_preds", "sample_coverage_biweek.png"),
     height = 5, width = 6.5, units = "in", res = 250)
-trim_stock %>%
-  select(sample_id, year, subarea_original, month_n, nn, zone) %>%
+trim_stock_biweekly %>%
+  # filter(!zone == "full") %>% 
+  select(sample_id, year, subarea_original, biweek, nn, zone) %>%
   distinct() %>%
   ggplot() +
-  geom_jitter(aes(x = month_n, y = year, size = nn, colour = zone),
+  geom_jitter(aes(x = biweek, y = year, size = nn, colour = zone),
               alpha = 0.5, width = 0.25) +
   facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
-  ggsidekick::theme_sleek()
+  ggsidekick::theme_sleek()# +
+  # scale_x_continuous(breaks = c(12, 14.5, 17),
+  #                    labels = c("June", "July", "August")) +
+  # labs(x = "month")
 dev.off()
 
 
 ## observed stock composition
-mean_comp <- trim_stock %>%
-  group_by(subarea_original, month) %>% 
+mean_comp <- trim_stock_biweekly %>%
+  group_by(subarea_original, biweek) %>% 
   mutate(total_samples = sum(prob)) %>% 
-  group_by(subarea_original, zone, month, month_n, total_samples, agg_new) %>% 
+  group_by(subarea_original, zone, biweek, total_samples, agg_new) %>% 
   summarize(
     agg_prob = sum(prob),
     agg_ppn = agg_prob / total_samples,
@@ -411,42 +446,56 @@ mean_comp <- trim_stock %>%
   distinct() %>% 
   mutate(
     total_years = length(unique(trim_stock$year)),
-    ppn_years = n_years /total_years
-  )
+    ppn_years = n_years /total_years,
+    stock = str_split(agg_new, "-") %>% 
+      purrr::map(., ~ .x[2]) %>% 
+      as.character() %>% 
+      c(),
+    stock = factor(
+      stock,
+      levels = c("Nitinat", "SWVI",
+                 # "Fraser",
+                 "Fraser_Yearling", "Fraser_S", "Fraser_F",
+                 "PSD", "SOG", "other")
+    )
+  )# %>% 
+  # filter(!zone == "full")
 
 labs <- mean_comp %>% 
-  dplyr::select(month_n, subarea_original, zone, total_samples) %>% 
+  dplyr::select(biweek, subarea_original, zone, total_samples) %>% 
   distinct() 
 
 
-png(here::here("figs", "nitinat_preds", "observed_composition.png"),
+png(here::here("figs", "nitinat_preds", "observed_composition_biweekly.png"),
     height = 5, width = 7.5, units = "in", res = 250)
 ggplot() + 
   geom_bar(data = mean_comp, 
-           aes(fill = agg_new, y = agg_ppn, x = month_n, alpha = ppn_years),
+           aes(fill = stock, y = agg_ppn, x = biweek, alpha = ppn_years),
            position = "stack", stat = "identity") +
   scale_fill_discrete(name = "Stock") +
-  labs(x = "Month", y = "Agg Probability") +
-  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
+  labs(x = "Biweek", y = "Agg Probability") +
+  geom_text(data = labs, aes(x = biweek, y = -Inf, label = total_samples),
             position = position_dodge(width = 0.9), size = 2.5,
             vjust = -0.5) +
   facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
-  ggsidekick::theme_sleek()
+  ggsidekick::theme_sleek()# +
+  # scale_x_continuous(breaks = c(12, 14.5, 17),
+  #                    labels = c("June", "July", "August"))
 dev.off()
 
-png(here::here("figs", "nitinat_preds", "observed_composition_nofade.png"),
+png(here::here("figs", "nitinat_preds", "observed_composition_nofade_biweekly.png"),
     height = 5, width = 7.5, units = "in", res = 250)
 ggplot() + 
   geom_bar(data = mean_comp, 
-           aes(fill = agg_new, y = agg_ppn, x = month_n),
+           aes(fill = stock, y = agg_ppn, x = biweek),
            position = "stack", stat = "identity") +
   scale_fill_discrete(name = "Stock") +
-  labs(x = "Month", y = "Agg Probability") +
-  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
+  labs(x = "Biweek", y = "Agg Probability") +
+  geom_text(data = labs, aes(x = biweek, y = -Inf, label = total_samples),
             position = position_dodge(width = 0.9), size = 2.5,
             vjust = -0.5) +
   facet_wrap(~fct_reorder(subarea_original, as.numeric(as.factor(zone)))) +
-  ggsidekick::theme_sleek()
+  ggsidekick::theme_sleek() 
 dev.off()
 
 

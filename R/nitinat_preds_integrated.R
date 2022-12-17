@@ -351,7 +351,7 @@ pdf(here::here("figs", "nitinat_preds", "abund_preds_fullmodel.pdf"),
 ggplot(data = comb_preds %>% filter(model == "full"), 
        aes(x = month_n)) +
   labs(y = "Predicted Index of Abundance", x = "Month") +
-  facet_grid(subarea~stock, scales = "free_y") +
+  facet_grid(subarea~stock) +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_ppn_mu_est)) +
   geom_ribbon(aes(ymin = pred_ppn_mu_low, ymax = pred_ppn_mu_up),
@@ -377,9 +377,20 @@ seasonal_cpue <- ggplot(catch_subarea) +
   facet_wrap(~fct_reorder(subarea, as.numeric(as.factor(zone)))) +
   ggsidekick::theme_sleek()
 
+seasonal_effort <- ggplot(catch_subarea %>% 
+                            filter(subarea %in% c("121A", "21A-121C"))) +
+  geom_boxplot(aes(x = as.factor(month_n), y = effort)) +
+  facet_wrap(~fct_reorder(subarea, as.numeric(as.factor(zone)))) +
+  ggsidekick::theme_sleek() +
+  labs(
+    x = "Month",
+    y = "Summed Vessel Days Per Month"
+  )
 
 pdf(here::here("figs", "nitinat_preds", "catch_effort_raw.pdf"))
 catch_sampling
 seasonal_cpue
+seasonal_effort
 dev.off()
+
 
