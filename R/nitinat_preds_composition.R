@@ -95,6 +95,7 @@ trim_stock <- comp_in %>%
 # make predictive dataframe
 area_key <- trim_stock %>% 
   select(subarea, 
+         subarea_original,
          # area_f, reg,
          zone) %>% 
   distinct()
@@ -108,7 +109,11 @@ pred_dat_comp <- expand.grid(
   )#,
   # year = unique(trim_stock$year)
 ) %>% 
-  left_join(., area_key, by = "subarea") %>%
+  left_join(.,
+            area_key %>% 
+              select(-subarea_original) %>% 
+              distinct(),
+            by = "subarea") %>%
   filter(
     zone %in% c("core", "intermediate"),
     month_n < 9.1 & month_n > 4.9
@@ -501,6 +506,19 @@ dev.off()
 
 ## MAP OF AREA -----------------------------------------------------------------
 
+library(sf)
+
+library("parallel")
+ncores <- detectCores() - 2
+if (Sys.info()['sysname'] == "Windows") {
+  library("doParallel")
+  cl <- makeCluster(ncores)
+  registerDoParallel(cl)
+  shp_path <- "C:/Users/FRESHWATERC/Documents/drive docs/spatial/creel_areas/"
+} else {
+  doMC::registerDoMC(ncores)
+  shp_path <- "/Users/cam/Google Drive/spatial/creel_areas/"
+}
 
 # import coastline SF dataframe
 coast <- readRDS(
@@ -516,11 +534,16 @@ nitinat_areas <- st_read(here::here(shp_path, "creelareaspfma_2021.shp")) %>%
     subareaid = ifelse(grepl("20D", subareaid), "20D", subareaid)
   ) %>% 
   filter(
-    subareaid %in% c("23I", "23J", "123I") |
+    subareaid %in% c("23I", "23J") |
       statarea %in% c("21", "121", "20"#, "123", "23")
       )
   ) %>% 
   mutate(
+    subareaid_new = case_when(
+      subareaid == "23I" ~ "123R",
+      subareaid == "21B" ~ "121C",
+      TRUE ~ subareaid
+      ),
     core_area = ifelse(
       subareaid %in% c("121A", "21A", "21B"),
       "core",
@@ -532,13 +555,15 @@ alpha_pal <- c(0.1, 1.0)
 names(alpha_pal) <- unique(nitinat_areas$core_area)
 
 
-png(here::here("figs", "nitinat_preds", "subarea_map.png"),
-    height = 5, width = 6.5, units = "in", res = 250)
+pdf(here::here("figs", "nitinat_preds", "subarea_map.pdf"),
+    height = 5, width = 6.5)
 ggplot() +
   geom_sf(data = coast, color = "black", fill = "white") +
   geom_sf(data = nitinat_areas,
-          aes(fill = as.factor(subareaid), alpha = core_area)) +
-  scale_alpha_manual(values = alpha_pal) +
+          aes(fill = as.factor(subareaid_new))) +#, 
+              # alpha = core_area)) +
+  scale_fill_discrete(name = "Creel Survey\nSubarea") +
+  # scale_alpha_manual(values = alpha_pal, guide = NULL) +
   coord_sf(xlim = c(-126, -122), ylim = c(48, 49.75)) +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
