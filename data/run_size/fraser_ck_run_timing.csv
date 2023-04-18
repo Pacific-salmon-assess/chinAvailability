@@ -13,7 +13,7 @@ spring_52,Birkenhead R,,103,13-Apr,75,10,107,17-Apr,5,10.2
 spring_52,Blue R,,196,15-Jul,58,10.2,,,,
 spring_52,Bowron R,,182,1-Jul,178,16.7,178,27-Jun,13,11.1
 spring_52,Bridge R,,197,16-Jul,17,14.9,188,7-Jul,7,8.5
-spring_52,cariboo,Upper,190,9-Jul,84,19.7,175,24-Jun,13,11.3
+spring_52,cariboo_upper,Upper,190,9-Jul,84,19.7,175,24-Jun,13,11.3
 spring_52,Chilako R,,160,9-Jun,31,48.5,,,,
 spring_52,chilcotin_lower,,183,2-Jul,90,18.6,172,21-Jun,6,15.5
 spring_52,chilcotin_upper,,145,25-May,35,34.6,,,,
@@ -25,7 +25,7 @@ spring_52,Elkin Cr,,204,23-Jul,17,23.1,,,,
 spring_52,Endako R,,175,24-Jun,3,50.1,,,,
 spring_52,Finn Cr,,194,13-Jul,48,14.9,184,3-Jul,7,14.5
 spring_52,Fontoniko Cr,,169,18-Jun,35,13,167,16-Jun,3,9.6
-spring_52,Fraser R ,@ Tete Jaune Cache,187,6-Jul,194,14.4,,,,
+spring_52,fraser_tj,@ Tete Jaune Cache,187,6-Jul,194,14.4,,,,
 spring_52,Goat R,,178,27-Jun,6,14.1,,,,
 spring_52,Herrick Cr,,203,22-Jul,15,10.2,,,,
 spring_52,Holmes R,,180,29-Jun,118,16.7,,,,
@@ -47,7 +47,7 @@ spring_52,Swift Cr,,180,29-Jun,13,15.8,126,6-May,3,19.3
 spring_52,Torpy R,,174,23-Jun,139,15.4,,,,
 spring_52,pitt,,207,26-Jul,22,21.6,,,,
 spring_52,Walker Cr,,191,10-Jul,12,23.2,,,,
-spring_52,West Road R,,157,6-Jun,35,42.5,170,19-Jun,32,11.7
+spring_52,west_road,,157,6-Jun,35,42.5,170,19-Jun,32,11.7
 spring_52,Willow R,,178,27-Jun,30,18.1,165,14-Jun,9,11.7
 summer_41,lower_adams,Lower,234,22-Aug,510,11,,,,
 summer_41,upper_adams,Upper,204,23-Jul,178,13.8,,,,
@@ -60,7 +60,7 @@ summer_41,south_thompson,,237,25-Aug,2436,11.6,,,,
 summer_41,Thompson R,,237,25-Aug,3080,11.2,,,,
 summer_52,Barriere R,,215,3-Aug,36,18,,,,
 summer_52,big_silver,,239,27-Aug,40,17.7,,,,
-summer_52,cariboo,Lower,220,8-Aug,107,16.5,,,,
+summer_52,cariboo_lower,,220,8-Aug,107,16.5,,,,
 summer_52,Chilko R,,198,17-Jul,652,15.5,193,12-Jul,6,11.8
 summer_52,Clearwater R,,214,2-Aug,649,15.5,211,30-Jul,29,16.3
 summer_52,Mahood R,,249,6-Sep,1,,,,,
