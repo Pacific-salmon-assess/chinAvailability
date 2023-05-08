@@ -1,17 +1,18 @@
 ## Data Clean
 # Dec. 1, 2021
+# Updated: May 8, 2023
 
 library(tidyverse)
 
 # stock keys (old and new version have slightly different stock formats, keep
 # both)
-stock_key1 <- readRDS(here::here("data", "rec", "finalStockList_Jan2022.rds"))
-stock_key2 <- readRDS(here::here("data", "rec", "finalStockList_Oct2022.rds"))
-stock_key <- rbind(stock_key1, stock_key2) %>% distinct()
+# stock_key1 <- readRDS(here::here("data", "rec", "finalStockList_Jan2022.rds"))
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Apr2023.rds"))
+# stock_key <- rbind(stock_key1, stock_key2) %>% distinct()
 
 # spatial data for creel subareas in southern bc to use as a covariate
 creel_spatial <- readRDS(
-  here::here("data", "rec", "creel_subarea_spatial.rds")
+  here::here("data", "spatial", "creel_subarea_spatial.rds")
 ) %>% 
   sf::st_drop_geometry() %>% 
   #coerce 20-D to equal specific subarea
@@ -23,10 +24,12 @@ creel_spatial <- readRDS(
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
 
 # recreational composition data since through 2021 (clean to match rec_raw)
-rec_raw_new <- read.csv(#here::here("data", "rec", "sc_biodata_jul8_21.csv"),
-  here::here("data", "rec", "sc_biodata_oct6_22.csv"),
-                        stringsAsFactors = FALSE, na.strings=c("","NA")) %>% 
+rec_raw_new <- read.csv(
+  here::here("data", "rec", "sc_biodata_jan_23.csv"),
+  stringsAsFactors = FALSE, na.strings=c("","NA")
+) %>% 
   janitor::clean_names(.) 
+
 
 # remove duplicates, id numbers w/ multiple in columns, check unique vals are
 # correct, merge with id2
@@ -106,34 +109,27 @@ corrected_sizes <- read.csv(
   select(biokey, new_length_mm)
 
 # export then paste/add corrections into southcoast_size_errors_corrected.csv
-# write.csv(weird_sizes %>% 
-#             filter(!biokey %in% corrected_sizes$biokey),
-#           here::here("data", "rec", "southcoast_size_errors.csv"),
-#           row.names = FALSE)
-
+write.csv(weird_sizes %>%
+            filter(!biokey %in% corrected_sizes$biokey),
+          here::here("data", "rec", "southcoast_size_errors.csv"),
+          row.names = FALSE)
 
 wide_rec3 <- full_join(wide_rec2, corrected_sizes, by = "biokey") %>%
   mutate(
-    fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) 
+    fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) %>% 
+      as.numeric()
   ) 
 
-
-# location data from CWT recoveries
-cwt_locs <- read.csv(here::here("data", "spatial", "cwt_coordinate_lookup.csv"))
-
-unique(wide_rec3$fishing_location)[1:10]
-
-cwt_locs %>% filter(grepl("Sidney", description))
 
 # GSI CLEAN --------------------------------------------------------------------
 
 # trim for GSI purposes
 wide_rec3_trim <- wide_rec3 %>% 
   filter(
-    !is.na(resolved_stock_source),
+    !is.na(resolved_stock_source)#,
     # for now remove all samples that don't also DNA data (unrepresentative 
     # sampling)
-    !is.na(dna_results_stock_1)
+    # !is.na(dna_results_stock_1)
   ) %>% 
   mutate(
     # make oto/dna/cwt equivalent
@@ -149,8 +145,9 @@ wide_rec3_trim <- wide_rec3 %>%
     )
   ) %>% 
   select(
-    id = biokey, date, month, year, cap_region, area, area_n, subarea, legal, 
-    fl = length_mm, sex, ad = adipose_fin_clipped, resolved_stock_source, 
+    id = biokey, date, month, year, cap_region, area, area_n, subarea, 
+    fishing_location, legal, 
+    fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob"),
@@ -201,10 +198,10 @@ long_rec <- wide_rec3_trim %>%
   ) %>% 
   filter(!is.na(stock),
          !is.na(prob)) %>% 
-  left_join(., stock_key, by = "stock") %>% 
-  # add distance from juan de fuca mouth from creel subarea spatial file
-  left_join(., creel_spatial %>% select(creelsub, dist_123i),
-            by = "creelsub")
+  left_join(., stock_key, by = "stock") #%>%
+  # # add distance from juan de fuca mouth from creel subarea spatial file
+  # left_join(., creel_spatial %>% select(creelsub, dist_123i),
+  #           by = "creelsub")
 
 stocks_to_add <- long_rec %>%
   filter(
@@ -226,7 +223,7 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
 wide_size <- wide_rec3 %>% 
   select(id = biokey, date, month, year, cap_region, area, area_n, subarea, 
-         legal, fl = length_mm, sex, ad = adipose_fin_clipped) %>%
+         fishing_location, legal, fl, sex, ad = adipose_fin_clipped) %>%
   #remove missing and non-sensical size_classes
   filter(
     !is.na(fl),
@@ -394,3 +391,7 @@ saveRDS(catch_subarea, here::here("data", "rec", "rec_creel_subarea.rds"))
 saveRDS(catch_area, here::here("data", "rec", "rec_creel_area.rds"))
 
 
+## ADD LOCATION DATA -----------------------------------------------------------
+
+# add georeferenced locations for stocks along main migratory corridor
+fish_locs <- read.csv(here::here("data", "spatial", "sc_rec_locations.csv"))
