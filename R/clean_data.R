@@ -11,14 +11,14 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Apr2023.rds"))
 # stock_key <- rbind(stock_key1, stock_key2) %>% distinct()
 
 # spatial data for creel subareas in southern bc to use as a covariate
-creel_spatial <- readRDS(
-  here::here("data", "spatial", "creel_subarea_spatial.rds")
-) %>% 
-  sf::st_drop_geometry() %>% 
-  #coerce 20-D to equal specific subarea
-  mutate(
-    creelsub = ifelse(creelsub == "20-DO", "20-D", creelsub)
-  )
+# creel_spatial <- readRDS(
+#   here::here("data", "spatial", "creel_subarea_spatial.rds")
+# ) %>% 
+#   sf::st_drop_geometry() %>% 
+#   #coerce 20-D to equal specific subarea
+#   mutate(
+#     creelsub = ifelse(creelsub == "20-DO", "20-D", creelsub)
+#   )
 
 
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
@@ -394,4 +394,18 @@ saveRDS(catch_area, here::here("data", "rec", "rec_creel_area.rds"))
 ## ADD LOCATION DATA -----------------------------------------------------------
 
 # add georeferenced locations for stocks along main migratory corridor
-fish_locs <- read.csv(here::here("data", "spatial", "sc_rec_locations.csv"))
+fish_locs <- read.csv(here::here("data", "spatial", "sc_rec_locations.csv"),
+                      na.strings=c("", "#N/A", "-")) %>% 
+  select(aa_biodata_location, new_name:new_lat) %>% 
+  filter(!(grepl("None", aa_biodata_location)),
+         new_pfma %in% c(#"123", "23",
+                         "121", "21", "22", "20", "19", "18")) %>% 
+  distinct()
+
+
+sp_rec <- wide_rec3 %>% 
+  filter(area %in% c(#"123", "23", 
+    "121", "21", "22", "20", "19", "18")) %>%
+  select(biokey, area, aa_biodata_location = fishing_location) %>% 
+  left_join(., fish_locs, by = "aa_biodata_location") %>% 
+  glimpse()
