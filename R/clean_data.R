@@ -6,9 +6,7 @@ library(tidyverse)
 
 # stock keys (old and new version have slightly different stock formats, keep
 # both)
-# stock_key1 <- readRDS(here::here("data", "rec", "finalStockList_Jan2022.rds"))
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Apr2023.rds"))
-# stock_key <- rbind(stock_key1, stock_key2) %>% distinct()
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds"))
 
 # spatial data for creel subareas in southern bc to use as a covariate
 # creel_spatial <- readRDS(
