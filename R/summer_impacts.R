@@ -307,29 +307,32 @@ ggplot(preds_zi, aes(x = .prediction)) +
 
 
 preds4 <- fit4 %>% 
-  epred_draws(newdata = new_data, re_formula = NULL, scale = "response")
+  epred_draws(newdata = new_data, re_formula = NA, scale = "response")
 
 preds4_mean <- preds4 %>% 
   group_by(region, dataset2, week) %>% 
   summarize(.epred = mean(.epred), .groups = "drop")
 
-ggplot() +
+obs_comp <- ggplot() +
   geom_line(data = preds4_mean, aes(x = week, y = .epred), 
             color = "red", lwd = 2, group = 1) +
   geom_jitter(data = dd, aes(x = week, y = prob, size = samp_nn, fill = year), 
               alpha = 0.5, shape = 21) +
   facet_grid(dataset2~region) +
+  labs(y = "Proportion Summer 5_2 in Catch", x = "Week (June-Sep)") +
   ggsidekick::theme_sleek()
 
-ggplot(data = preds4, aes(x = week, y = .epred)) +
+pred_ribbon <- ggplot(data = preds4, aes(x = week, y = .epred)) +
   stat_lineribbon() +
-  facet_grid(dataset2~region) +
+  facet_grid(dataset2~region) + 
+  labs(y = "Predicted Proportion Summer 5_2 in Catch", 
+       x = "Week (June-Sep)") +
   ggsidekick::theme_sleek()
 
 
 ## convert to harvested fish in man scenarios
 scen_tbl <- expand.grid(
-  scenario = c("status quo", "2023", "adj"),
+  scenario = c("status_quo", "2023", "adj"),
   week = seq(31, 34, by = 1),
   region = unique(dd$region),
   dataset2 = "comm",
@@ -367,9 +370,10 @@ pred_dat <- scen_tbl$preds[[1]] %>%
     up_exp = quantile(exp, 0.95)
   ) 
 
-ggplot(pred_dat, aes(x = week_group, y = mean_exp)) +
+mean_stock_comp <- ggplot(pred_dat, aes(x = week_group, y = mean_exp)) +
   geom_pointrange(aes(ymin = lo_exp, ymax = up_exp)) +
   facet_wrap(~region) +
+  labs(y = "Predicted Commercial\nSummer 5_2 Composition", x = "August Period") +
   ggsidekick::theme_sleek()
 
 # catch preds
@@ -384,7 +388,7 @@ pred_catch <- scen_tbl %>%
     catch_52 = catch * exp
   )
 
-
+# catch by region and week group
 pred_catch %>% 
   group_by(scenario, region, week_group, catch) %>%
   summarize(
@@ -397,11 +401,13 @@ pred_catch %>%
   facet_grid(scenario ~ region) +
   ggsidekick::theme_sleek()
 
-pred_catch %>% 
+# catch by region
+pred_catch_est <- pred_catch %>% 
   group_by(scenario, region, .draw) %>% 
   summarize(
     month_catch = sum(catch_52)
   ) %>%
+  group_by(scenario, region) %>% 
   summarize(
     mean_catch = mean(month_catch),
     lo_catch = quantile(month_catch, 0.05),
@@ -410,5 +416,41 @@ pred_catch %>%
   ggplot(., aes(x = region, y = mean_catch)) +
   geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
   facet_wrap(~ scenario) +
+  labs(y = "Predicted Summer 5_2 Commercial Catch (pieces)", x = "Area G Region") +
   ggsidekick::theme_sleek()
-  
+
+
+# difference in total catch
+diff_catch <- pred_catch %>% 
+  group_by(scenario, .draw) %>% 
+  summarize(
+    open_catch = sum(catch_52)
+  ) %>%
+  pivot_wider(names_from = scenario, values_from = open_catch, 
+              names_prefix = "scen_") %>% 
+  mutate(
+    `New to Status Quo` = scen_status_quo - scen_2023,
+    `New to Adjusted` = scen_adj - scen_2023
+  ) %>% 
+  select(.draw, `New to Adjusted`, `New to Status Quo`) %>% 
+  pivot_longer(cols = c(`New to Adjusted`, `New to Status Quo`)) %>% 
+  group_by(name) %>% 
+  summarize(
+    mean_diff = mean(value),
+    lo_diff = quantile(value, 0.05),
+    up_diff = quantile(value, 0.95)
+  ) %>% 
+  ggplot(., aes(y = mean_diff, x = name)) +
+  geom_pointrange(aes(ymin = lo_diff, ymax = up_diff),
+                  shape = 21) +
+  labs(y = "Difference in Predicted Summer 5_2 Catch (pieces)", x = "Scenario") +
+  ggsidekick::theme_sleek()
+
+
+pdf(here::here("figs", "summer_impacts", "summary_figs.pdf"))
+obs_comp
+pred_ribbon
+mean_stock_comp
+pred_catch_est
+diff_catch
+dev.off()
