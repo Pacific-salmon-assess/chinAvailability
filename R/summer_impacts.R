@@ -25,10 +25,6 @@ comp_in_raw %>%
   arrange(stock, Region1Name) %>% 
   print(n = Inf)
 
-comp_in_raw %>% 
-  filter(cap_region %in% c("NWVI", "SWVI")) %>% 
-  select(area, cap_region) %>% 
-  distinct()
 
 rec_dat <- comp_in_raw %>% 
   filter(cap_region %in% c("NWVI", "SWVI"),
@@ -36,7 +32,7 @@ rec_dat <- comp_in_raw %>%
          fl >= 550,
          month %in% c("June", "July", "August", "September")) %>% 
   mutate(
-    smu = ifelse(Region1Name == "Fraser_Fall", Region1Name, "other"),
+    smu = ifelse(Region1Name == "Fraser_Summer_5.2", Region1Name, "other"),
     sample_id = paste(week, year, cap_region, "rec", sep = "_"),
     year = as.factor(year),
     dataset = "rec"
@@ -59,7 +55,7 @@ comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   filter(as.numeric(as.character(area)) > 100,
          month %in% c("6", "7", "8", "9")) %>% 
   mutate(
-    smu = ifelse(Region1Name == "Fraser_Fall", Region1Name, "other"),
+    smu = ifelse(Region1Name == "Fraser_Summer_5.2", Region1Name, "other"),
     sample_id = paste(week, year, region, "comm", sep = "_"),
     dataset = "comm"
   ) %>% 
@@ -69,91 +65,350 @@ comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   )
 
 
+## TAGGING DATA ----------------------------------------------------------------
+
+
+set_dat <- readRDS(here::here("data", "tagging", "cleanSetData.RDS")) %>% 
+  mutate(nearshore = ifelse(coast_dist_km < 9.26, TRUE, FALSE))
+
+tag_dat <- readRDS(here::here("data", "tagging", "clean_catch.RDS")) %>% 
+  left_join(., set_dat %>% select(event, nearshore), by = "event") %>% 
+  mutate(
+    mu = ifelse(
+      cu %in% c("MFR-summer", "NTh-sum", "STh-1.3"), 
+      "Fraser_Summer_5.2",
+      "other"
+    ),
+    week = lubridate::week(deployment_time),
+    region = "SWVI",
+    prob = 1,
+    area = 123
+    ) %>% 
+  filter(!is.na(mu),
+         nearshore == FALSE,
+         month %in% c("6", "7", "8", "9")) %>% 
+  mutate(
+    sample_id = paste(week, year, region, "tag", sep = "_"),
+    dataset = "tag"
+  ) %>% 
+  select(
+    dataset, fish_id = fish, sample_id, week, year, region, area, smu = mu,
+    prob
+  )
+
+
 ## COMBINE AND EXPLORE ---------------------------------------------------------
 
-all_dat <- rbind(comm_dat, rec_dat)
+all_dat <- rbind(comm_dat, rec_dat, tag_dat)
 
 
-samps <- all_dat %>% 
+samp_size <- all_dat %>% 
   group_by(sample_id) %>% 
-  mutate(samp_nn = length(unique(fish_id))) 
+  summarize(samp_nn = length(unique(fish_id))) 
 
-all_samps <- samps %>% 
-  group_by(dataset, sample_id, week, year, region, smu) %>% 
-  summarize(smu_prob = sum(prob),
+expand_dat <- expand.grid(
+  sample_id = unique(all_dat$sample_id),
+  smu = unique(all_dat$smu)
+) %>% 
+  left_join(
+    ., 
+    all_dat %>% 
+      select(dataset, sample_id, week, year, region) %>% 
+      distinct(),
+    by = "sample_id"
+  ) %>% 
+  left_join(., samp_size, by = "sample_id")
+
+all_samps <- all_dat %>% 
+  group_by(sample_id) %>% 
+  mutate(samp_nn = length(unique(fish_id))) %>% 
+  group_by(dataset, sample_id, samp_nn, week, year, region, smu) %>% 
+  reframe(smu_prob = sum(prob),
             smu_ppn = smu_prob / samp_nn,
             .groups = "drop") %>% 
   distinct() %>% 
-  rename(prob = smu_ppn) %>% 
-  select(-smu_prob)
+  rename(prob = smu_ppn) 
 
-focal_dat <- samps %>% 
-  select(dataset, sample_id, week, year, region, samp_nn) %>% 
-  distinct() %>% 
+all_samps2 <- expand_dat %>% 
   left_join(., 
             all_samps %>%
-              filter(smu == "Fraser_Fall") %>% 
-              select(sample_id, prob), 
-            by = c("sample_id")) %>% 
+              select(sample_id, smu, prob), 
+            by = c("sample_id", "smu")) %>% 
   mutate(
     prob = replace_na(prob, 0)
   ) 
 
-ggplot(focal_dat, aes(x = week, y = prob, size = samp_nn)) +
-  geom_jitter(alpha = 0.5) +
+dd <- all_samps2 %>% filter(smu == "Fraser_Summer_5.2")
+
+week_comp <- ggplot(dd, 
+       aes(x = week, y = prob, size = samp_nn, fill = year)) +
+  geom_jitter(alpha = 0.5, shape = 21) +
   facet_grid(dataset ~ region) +
   ggsidekick::theme_sleek() +
   labs(y = "Proportion Catch", x = "Week (July and August Only)")
 
-ggplot(focal_dat, aes(x = as.factor(week), y = smu_ppn)) +
+ggplot(dd, aes(x = as.factor(week), y = prob)) +
   geom_boxplot() +
   facet_grid(dataset ~ region) +
   ggsidekick::theme_sleek() +
   labs(y = "Proportion Catch", x = "Week (July and August Only)")
 
-focal_dat %>% 
-  filter(week > 30) %>% 
-  group_by(cap_region, week) %>% 
-  summarize(mean_comp = mean(smu_ppn))
+png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
+    units = "in", height = 5.5, width = 5.5)
+week_comp
+dev.off()
+
+
+## annual means (i.e. sum all probs within a year then divide)
+all_dat_yr <- rbind(comm_dat, rec_dat) %>% 
+  filter(week > 30 & week < 35) %>% 
+  mutate(sample_id = paste(year, region, dataset, sep = "_")) 
+  
+samp_size_yr <- all_dat %>% 
+  group_by(sample_id) %>% 
+  summarize(samp_nn = length(unique(fish_id))) 
+
+expand_dat_yr <- expand.grid(
+  sample_id = unique(all_dat_yr$sample_id),
+  smu = unique(all_dat_yr$smu)
+) %>% 
+  left_join(
+    ., 
+    all_dat_yr %>% 
+      select(dataset, sample_id, year, region) %>% 
+      distinct(),
+    by = "sample_id"
+  ) %>% 
+  left_join(., samp_size_yr, by = "sample_id")
+
+all_samps_yr <- all_dat_yr %>% 
+  group_by(sample_id) %>% 
+  mutate(samp_nn = length(unique(fish_id))) %>% 
+  group_by(dataset, sample_id, samp_nn, year, region, smu) %>% 
+  reframe(smu_prob = sum(prob),
+          smu_ppn = smu_prob / samp_nn,
+          .groups = "drop") %>% 
+  distinct() %>% 
+  rename(prob = smu_ppn) 
+
+all_samps2_yr <- expand_dat_yr %>% 
+  left_join(., 
+            all_samps_yr %>%
+              select(sample_id, smu, prob), 
+            by = c("sample_id", "smu")) %>% 
+  mutate(
+    prob = replace_na(prob, 0)
+  ) 
+
+annual_mean <- all_samps2_yr %>% 
+  filter(smu == "Fraser_Summer_5.2") %>% 
+  group_by(dataset, region, year) %>% 
+  summarize(mean_prob = mean(prob))
+
+annual_comp <- ggplot(annual_mean, aes(x = region, y = mean_prob)) +
+  geom_boxplot() +
+  facet_wrap(~dataset) +
+  ggsidekick::theme_sleek() +
+  labs(y = "Proportion Catch", x = "Week (August Only)")
+
+png(here::here("figs", "summer_impacts", "annual_comp.png"), res = 250,
+    units = "in", height = 5.5, width = 5.5)
+annual_comp
+dev.off()
+
 
 
 ## MODEL FIT -------------------------------------------------------------------
 
-# subset predicted composition dataset
-pred_dat_comp <- expand.grid(
-  region = unique(focal_dat$region)#,
-  # dataset = unique(focal_dat$dataset),
-  # week = seq(min(focal_dat$week),
-  #               max(focal_dat$week),
-  #               by = 0.2
-  # )
-) 
+library(brms)
+library(tidybayes)
 
-dd <- all_samps %>% filter(smu == "Fraser_Fall")
+dd$prob2 <- dd$prob + 0.000001
+dd$dataset2 <- ifelse(dd$dataset == "tag", "comm", dd$dataset)
 
+beta_priors <- c(
+  prior(normal(-4.8, 2.5), class = "Intercept"),
+  prior(gamma(0.01, 0.01), class = "phi")
+)
 
-model_beta_bayes_1 <- brm(
-  bf(prob ~ 1 + region + s(week, k = 4, bs = "tp", by = region) + (1 | year)#,
-     # phi ~ quota + polyarchy
-     ),
+fit3 <- brm(
+  bf(prob2 ~ region * week + dataset + (1 | year),
+     phi ~ dataset + samp_nn
+  ),
+  prior = c(
+    prior(normal(-4.8, 2.5), class = "Intercept")
+  ),
   data = dd,
   family = Beta(),
   chains = 4, iter = 2000, warmup = 1000,
   cores = 4, seed = 1234
 )
 
-
-
-
-fit1 <- fit_stockseasonr(
-  comp_formula = smu ~ 1 + region,
-    # s(week, bs = "tp", k = 4, by = region) + (1 | year),
-  comp_dat = all_samps,
-  pred_dat = pred_dat_comp ,
-  model = "dirichlet",
-  # random_walk = TRUE,
-  fit = TRUE,
-  # nlminb_loops = 2,
-  newton_loops = 1,
-  silent = FALSE
+# if convergence issues found can remove week interaction and samp_nn pars
+fit4 <- brm(
+  bf(prob ~ region * week + dataset2 + (1 | year),
+     phi ~ dataset2 + samp_nn,
+     zi ~ week + dataset2 + (1 | year)
+  ),
+  prior = c(
+    prior(normal(-4.8, 2.5), class = "Intercept", dpar = ""),
+    prior(normal(0, 5), class = "b")
+  ),
+  # control = list(#adapt_delta = 0.91,
+  #                max_treedepth = 11),
+  data = dd,
+  family = zero_inflated_beta(),
+  chains = 4, iter = 2000, warmup = 1000,
+  cores = 4, seed = 1234
 )
+
+plot(fit4)
+
+# check ppn zeros
+nrow(dd[dd$prob == "0", ]) / nrow(dd)
+obs_preds <- dd %>%
+  add_predicted_draws(fit4) 
+nrow(obs_preds[obs_preds$.prediction == 0, ]) / nrow(obs_preds)
+
+pp_check(fit4, "dens_overlay_grouped", ndraws = 1000, group = "dataset2") +
+  lims(y = c(0, 100))
+pp_check(fit4, "dens_overlay", ndraws = 1000) +
+  lims(y = c(0, 100))
+pp_check(fit4, type = "scatter_avg", ndraws = 100)
+pp_check(fit4, type = "stat_2d")
+
+loo1 <- loo(fit4, save_psis = TRUE, cores = 4)
+psis1 <- loo1$psis_object
+lw <- weights(psis1)
+
+bayesplot::ppc_loo_pit_overlay(dd$prob, posterior_predict(fit4), lw = lw)
+bayesplot::ppc_loo_pit_qq(dd$prob, posterior_predict(fit4), lw = lw)
+
+
+new_data <- expand.grid(
+  region = unique(dd$region),
+  dataset2 = unique(dd$dataset2),
+  week = seq(min(dd$week), max(dd$week), by = 0.2),
+  year = "2021",
+  # minor imapct of sample size
+  samp_nn = 50
+)
+
+
+preds_zi <- fit4 %>% 
+  predicted_draws(newdata = new_data) %>% 
+  mutate(is_zero = .prediction == 0,
+         .prediction = ifelse(is_zero, .prediction - 0.01, .prediction))
+
+ggplot(preds_zi, aes(x = .prediction)) +
+  geom_histogram(aes(fill = is_zero), binwidth = 0.025, 
+                 boundary = 0, color = "white") +
+  facet_grid(dataset2~region)
+
+
+preds4 <- fit4 %>% 
+  epred_draws(newdata = new_data, re_formula = NULL, scale = "response")
+
+preds4_mean <- preds4 %>% 
+  group_by(region, dataset2, week) %>% 
+  summarize(.epred = mean(.epred), .groups = "drop")
+
+ggplot() +
+  geom_line(data = preds4_mean, aes(x = week, y = .epred), 
+            color = "red", lwd = 2, group = 1) +
+  geom_jitter(data = dd, aes(x = week, y = prob, size = samp_nn, fill = year), 
+              alpha = 0.5, shape = 21) +
+  facet_grid(dataset2~region) +
+  ggsidekick::theme_sleek()
+
+ggplot(data = preds4, aes(x = week, y = .epred)) +
+  stat_lineribbon() +
+  facet_grid(dataset2~region) +
+  ggsidekick::theme_sleek()
+
+
+## convert to harvested fish in man scenarios
+scen_tbl <- expand.grid(
+  scenario = c("status quo", "2023", "adj"),
+  week = seq(31, 34, by = 1),
+  region = unique(dd$region),
+  dataset2 = "comm",
+  samp_nn = 100,
+  year = "2021"
+) %>% 
+  mutate(
+    week_group = ifelse(week %in% c(31, 32), "early", "late"),
+    catch = case_when(
+      scenario == "2023" & week_group == "early" ~ 0,
+      scenario == "adj" & region == "SWVI" & week_group == "early" ~ 0,
+      TRUE ~ 10000
+    )
+  ) %>% 
+  as_tibble() %>% 
+  group_by(scenario) %>% 
+  group_nest()
+
+scen_tbl$preds <- purrr::map(
+  scen_tbl$data,
+  ~ epred_draws(fit4, newdata = .x, re_formula = NULL, scale = "response") %>% 
+    mutate(catch_52 = catch * .epred)
+)
+
+# exploitation rate preds
+pred_dat <- scen_tbl$preds[[1]] %>% 
+  group_by(week_group, region, .draw) %>% 
+  summarize(
+    exp = mean(.epred), .groups = "drop"
+  ) %>%
+  group_by(week_group, region) %>% 
+  summarize(
+    mean_exp = mean(exp),
+    lo_exp = quantile(exp, 0.05),
+    up_exp = quantile(exp, 0.95)
+  ) 
+
+ggplot(pred_dat, aes(x = week_group, y = mean_exp)) +
+  geom_pointrange(aes(ymin = lo_exp, ymax = up_exp)) +
+  facet_wrap(~region) +
+  ggsidekick::theme_sleek()
+
+# catch preds
+pred_catch <- scen_tbl %>%
+  # select(-data) %>%
+  unnest(cols = c(preds)) %>%
+  group_by(scenario, region, week_group, catch, .draw) %>% 
+  summarize(
+    exp = mean(.epred), .groups = "drop"
+  ) %>% 
+  mutate(
+    catch_52 = catch * exp
+  )
+
+
+pred_catch %>% 
+  group_by(scenario, region, week_group, catch) %>%
+  summarize(
+    mean_catch = mean(catch_52),
+    lo_catch = quantile(catch_52, 0.05),
+    up_catch = quantile(catch_52, 0.95)
+  ) %>% 
+  ggplot(., aes(x = week_group, y = mean_catch)) +
+  geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
+  facet_grid(scenario ~ region) +
+  ggsidekick::theme_sleek()
+
+pred_catch %>% 
+  group_by(scenario, region, .draw) %>% 
+  summarize(
+    month_catch = sum(catch_52)
+  ) %>%
+  summarize(
+    mean_catch = mean(month_catch),
+    lo_catch = quantile(month_catch, 0.05),
+    up_catch = quantile(month_catch, 0.95)
+  ) %>% 
+  ggplot(., aes(x = region, y = mean_catch)) +
+  geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
+  facet_wrap(~ scenario) +
+  ggsidekick::theme_sleek()
+  
