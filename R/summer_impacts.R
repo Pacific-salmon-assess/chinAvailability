@@ -151,7 +151,7 @@ ggplot(dd, aes(x = as.factor(week), y = prob)) +
   geom_boxplot() +
   facet_grid(dataset ~ region) +
   ggsidekick::theme_sleek() +
-  labs(y = "Proportion Catch", x = "Week (July and August Only)")
+  labs(y = "Observed Mean Proportion in  Catch", x = "Week (July and August Only)")
 
 png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
     units = "in", height = 5.5, width = 5.5)
@@ -209,7 +209,8 @@ annual_comp <- ggplot(annual_mean, aes(x = region, y = mean_prob)) +
   geom_boxplot() +
   facet_wrap(~dataset) +
   ggsidekick::theme_sleek() +
-  labs(y = "Proportion Catch", x = "Week (August Only)")
+  labs(y = "Observed Proportion of\nSummer 5_2 in August Catch", 
+       x = "Area G Region")
 
 png(here::here("figs", "summer_impacts", "annual_comp.png"), res = 250,
     units = "in", height = 5.5, width = 5.5)
@@ -448,6 +449,7 @@ diff_catch <- pred_catch %>%
 
 
 pdf(here::here("figs", "summer_impacts", "summary_figs.pdf"))
+annual_comp
 obs_comp
 pred_ribbon
 mean_stock_comp
