@@ -29,8 +29,9 @@ comp_in_raw %>%
 rec_dat <- comp_in_raw %>% 
   filter(cap_region %in% c("NWVI", "SWVI"),
          area > 100,
-         fl >= 550,
-         month %in% c("June", "July", "August", "September")) %>% 
+         fl >= 550#,
+         # month %in% c("June", "July", "August", "September")
+         ) %>% 
   mutate(
     smu = ifelse(Region1Name == "Fraser_Summer_5.2", Region1Name, "other"),
     sample_id = paste(week, year, cap_region, "rec", sep = "_"),
@@ -52,8 +53,9 @@ comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   select(-c(Region1Name:pst_agg)) %>% 
   #adjust stock IDs to make sure correct
   left_join(., stock_key, by = "stock") %>% 
-  filter(as.numeric(as.character(area)) > 100,
-         month %in% c("6", "7", "8", "9")) %>% 
+  filter(as.numeric(as.character(area)) > 100#,
+         # month %in% c("6", "7", "8", "9")
+         ) %>% 
   mutate(
     smu = ifelse(Region1Name == "Fraser_Summer_5.2", Region1Name, "other"),
     sample_id = paste(week, year, region, "comm", sep = "_"),
@@ -85,8 +87,9 @@ tag_dat <- readRDS(here::here("data", "tagging", "clean_catch.RDS")) %>%
     area = 123
     ) %>% 
   filter(!is.na(mu),
-         nearshore == FALSE,
-         month %in% c("6", "7", "8", "9")) %>% 
+         nearshore == FALSE#,
+         # month %in% c("6", "7", "8", "9")
+         ) %>% 
   mutate(
     sample_id = paste(week, year, region, "tag", sep = "_"),
     dataset = "tag"
@@ -101,6 +104,8 @@ tag_dat <- readRDS(here::here("data", "tagging", "clean_catch.RDS")) %>%
 
 all_dat <- rbind(comm_dat, rec_dat, tag_dat)
 
+dumm <- all_dat %>% select(fish_id, year) %>% distinct() %>% group_by(year) %>% tally
+sum(dumm$n)
 
 samp_size <- all_dat %>% 
   group_by(sample_id) %>% 
@@ -145,77 +150,80 @@ week_comp <- ggplot(dd,
   geom_jitter(alpha = 0.5, shape = 21) +
   facet_grid(dataset ~ region) +
   ggsidekick::theme_sleek() +
-  labs(y = "Proportion Catch", x = "Week (July and August Only)")
+  labs(y = "Proportion Catch", x = "Week")
 
-ggplot(dd, aes(x = as.factor(week), y = prob)) +
-  geom_boxplot() +
-  facet_grid(dataset ~ region) +
-  ggsidekick::theme_sleek() +
-  labs(y = "Observed Mean Proportion in  Catch", x = "Week (July and August Only)")
 
 png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
     units = "in", height = 5.5, width = 5.5)
 week_comp
 dev.off()
 
+# pool years
+ggplot(dd, 
+         aes(x = as.factor(week), y = prob)) +
+  geom_boxplot(alpha = 0.5, shape = 21) +
+  facet_grid(dataset ~ region) +
+  ggsidekick::theme_sleek() +
+  labs(y = "Proportion Catch", x = "Week (July and August Only)")
+
 
 ## annual means (i.e. sum all probs within a year then divide)
-all_dat_yr <- rbind(comm_dat, rec_dat) %>% 
-  filter(week > 30 & week < 35) %>% 
-  mutate(sample_id = paste(year, region, dataset, sep = "_")) 
-  
-samp_size_yr <- all_dat %>% 
-  group_by(sample_id) %>% 
-  summarize(samp_nn = length(unique(fish_id))) 
-
-expand_dat_yr <- expand.grid(
-  sample_id = unique(all_dat_yr$sample_id),
-  smu = unique(all_dat_yr$smu)
-) %>% 
-  left_join(
-    ., 
-    all_dat_yr %>% 
-      select(dataset, sample_id, year, region) %>% 
-      distinct(),
-    by = "sample_id"
-  ) %>% 
-  left_join(., samp_size_yr, by = "sample_id")
-
-all_samps_yr <- all_dat_yr %>% 
-  group_by(sample_id) %>% 
-  mutate(samp_nn = length(unique(fish_id))) %>% 
-  group_by(dataset, sample_id, samp_nn, year, region, smu) %>% 
-  reframe(smu_prob = sum(prob),
-          smu_ppn = smu_prob / samp_nn,
-          .groups = "drop") %>% 
-  distinct() %>% 
-  rename(prob = smu_ppn) 
-
-all_samps2_yr <- expand_dat_yr %>% 
-  left_join(., 
-            all_samps_yr %>%
-              select(sample_id, smu, prob), 
-            by = c("sample_id", "smu")) %>% 
-  mutate(
-    prob = replace_na(prob, 0)
-  ) 
-
-annual_mean <- all_samps2_yr %>% 
-  filter(smu == "Fraser_Summer_5.2") %>% 
-  group_by(dataset, region, year) %>% 
-  summarize(mean_prob = mean(prob))
-
-annual_comp <- ggplot(annual_mean, aes(x = region, y = mean_prob)) +
-  geom_boxplot() +
-  facet_wrap(~dataset) +
-  ggsidekick::theme_sleek() +
-  labs(y = "Observed Proportion of\nSummer 5_2 in August Catch", 
-       x = "Area G Region")
-
-png(here::here("figs", "summer_impacts", "annual_comp.png"), res = 250,
-    units = "in", height = 5.5, width = 5.5)
-annual_comp
-dev.off()
+# all_dat_yr <- rbind(comm_dat, rec_dat) %>% 
+#   filter(week > 30 & week < 35) %>% 
+#   mutate(sample_id = paste(year, region, dataset, sep = "_")) 
+#   
+# samp_size_yr <- all_dat %>% 
+#   group_by(sample_id) %>% 
+#   summarize(samp_nn = length(unique(fish_id))) 
+# 
+# expand_dat_yr <- expand.grid(
+#   sample_id = unique(all_dat_yr$sample_id),
+#   smu = unique(all_dat_yr$smu)
+# ) %>% 
+#   left_join(
+#     ., 
+#     all_dat_yr %>% 
+#       select(dataset, sample_id, year, region) %>% 
+#       distinct(),
+#     by = "sample_id"
+#   ) %>% 
+#   left_join(., samp_size_yr, by = "sample_id")
+# 
+# all_samps_yr <- all_dat_yr %>% 
+#   group_by(sample_id) %>% 
+#   mutate(samp_nn = length(unique(fish_id))) %>% 
+#   group_by(dataset, sample_id, samp_nn, year, region, smu) %>% 
+#   reframe(smu_prob = sum(prob),
+#           smu_ppn = smu_prob / samp_nn,
+#           .groups = "drop") %>% 
+#   distinct() %>% 
+#   rename(prob = smu_ppn) 
+# 
+# all_samps2_yr <- expand_dat_yr %>% 
+#   left_join(., 
+#             all_samps_yr %>%
+#               select(sample_id, smu, prob), 
+#             by = c("sample_id", "smu")) %>% 
+#   mutate(
+#     prob = replace_na(prob, 0)
+#   ) 
+# 
+# annual_mean <- all_samps2_yr %>% 
+#   filter(smu == "Fraser_Summer_5.2") %>% 
+#   group_by(dataset, region, year) %>% 
+#   summarize(mean_prob = mean(prob))
+# 
+# annual_comp <- ggplot(annual_mean, aes(x = region, y = mean_prob)) +
+#   geom_boxplot() +
+#   facet_wrap(~dataset) +
+#   ggsidekick::theme_sleek() +
+#   labs(y = "Observed Proportion of\nSummer 5_2 in August Catch", 
+#        x = "Area G Region")
+# 
+# png(here::here("figs", "summer_impacts", "annual_comp.png"), res = 250,
+#     units = "in", height = 5.5, width = 5.5)
+# annual_comp
+# dev.off()
 
 
 
@@ -226,6 +234,7 @@ library(tidybayes)
 
 dd$prob2 <- dd$prob + 0.000001
 dd$dataset2 <- ifelse(dd$dataset == "tag", "comm", dd$dataset)
+dd$week2 <- dd$week^2
 
 beta_priors <- c(
   prior(normal(-4.8, 2.5), class = "Intercept"),
@@ -233,23 +242,26 @@ beta_priors <- c(
 )
 
 fit3 <- brm(
-  bf(prob2 ~ region * week + dataset + (1 | year),
-     phi ~ dataset + samp_nn
+  bf(prob2 ~ region + week + I(week^2) + dataset2 + (1 | year),
+     phi ~ dataset2
   ),
   prior = c(
-    prior(normal(-4.8, 2.5), class = "Intercept")
+    prior(normal(-4.8, 2.5), class = "Intercept")#,
+    # prior(normal(0, 5), class = "b")
   ),
   data = dd,
   family = Beta(),
+  init = "0",
   chains = 4, iter = 2000, warmup = 1000,
   cores = 4, seed = 1234
 )
 
+
 # if convergence issues found can remove week interaction and samp_nn pars
 fit4 <- brm(
-  bf(prob ~ region * week + dataset2 + (1 | year),
+  bf(prob ~ region + week + I(week^2) + dataset2 + (1 | year),
      phi ~ dataset2 + samp_nn,
-     zi ~ week + dataset2 + (1 | year)
+     zi ~ week + I(week^2) + dataset2 + (1 | year)
   ),
   prior = c(
     prior(normal(-4.8, 2.5), class = "Intercept", dpar = ""),
@@ -258,12 +270,14 @@ fit4 <- brm(
   # control = list(#adapt_delta = 0.91,
   #                max_treedepth = 11),
   data = dd,
+  init = "0",
   family = zero_inflated_beta(),
   chains = 4, iter = 2000, warmup = 1000,
   cores = 4, seed = 1234
 )
 
 plot(fit4)
+
 
 # check ppn zeros
 nrow(dd[dd$prob == "0", ]) / nrow(dd)
@@ -293,8 +307,7 @@ new_data <- expand.grid(
   year = "2021",
   # minor imapct of sample size
   samp_nn = 50
-)
-
+) 
 
 preds_zi <- fit4 %>% 
   predicted_draws(newdata = new_data) %>% 
@@ -309,10 +322,29 @@ ggplot(preds_zi, aes(x = .prediction)) +
 
 preds4 <- fit4 %>% 
   epred_draws(newdata = new_data, re_formula = NA, scale = "response")
+# assume 21 year effects
+preds4_21 <- fit4 %>% 
+  epred_draws(newdata = new_data, re_formula = NULL, scale = "response")
+
 
 preds4_mean <- preds4 %>% 
   group_by(region, dataset2, week) %>% 
   summarize(.epred = mean(.epred), .groups = "drop")
+
+pred_line <- ggplot() +
+  geom_line(data = preds4 %>% 
+              filter(.draw %in% sample.int(200)), 
+            aes(x = week, y = .epred, group = paste(dataset2, region, .draw)),
+            alpha = 0.2
+            ) +
+  geom_line(data = preds4_21 %>% 
+              filter(.draw %in% sample.int(200)), 
+            aes(x = week, y = .epred, group = paste(dataset2, region, .draw)),
+            alpha = 0.2, colour = "red"
+  ) +
+  facet_grid(dataset2~region) +
+  labs(y = "Proportion Summer 5_2 in Catch", x = "Week") +
+  ggsidekick::theme_sleek()
 
 obs_comp <- ggplot() +
   geom_line(data = preds4_mean, aes(x = week, y = .epred), 
@@ -320,7 +352,7 @@ obs_comp <- ggplot() +
   geom_jitter(data = dd, aes(x = week, y = prob, size = samp_nn, fill = year), 
               alpha = 0.5, shape = 21) +
   facet_grid(dataset2~region) +
-  labs(y = "Proportion Summer 5_2 in Catch", x = "Week (June-Sep)") +
+  labs(y = "Proportion Summer 5_2 in Catch", x = "Week") +
   ggsidekick::theme_sleek()
 
 pred_ribbon <- ggplot(data = preds4, aes(x = week, y = .epred)) +
@@ -352,6 +384,11 @@ scen_tbl <- expand.grid(
   group_by(scenario) %>% 
   group_nest()
 
+scen_tbl$preds <- purrr::map(
+  scen_tbl$data,
+  ~ epred_draws(fit4, newdata = .x, re_formula = NA, scale = "response") %>% 
+    mutate(catch_52 = catch * .epred)
+)
 scen_tbl$preds <- purrr::map(
   scen_tbl$data,
   ~ epred_draws(fit4, newdata = .x, re_formula = NULL, scale = "response") %>% 
