@@ -6,10 +6,13 @@
 ## 1) Weekly (by year and across years) average comp, with sample sizes, for 
 ## each region and fishery
 ## 2) Model predicted mean stock comp, integrating both datasets
-## 3) Estimates of relative impact in removals using fixed catches 
+## 3) Estimates of relative impact in removals using fixed catches derived from
+## historical commercial catches (ppn of August catch caught in W1/2 vs W3/4 and
+## in NWVI vs SWVI)
 
 library(tidyverse)
 library(brms)
+library(tidybayes)
 
 
 ## RECREATIONAL DATA -----------------------------------------------------------
@@ -231,11 +234,60 @@ ggplot(dd, aes(x = as.factor(week), y = prob)) +
 # dev.off()
 
 
+## COMMERCIAL CATCH DATA -------------------------------------------------------
+
+catch <- read.csv(here::here("data", "comm", "area_g_catch.csv")) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    region = case_when(
+      mgmt_area %in% c("123", "124") ~ "SWVI",
+      mgmt_area %in% c("125", "126", "127") ~ "NWVI",
+      TRUE ~ "other"
+    ),
+    date = as.POSIXct(fishing_date,
+                         format = "%m/%d/%Y %H:%M"
+    ),
+    month = lubridate::month(date),
+    week = lubridate::week(date),
+    day = lubridate::day(date),
+    year = lubridate::year(date),
+    period = ifelse(day < 16, "early", "late")
+  ) %>% 
+  filter(!opng_cat == "Exploratory",
+         targets_chinook == "YES",
+         !region == "other",
+         month == "8") %>% 
+  group_by(year) %>%
+  mutate(
+    subset = paste(period, region, sep = "_"),
+    total_aug_catch = sum(chinook_kept)
+  ) %>%
+  group_by(period, region, subset, year, total_aug_catch) %>% 
+  summarize(
+    total_sub_catch = sum(chinook_kept),
+    ppn_catch = total_sub_catch / total_aug_catch,
+    .groups = "drop"
+  ) %>% 
+  distinct()
+
+
+# visualize ppn
+pdf(here::here("figs", "summer_impacts", "catch_ppn.pdf"))
+ggplot(catch, aes(fill = subset, y = ppn_catch, x = year)) + 
+  geom_bar(position = "fill", stat = "identity") +
+  labs(y = "Proportion of Total August Catch", x = "Year")
+dev.off()
+
+
+# no late catch prior to 2019 so exclude those years
+catch %>% 
+  filter(year > 2018) %>% 
+  group_by(subset) %>% 
+  summarize(mean_ppn = mean(ppn_catch))
+
+
 
 ## MODEL FIT -------------------------------------------------------------------
-
-library(brms)
-library(tidybayes)
 
 dd$prob2 <- dd$prob + 0.000001
 
@@ -301,6 +353,9 @@ lw <- weights(psis1)
 
 bayesplot::ppc_loo_pit_overlay(dd$prob, posterior_predict(fit4), lw = lw)
 bayesplot::ppc_loo_pit_qq(dd$prob, posterior_predict(fit4), lw = lw)
+
+
+## PREDICTIONS -----------------------------------------------------------------
 
 
 new_data <- expand.grid(
