@@ -9,7 +9,7 @@
 ## 3) Estimates of relative impact in removals using fixed catches 
 
 library(tidyverse)
-library(stockseasonr)
+library(brms)
 
 
 ## RECREATIONAL DATA -----------------------------------------------------------
@@ -107,6 +107,11 @@ all_dat <- rbind(comm_dat, rec_dat, tag_dat)
 dumm <- all_dat %>% select(fish_id, year) %>% distinct() %>% group_by(year) %>% tally
 sum(dumm$n)
 
+all_dat %>% 
+  filter(!smu == "other") %>% 
+  pull(prob) %>% 
+  sum()
+
 samp_size <- all_dat %>% 
   group_by(sample_id) %>% 
   summarize(samp_nn = length(unique(fish_id))) 
@@ -128,7 +133,7 @@ all_samps <- all_dat %>%
   group_by(sample_id) %>% 
   mutate(samp_nn = length(unique(fish_id))) %>% 
   group_by(dataset, sample_id, samp_nn, week, year, region, smu) %>% 
-  reframe(smu_prob = sum(prob),
+  summarize(smu_prob = sum(prob),
             smu_ppn = smu_prob / samp_nn,
             .groups = "drop") %>% 
   distinct() %>% 
@@ -144,27 +149,27 @@ all_samps2 <- expand_dat %>%
   ) 
 
 dd <- all_samps2 %>% filter(smu == "Fraser_Summer_5.2")
+dd$dataset2 <- ifelse(dd$dataset == "tag", "comm", dd$dataset)
 
 week_comp <- ggplot(dd, 
        aes(x = week, y = prob, size = samp_nn, fill = year)) +
   geom_jitter(alpha = 0.5, shape = 21) +
-  facet_grid(dataset ~ region) +
+  facet_grid(dataset2 ~ region) +
   ggsidekick::theme_sleek() +
   labs(y = "Proportion Catch", x = "Week")
 
 
 png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
-    units = "in", height = 5.5, width = 5.5)
+    units = "in", height = 4.5, width = 5.5)
 week_comp
 dev.off()
 
 # pool years
-ggplot(dd, 
-         aes(x = as.factor(week), y = prob)) +
+ggplot(dd, aes(x = as.factor(week), y = prob)) +
   geom_boxplot(alpha = 0.5, shape = 21) +
-  facet_grid(dataset ~ region) +
+  facet_grid(dataset2 ~ region) +
   ggsidekick::theme_sleek() +
-  labs(y = "Proportion Catch", x = "Week (July and August Only)")
+  labs(y = "Proportion Sample", x = "Week")
 
 
 ## annual means (i.e. sum all probs within a year then divide)
@@ -233,8 +238,6 @@ library(brms)
 library(tidybayes)
 
 dd$prob2 <- dd$prob + 0.000001
-dd$dataset2 <- ifelse(dd$dataset == "tag", "comm", dd$dataset)
-dd$week2 <- dd$week^2
 
 beta_priors <- c(
   prior(normal(-4.8, 2.5), class = "Intercept"),
@@ -259,9 +262,9 @@ fit3 <- brm(
 
 # if convergence issues found can remove week interaction and samp_nn pars
 fit4 <- brm(
-  bf(prob ~ region + week + I(week^2) + dataset2 + (1 | year),
+  bf(prob ~ region*week + region*I(week^2) + dataset2 + (1 | year),
      phi ~ dataset2 + samp_nn,
-     zi ~ week + I(week^2) + dataset2 + (1 | year)
+     zi ~ region*week + region*I(week^2) + dataset2 + (1 | year)
   ),
   prior = c(
     prior(normal(-4.8, 2.5), class = "Intercept", dpar = ""),
@@ -359,8 +362,32 @@ pred_ribbon <- ggplot(data = preds4, aes(x = week, y = .epred)) +
   stat_lineribbon() +
   facet_grid(dataset2~region) + 
   labs(y = "Predicted Proportion Summer 5_2 in Catch", 
-       x = "Week (June-Sep)") +
+       x = "Week") +
   ggsidekick::theme_sleek()
+
+preds4_mean %>% 
+  group_by(region, dataset2) %>% 
+  mutate(max_pred = max(.epred)) %>% 
+  filter(.epred == max_pred)
+
+
+png(here::here("figs", "summer_impacts", "comm_preds.png"), res = 250,
+    units = "in", height = 3.5, width = 5.5)
+preds4 %>% 
+  filter(dataset2 == "comm") %>% 
+  group_by(week, region, dataset2) %>% 
+  summarize(med_pred = median(.epred),
+            lo_pred = quantile(.epred, 0.05),
+            up_pred = quantile(.epred, 0.95)) %>% 
+  ggplot(data = ,
+       aes(x = week, y = med_pred)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lo_pred, ymax = up_pred), alpha = 0.2) +
+  facet_wrap(~region) + 
+  labs(y = "Predicted Proportion Summer 5_2 in Catch", 
+       x = "Week") +
+  ggsidekick::theme_sleek()
+dev.off()
 
 
 ## convert to harvested fish in man scenarios
@@ -389,11 +416,11 @@ scen_tbl$preds <- purrr::map(
   ~ epred_draws(fit4, newdata = .x, re_formula = NA, scale = "response") %>% 
     mutate(catch_52 = catch * .epred)
 )
-scen_tbl$preds <- purrr::map(
-  scen_tbl$data,
-  ~ epred_draws(fit4, newdata = .x, re_formula = NULL, scale = "response") %>% 
-    mutate(catch_52 = catch * .epred)
-)
+# scen_tbl$preds <- purrr::map(
+#   scen_tbl$data,
+#   ~ epred_draws(fit4, newdata = .x, re_formula = NULL, scale = "response") %>% 
+#     mutate(catch_52 = catch * .epred)
+# )
 
 # exploitation rate preds
 pred_dat <- scen_tbl$preds[[1]] %>% 
@@ -440,20 +467,23 @@ pred_catch %>%
   ggsidekick::theme_sleek()
 
 # catch by region
-pred_catch_est <- pred_catch %>% 
-  group_by(scenario, region, .draw) %>% 
+pred_catch_est_dat <- pred_catch %>% 
+  group_by(scenario, .draw) %>% 
   summarize(
     month_catch = sum(catch_52)
   ) %>%
-  group_by(scenario, region) %>% 
+  group_by(scenario) %>% 
   summarize(
     mean_catch = mean(month_catch),
     lo_catch = quantile(month_catch, 0.05),
-    up_catch = quantile(month_catch, 0.95)
-  ) %>% 
-  ggplot(., aes(x = region, y = mean_catch)) +
+    up_catch = quantile(month_catch, 0.95),
+    mean_er = mean_catch / 25000,
+    lo_er = lo_catch / 25000,
+    up_er = up_catch / 25000
+  )
+
+pred_catch_est <- ggplot(pred_catch_est_dat, aes(x = scenario, y = mean_catch)) +
   geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
-  facet_wrap(~ scenario) +
   labs(y = "Predicted Summer 5_2 Commercial Catch (pieces)", x = "Area G Region") +
   ggsidekick::theme_sleek()
 
@@ -480,10 +510,15 @@ diff_catch <- pred_catch %>%
   ) %>% 
   ggplot(., aes(y = mean_diff, x = name)) +
   geom_pointrange(aes(ymin = lo_diff, ymax = up_diff),
-                  shape = 21) +
-  labs(y = "Difference in Predicted Summer 5_2 Catch (pieces)", x = "Scenario") +
+                  fill = "white", shape = 21) +
+  labs(y = "Difference in Predicted\nSummer 5_2 Catch (pieces)", x = "Scenario") +
   ggsidekick::theme_sleek()
 
+
+png(here::here("figs", "summer_impacts", "catch_effects.png"), res = 250,
+    units = "in", height = 3.5, width = 5.5)
+diff_catch
+dev.off()
 
 pdf(here::here("figs", "summer_impacts", "summary_figs.pdf"))
 annual_comp
