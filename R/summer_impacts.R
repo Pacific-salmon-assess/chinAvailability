@@ -52,7 +52,7 @@ rec_dat <- comp_in_raw %>%
 
 stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds"))
 
-comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>% 
+comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   select(-c(Region1Name:pst_agg)) %>% 
   #adjust stock IDs to make sure correct
   left_join(., stock_key, by = "stock") %>% 
@@ -153,6 +153,8 @@ all_samps2 <- expand_dat %>%
 
 dd <- all_samps2 %>% filter(smu == "Fraser_Summer_5.2")
 dd$dataset2 <- ifelse(dd$dataset == "tag", "comm", dd$dataset)
+dd$week_z <- scale(dd$week) %>% as.numeric()
+
 
 week_comp <- ggplot(dd, 
        aes(x = week, y = prob, size = samp_nn, fill = year)) +
@@ -173,6 +175,11 @@ ggplot(dd, aes(x = as.factor(week), y = prob)) +
   facet_grid(dataset2 ~ region) +
   ggsidekick::theme_sleek() +
   labs(y = "Proportion Sample", x = "Week")
+
+dd_aug <- dd %>% 
+  filter(week > 30 & week < 35)
+mean(dd_aug$prob)
+nrow(dd_aug[dd_aug$prob == 0, ]) / nrow(dd_aug)
 
 
 ## annual means (i.e. sum all probs within a year then divide)
@@ -256,7 +263,24 @@ catch <- read.csv(here::here("data", "comm", "area_g_catch.csv")) %>%
   filter(!opng_cat == "Exploratory",
          targets_chinook == "YES",
          !region == "other",
-         month == "8") %>% 
+         !comments == "ESTIMATES NOT AVAILABLE") 
+
+annual_catch <- catch %>% 
+  group_by(week, region, year) %>% 
+  summarize(
+    total_catch = sum(chinook_kept),
+    total_effort = sum(vessels_op),
+    total_cpue = total_catch / total_effort,
+    .groups = "drop"
+  ) %>% 
+  distinct() 
+
+ggplot(annual_catch) +
+  geom_boxplot(aes(x = as.factor(week), y = total_cpue)) 
+
+
+aug_catch <- catch %>% 
+  filter(month == "8") %>% 
   group_by(year) %>%
   mutate(
     subset = paste(period, region, sep = "_"),
@@ -273,7 +297,7 @@ catch <- read.csv(here::here("data", "comm", "area_g_catch.csv")) %>%
 
 # visualize ppn
 pdf(here::here("figs", "summer_impacts", "catch_ppn.pdf"))
-ggplot(catch, aes(fill = subset, y = ppn_catch, x = year)) + 
+ggplot(aug_catch, aes(fill = subset, y = ppn_catch, x = year)) + 
   geom_bar(position = "fill", stat = "identity") +
   labs(y = "Proportion of Total August Catch", x = "Year")
 dev.off()
@@ -289,34 +313,10 @@ catch %>%
 
 ## MODEL FIT -------------------------------------------------------------------
 
-dd$prob2 <- dd$prob + 0.000001
-
-beta_priors <- c(
-  prior(normal(-4.8, 2.5), class = "Intercept"),
-  prior(gamma(0.01, 0.01), class = "phi")
-)
-
-fit3 <- brm(
-  bf(prob2 ~ region + week + I(week^2) + dataset2 + (1 | year),
-     phi ~ dataset2
-  ),
-  prior = c(
-    prior(normal(-4.8, 2.5), class = "Intercept")#,
-    # prior(normal(0, 5), class = "b")
-  ),
-  data = dd,
-  family = Beta(),
-  init = "0",
-  chains = 4, iter = 2000, warmup = 1000,
-  cores = 4, seed = 1234
-)
-
-
-# if convergence issues found can remove week interaction and samp_nn pars
 fit4 <- brm(
-  bf(prob ~ region*week + region*I(week^2) + dataset2 + (1 | year),
+  bf(prob ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year),
      phi ~ dataset2 + samp_nn,
-     zi ~ region*week + region*I(week^2) + dataset2 + (1 | year)
+     zi ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year)
   ),
   prior = c(
     prior(normal(-4.8, 2.5), class = "Intercept", dpar = ""),
@@ -330,6 +330,7 @@ fit4 <- brm(
   chains = 4, iter = 2000, warmup = 1000,
   cores = 4, seed = 1234
 )
+
 
 plot(fit4)
 
@@ -355,6 +356,18 @@ bayesplot::ppc_loo_pit_overlay(dd$prob, posterior_predict(fit4), lw = lw)
 bayesplot::ppc_loo_pit_qq(dd$prob, posterior_predict(fit4), lw = lw)
 
 
+m1 <- glmmTMB::glmmTMB(
+  prob2 ~ region * week_z + region * I(week_z^2) + (1 | year), 
+  data = dd, 
+  family= glmmTMB::beta_family()
+)
+
+library(DHARMa)
+res <- simulateResiduals(m1)
+plot(res, rank = T)
+
+
+
 ## PREDICTIONS -----------------------------------------------------------------
 
 
@@ -365,7 +378,8 @@ new_data <- expand.grid(
   year = "2021",
   # minor imapct of sample size
   samp_nn = 50
-) 
+)
+new_data$week_z <- (new_data$week - mean(dd$week)) / sd(dd$week) 
 
 preds_zi <- fit4 %>% 
   predicted_draws(newdata = new_data) %>% 
@@ -446,6 +460,21 @@ dev.off()
 
 
 ## convert to harvested fish in man scenarios
+
+# tac (max catch in recent years was 25k)
+tac <- 30000
+
+# ppns as estimated above
+ppn_key <- expand.grid(
+  week_group = c("early", "late"),
+  region = c("SWVI", "NWVI")
+) %>% 
+  mutate(
+    catch_ppn = c(0.52, 0.25, 0.09, 0.14),
+    catch = tac * catch_ppn
+  )
+
+
 scen_tbl <- expand.grid(
   scenario = c("status_quo", "2023", "adj"),
   week = seq(31, 34, by = 1),
@@ -455,13 +484,9 @@ scen_tbl <- expand.grid(
   year = "2021"
 ) %>% 
   mutate(
-    week_group = ifelse(week %in% c(31, 32), "early", "late"),
-    catch = case_when(
-      scenario == "2023" & week_group == "early" ~ 0,
-      scenario == "adj" & region == "SWVI" & week_group == "early" ~ 0,
-      TRUE ~ 10000
-    )
+    week_group = ifelse(week %in% c(31, 32), "early", "late")
   ) %>% 
+  left_join(., ppn_key, by = c("week_group", "region")) %>% 
   as_tibble() %>% 
   group_by(scenario) %>% 
   group_nest()
