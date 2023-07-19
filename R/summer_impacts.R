@@ -159,6 +159,8 @@ dd$week_z <- scale(dd$week) %>% as.numeric()
 week_comp <- ggplot(dd, 
        aes(x = week, y = prob, size = samp_nn, fill = year)) +
   geom_jitter(alpha = 0.5, shape = 21) +
+  scale_fill_discrete(guide = "none") +
+  scale_size_continuous(name = "Weekly\nSample\nSize") +
   facet_grid(dataset2 ~ region) +
   ggsidekick::theme_sleek() +
   labs(y = "Proportion Catch", x = "Week")
@@ -283,10 +285,10 @@ aug_catch <- catch %>%
   filter(month == "8") %>% 
   group_by(year) %>%
   mutate(
-    subset = paste(period, region, sep = "_"),
+    subset = paste(week, region, sep = "_"),
     total_aug_catch = sum(chinook_kept)
   ) %>%
-  group_by(period, region, subset, year, total_aug_catch) %>% 
+  group_by(week, region, subset, year, total_aug_catch) %>% 
   summarize(
     total_sub_catch = sum(chinook_kept),
     ppn_catch = total_sub_catch / total_aug_catch,
@@ -303,12 +305,26 @@ ggplot(aug_catch, aes(fill = subset, y = ppn_catch, x = year)) +
 dev.off()
 
 
-# no late catch prior to 2019 so exclude those years
-catch %>% 
-  filter(year > 2018) %>% 
-  group_by(subset) %>% 
-  summarize(mean_ppn = mean(ppn_catch))
-
+# no late catch prior to 2019 so exclude those years and calculate proportion 
+# over time period to sum to one
+# NOTE: eventually should be modeled
+week_ppn <- catch %>% 
+  filter(month == "8",
+         year > 2018) %>% 
+  # group_by(year) %>%
+  mutate(
+    week = ifelse(week == 35, 34, week),
+    subset = paste(week, region, sep = "_"),
+    total_aug_catch = sum(chinook_kept),
+    #consolidate week 34 and 35 to keep balanced
+  ) %>%
+  group_by(week, region, subset, total_aug_catch) %>% 
+  summarize(
+    total_sub_catch = sum(chinook_kept),
+    ppn_catch = total_sub_catch / total_aug_catch,
+    .groups = "drop"
+  ) %>% 
+  distinct()
 
 
 ## MODEL FIT -------------------------------------------------------------------
@@ -330,7 +346,8 @@ fit4 <- brm(
   chains = 4, iter = 2000, warmup = 1000,
   cores = 4, seed = 1234
 )
-
+saveRDS(fit4, 
+        here::here("data", "model_fits", "summer_impacts", "fit4.rds"))
 
 plot(fit4)
 
@@ -356,20 +373,19 @@ bayesplot::ppc_loo_pit_overlay(dd$prob, posterior_predict(fit4), lw = lw)
 bayesplot::ppc_loo_pit_qq(dd$prob, posterior_predict(fit4), lw = lw)
 
 
-m1 <- glmmTMB::glmmTMB(
-  prob2 ~ region * week_z + region * I(week_z^2) + (1 | year), 
-  data = dd, 
-  family= glmmTMB::beta_family()
-)
-
-library(DHARMa)
-res <- simulateResiduals(m1)
-plot(res, rank = T)
+# m1 <- glmmTMB::glmmTMB(
+#   prob2 ~ region * week_z + region * I(week_z^2) + (1 | year), 
+#   data = dd, 
+#   family= glmmTMB::beta_family()
+# )
+# 
+# library(DHARMa)
+# res <- simulateResiduals(m1)
+# plot(res, rank = T)
 
 
 
 ## PREDICTIONS -----------------------------------------------------------------
-
 
 new_data <- expand.grid(
   region = unique(dd$region),
@@ -441,7 +457,7 @@ preds4_mean %>%
 
 
 png(here::here("figs", "summer_impacts", "comm_preds.png"), res = 250,
-    units = "in", height = 3.5, width = 5.5)
+    units = "in", height = 3, width = 5.5)
 preds4 %>% 
   filter(dataset2 == "comm") %>% 
   group_by(week, region, dataset2) %>% 
@@ -453,69 +469,83 @@ preds4 %>%
   geom_line() +
   geom_ribbon(aes(ymin = lo_pred, ymax = up_pred), alpha = 0.2) +
   facet_wrap(~region) + 
-  labs(y = "Predicted Proportion Summer 5_2 in Catch", 
+  labs(y = "Predicted Proportion\nSummer 5_2 in Catch", 
        x = "Week") +
   ggsidekick::theme_sleek()
 dev.off()
 
 
-## convert to harvested fish in man scenarios
+## convert to harvested fish in management scenarios
 
 # tac (max catch in recent years was 25k)
 tac <- 30000
+esc_forecast <- 25000
+
 
 # ppns as estimated above
 ppn_key <- expand.grid(
-  week_group = c("early", "late"),
+  week = c(31, 32, 33, 34),
   region = c("SWVI", "NWVI")
 ) %>% 
   mutate(
-    catch_ppn = c(0.52, 0.25, 0.09, 0.14),
-    catch = tac * catch_ppn
+    week_group = ifelse(week < 33, "early", "late")
+  ) %>% 
+  left_join(
+    ., 
+    week_ppn %>% select(-c(subset:total_sub_catch)), 
+    by = c("week", "region")
   )
 
 
 scen_tbl <- expand.grid(
-  scenario = c("status_quo", "2023", "adj"),
+  scenario = c("status_quo", "2023", "adj_area", "adj_time"),
   week = seq(31, 34, by = 1),
   region = unique(dd$region),
   dataset2 = "comm",
   samp_nn = 100,
   year = "2021"
 ) %>% 
+  left_join(., ppn_key, by = c("week", "region")) %>% 
   mutate(
-    week_group = ifelse(week %in% c(31, 32), "early", "late")
+    week_z = (week - mean(dd$week)) / sd(dd$week),
+    # define management scenarios and calculate catch
+    ppn_catch_adj = case_when(
+      scenario == "2023" & week_group == "early" ~ 0,
+      scenario == "adj_area" & week_group == "early" & region == "SWVI" ~ 0,
+      scenario == "adj_time" & week == "31" ~ 0,
+      TRUE ~ ppn_catch
+    ),
+    catch_adj = ppn_catch_adj * tac
   ) %>% 
-  left_join(., ppn_key, by = c("week_group", "region")) %>% 
   as_tibble() %>% 
   group_by(scenario) %>% 
+  mutate(total_catch = sum(catch_adj)) %>% 
+  group_by(scenario, total_catch) %>% 
   group_nest()
 
 scen_tbl$preds <- purrr::map(
   scen_tbl$data,
-  ~ epred_draws(fit4, newdata = .x, re_formula = NA, scale = "response") %>% 
-    mutate(catch_52 = catch * .epred)
+  ~ epred_draws(fit4, newdata = .x, re_formula = NA, scale = "response") 
 )
 # scen_tbl$preds <- purrr::map(
 #   scen_tbl$data,
-#   ~ epred_draws(fit4, newdata = .x, re_formula = NULL, scale = "response") %>% 
-#     mutate(catch_52 = catch * .epred)
+#   ~ epred_draws(fit4, newdata = .x, re_formula = NULL, scale = "response") 
 # )
 
 # exploitation rate preds
 pred_dat <- scen_tbl$preds[[1]] %>% 
-  group_by(week_group, region, .draw) %>% 
+  group_by(week, region, .draw) %>% 
   summarize(
     exp = mean(.epred), .groups = "drop"
   ) %>%
-  group_by(week_group, region) %>% 
+  group_by(week, region) %>% 
   summarize(
     mean_exp = mean(exp),
     lo_exp = quantile(exp, 0.05),
     up_exp = quantile(exp, 0.95)
   ) 
 
-mean_stock_comp <- ggplot(pred_dat, aes(x = week_group, y = mean_exp)) +
+mean_stock_comp <- ggplot(pred_dat, aes(x = week, y = mean_exp)) +
   geom_pointrange(aes(ymin = lo_exp, ymax = up_exp)) +
   facet_wrap(~region) +
   labs(y = "Predicted Commercial\nSummer 5_2 Composition", x = "August Period") +
@@ -525,23 +555,23 @@ mean_stock_comp <- ggplot(pred_dat, aes(x = week_group, y = mean_exp)) +
 pred_catch <- scen_tbl %>%
   # select(-data) %>%
   unnest(cols = c(preds)) %>%
-  group_by(scenario, region, week_group, catch, .draw) %>% 
+  group_by(scenario, region, week, catch_adj, .draw) %>% 
   summarize(
     exp = mean(.epred), .groups = "drop"
   ) %>% 
   mutate(
-    catch_52 = catch * exp
+    catch_52 = catch_adj * exp
   )
 
-# catch by region and week group
+# catch by region and week 
 pred_catch %>% 
-  group_by(scenario, region, week_group, catch) %>%
+  group_by(scenario, region, week) %>%
   summarize(
     mean_catch = mean(catch_52),
     lo_catch = quantile(catch_52, 0.05),
     up_catch = quantile(catch_52, 0.95)
   ) %>% 
-  ggplot(., aes(x = week_group, y = mean_catch)) +
+  ggplot(., aes(x = week, y = mean_catch)) +
   geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
   facet_grid(scenario ~ region) +
   ggsidekick::theme_sleek()
@@ -557,47 +587,60 @@ pred_catch_est_dat <- pred_catch %>%
     mean_catch = mean(month_catch),
     lo_catch = quantile(month_catch, 0.05),
     up_catch = quantile(month_catch, 0.95),
-    mean_er = mean_catch / 25000,
-    lo_er = lo_catch / 25000,
-    up_er = up_catch / 25000
+    mean_er = mean_catch / esc_forecast,
+    lo_er = lo_catch / esc_forecast,
+    up_er = up_catch / esc_forecast
   )
 
-pred_catch_est <- ggplot(pred_catch_est_dat, aes(x = scenario, y = mean_catch)) +
+pred_catch_est <- ggplot(pred_catch_est_dat, 
+                         aes(x = scenario, y = mean_catch)) +
   geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
-  labs(y = "Predicted Summer 5_2 Commercial Catch (pieces)", x = "Area G Region") +
+  labs(y = "Predicted Summer 5_2/nCommercial Catch (pieces)", 
+       x = "Area G Region") +
   ggsidekick::theme_sleek()
 
+total_catch_dat <- scen_tbl %>% 
+  select(scenario, total_catch) %>% 
+  mutate(scenario = fct_recode(
+    scenario, "Current 2023" = "2023", "Adjusted Area" = "adj_area", 
+    "Adjusted Time" = "adj_time"
+  ))
 
-# difference in total catch
-diff_catch <- pred_catch %>% 
+# difference in total escapement
+kobe_plot <- pred_catch %>% 
   group_by(scenario, .draw) %>% 
   summarize(
-    open_catch = sum(catch_52)
+    total_catch52 = sum(catch_52)
   ) %>%
-  pivot_wider(names_from = scenario, values_from = open_catch, 
+  pivot_wider(names_from = scenario, values_from = total_catch52, 
               names_prefix = "scen_") %>% 
   mutate(
-    `New to Status Quo` = scen_status_quo - scen_2023,
-    `New to Adjusted` = scen_adj - scen_2023
+    `Current 2023` = scen_status_quo - scen_2023,
+    `Adjusted Area` = scen_status_quo - scen_adj_area,
+    `Adjusted Time` = scen_status_quo - scen_adj_time
   ) %>% 
-  select(.draw, `New to Adjusted`, `New to Status Quo`) %>% 
-  pivot_longer(cols = c(`New to Adjusted`, `New to Status Quo`)) %>% 
-  group_by(name) %>% 
+  select(.draw, `Current 2023`, `Adjusted Area`, `Adjusted Time`) %>% 
+  pivot_longer(cols = c(`Current 2023`, `Adjusted Area`, `Adjusted Time`),
+               names_to = "scenario") %>% 
+  group_by(scenario) %>% 
   summarize(
-    mean_diff = mean(value),
-    lo_diff = quantile(value, 0.05),
-    up_diff = quantile(value, 0.95)
+    mean_diff = mean(value) / esc_forecast,
+    lo_diff = quantile(value, 0.05) / esc_forecast,
+    up_diff = quantile(value, 0.95) / esc_forecast
   ) %>% 
-  ggplot(., aes(y = mean_diff, x = name)) +
-  geom_pointrange(aes(ymin = lo_diff, ymax = up_diff),
-                  fill = "white", shape = 21) +
-  labs(y = "Difference in Predicted\nSummer 5_2 Catch (pieces)", x = "Scenario") +
+  left_join(., total_catch_dat, by = "scenario") %>% 
+  mutate(diff_catch = total_catch / tac) %>% 
+  ggplot(., aes(y = mean_diff, x = diff_catch)) +
+  geom_pointrange(aes(ymin = lo_diff, ymax = up_diff, fill = scenario),
+                  shape = 21) +
+  labs(y = "Difference in Predicted\nEscapement", 
+       x = "Predicted Proportion of TAC Caught") +
   ggsidekick::theme_sleek()
 
 
-png(here::here("figs", "summer_impacts", "catch_effects.png"), res = 250,
+png(here::here("figs", "summer_impacts", "kobe_plot.png"), res = 250,
     units = "in", height = 3.5, width = 5.5)
-diff_catch
+kobe_plot
 dev.off()
 
 pdf(here::here("figs", "summer_impacts", "summary_figs.pdf"))
