@@ -163,11 +163,11 @@ week_comp <- ggplot(dd,
   scale_size_continuous(name = "Weekly\nSample\nSize") +
   facet_grid(dataset2 ~ region) +
   ggsidekick::theme_sleek() +
-  labs(y = "Proportion Catch", x = "Week")
+  labs(y = "Proportion of Sample", x = "Week")
 
 
 png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
-    units = "in", height = 4.5, width = 5.5)
+    units = "in", height = 4, width = 5.5)
 week_comp
 dev.off()
 
@@ -254,7 +254,7 @@ catch <- read.csv(here::here("data", "comm", "area_g_catch.csv")) %>%
       TRUE ~ "other"
     ),
     date = as.POSIXct(fishing_date,
-                         format = "%m/%d/%Y %H:%M"
+                      format = "%m/%d/%Y %H:%M"
     ),
     month = lubridate::month(date),
     week = lubridate::week(date),
@@ -304,6 +304,10 @@ ggplot(aug_catch, aes(fill = subset, y = ppn_catch, x = year)) +
   labs(y = "Proportion of Total August Catch", x = "Year")
 dev.off()
 
+ggplot(aug_catch, aes(fill = region, y = ppn_catch, x = as.factor(week))) + 
+  geom_boxplot() +
+  labs(y = "Proportion of Total August Catch", x = "Year")
+
 
 # no late catch prior to 2019 so exclude those years and calculate proportion 
 # over time period to sum to one
@@ -329,25 +333,28 @@ week_ppn <- catch %>%
 
 ## MODEL FIT -------------------------------------------------------------------
 
-fit4 <- brm(
-  bf(prob ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year),
-     phi ~ dataset2 + samp_nn,
-     zi ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year)
-  ),
-  prior = c(
-    prior(normal(-4.8, 2.5), class = "Intercept", dpar = ""),
-    prior(normal(0, 5), class = "b")
-  ),
-  # control = list(#adapt_delta = 0.91,
-  #                max_treedepth = 11),
-  data = dd,
-  init = "0",
-  family = zero_inflated_beta(),
-  chains = 4, iter = 2000, warmup = 1000,
-  cores = 4, seed = 1234
-)
-saveRDS(fit4, 
-        here::here("data", "model_fits", "summer_impacts", "fit4.rds"))
+# fit4 <- brm(
+#   bf(prob ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year),
+#      phi ~ dataset2 + samp_nn,
+#      zi ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year)
+#   ),
+#   prior = c(
+#     prior(normal(-4.8, 2.5), class = "Intercept", dpar = ""),
+#     prior(normal(0, 5), class = "b")
+#   ),
+#   # control = list(#adapt_delta = 0.91,
+#   #                max_treedepth = 11),
+#   data = dd,
+#   init = "0",
+#   family = zero_inflated_beta(),
+#   chains = 4, iter = 2000, warmup = 1000,
+#   cores = 4, seed = 1234
+# )
+# saveRDS(fit4, 
+#         here::here("data", "model_fits", "summer_impacts", "fit4.rds"))
+
+fit4 <- readRDS(here::here("data", "model_fits", "summer_impacts", "fit4.rds"))
+
 
 plot(fit4)
 
@@ -551,9 +558,14 @@ mean_stock_comp <- ggplot(pred_dat, aes(x = week, y = mean_exp)) +
   labs(y = "Predicted Commercial\nSummer 5_2 Composition", x = "August Period") +
   ggsidekick::theme_sleek()
 
+png(here::here("figs", "summer_impacts", "aug_weekly_com.png"), res = 250,
+    units = "in", height = 3, width = 5.5)
+mean_stock_comp
+dev.off()
+
+
 # catch preds
 pred_catch <- scen_tbl %>%
-  # select(-data) %>%
   unnest(cols = c(preds)) %>%
   group_by(scenario, region, week, catch_adj, .draw) %>% 
   summarize(
@@ -595,10 +607,18 @@ pred_catch_est_dat <- pred_catch %>%
 pred_catch_est <- ggplot(pred_catch_est_dat, 
                          aes(x = scenario, y = mean_catch)) +
   geom_pointrange(aes(ymin = lo_catch, ymax = up_catch)) +
-  labs(y = "Predicted Summer 5_2/nCommercial Catch (pieces)", 
+  labs(y = "Predicted Summer 5_2\nCommercial Catch (pieces)", 
        x = "Area G Region") +
   ggsidekick::theme_sleek()
 
+png(here::here("figs", "summer_impacts", "catch_preds.png"), res = 250,
+    units = "in", height = 3.5, width = 5.5)
+pred_catch_est
+dev.off()
+
+
+
+# total catch based on proportional catch and closures
 total_catch_dat <- scen_tbl %>% 
   select(scenario, total_catch) %>% 
   mutate(scenario = fct_recode(
@@ -643,6 +663,7 @@ png(here::here("figs", "summer_impacts", "kobe_plot.png"), res = 250,
 kobe_plot
 dev.off()
 
+
 pdf(here::here("figs", "summer_impacts", "summary_figs.pdf"))
 annual_comp
 obs_comp
@@ -650,4 +671,33 @@ pred_ribbon
 mean_stock_comp
 pred_catch_est
 diff_catch
+dev.off()
+
+
+## CWT RECOVERIES --------------------------------------------------------------
+
+cwt_dat <- read.csv(
+  here::here("data", "cwt_recoveries", "summer_52_recoveries.csv")
+) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    date_rec = paste(day, month, run_year, sep = "/") %>% 
+      as.POSIXct(., format = "%d/%m/%Y"
+      ),
+    month_day = as.Date(paste(2014,strftime(date_rec, format = "%m-%d"),sep="-")) 
+  ) %>% 
+  glimpse()
+
+png(here::here("figs", "summer_impacts", "cwt_plot.png"), res = 250,
+    units = "in", height = 3.5, width = 5.5)
+ggplot(cwt_dat) +
+  geom_point(
+    aes(x = month_day, y = estimated_number, fill = fishery_description),
+    shape = 21
+    ) +
+  ggsidekick::theme_sleek() +
+  scale_fill_discrete(
+    name = ""
+  ) +
+  labs(x = "Date", y = "Number of CWTs\n(expanded based on sampling rate)")
 dev.off()
