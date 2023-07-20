@@ -19,15 +19,17 @@ library(tidybayes)
 
 
 comp_in_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
-  mutate(week = lubridate::week(date))
+  mutate(
+    week = lubridate::week(date),
+    Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)
+  ) 
 
-comp_in_raw %>% 
+
+summer52_stocks <- comp_in_raw %>% 
   filter(Region1Name == "Fraser_Summer_5.2") %>% 
   select(stock, Region1Name, Region1Name) %>% 
   distinct() %>% 
-  arrange(stock, Region1Name) %>% 
-  print(n = Inf)
-
+  arrange(stock, Region1Name) 
 
 rec_dat <- comp_in_raw %>% 
   filter(cap_region %in% c("NWVI", "SWVI"),
@@ -50,7 +52,10 @@ rec_dat <- comp_in_raw %>%
 
 ## COMMERCIAL DATA -------------------------------------------------------------
 
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds"))
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>% 
+ mutate(
+   Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)
+ )
 
 comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   select(-c(Region1Name:pst_agg)) %>% 
@@ -68,6 +73,10 @@ comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
     dataset, fish_id = id, sample_id, week, year, region, area, smu,
     prob = adj_prob
   )
+
+# comm_dat %>%
+#   filter(adj_prob > 0.7 & smu == "Fraser_Summer_5.2" & month == "9")
+
 
 
 ## TAGGING DATA ----------------------------------------------------------------
@@ -171,6 +180,7 @@ png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
 week_comp
 dev.off()
 
+
 # pool years
 ggplot(dd, aes(x = as.factor(week), y = prob)) +
   geom_boxplot(alpha = 0.5, shape = 21) +
@@ -185,56 +195,56 @@ nrow(dd_aug[dd_aug$prob == 0, ]) / nrow(dd_aug)
 
 
 ## annual means (i.e. sum all probs within a year then divide)
-# all_dat_yr <- rbind(comm_dat, rec_dat) %>% 
-#   filter(week > 30 & week < 35) %>% 
-#   mutate(sample_id = paste(year, region, dataset, sep = "_")) 
-#   
-# samp_size_yr <- all_dat %>% 
-#   group_by(sample_id) %>% 
-#   summarize(samp_nn = length(unique(fish_id))) 
+# all_dat_yr <- rbind(comm_dat, rec_dat) %>%
+#   # filter(week > 30 & week < 35) %>%
+#   mutate(sample_id = paste(year, region, dataset, sep = "_"))
+# 
+# samp_size_yr <- all_dat %>%
+#   group_by(sample_id) %>%
+#   summarize(samp_nn = length(unique(fish_id)))
 # 
 # expand_dat_yr <- expand.grid(
 #   sample_id = unique(all_dat_yr$sample_id),
 #   smu = unique(all_dat_yr$smu)
-# ) %>% 
+# ) %>%
 #   left_join(
-#     ., 
-#     all_dat_yr %>% 
-#       select(dataset, sample_id, year, region) %>% 
+#     .,
+#     all_dat_yr %>%
+#       select(dataset, sample_id, year, region) %>%
 #       distinct(),
 #     by = "sample_id"
-#   ) %>% 
+#   ) %>%
 #   left_join(., samp_size_yr, by = "sample_id")
 # 
-# all_samps_yr <- all_dat_yr %>% 
-#   group_by(sample_id) %>% 
-#   mutate(samp_nn = length(unique(fish_id))) %>% 
-#   group_by(dataset, sample_id, samp_nn, year, region, smu) %>% 
+# all_samps_yr <- all_dat_yr %>%
+#   group_by(sample_id) %>%
+#   mutate(samp_nn = length(unique(fish_id))) %>%
+#   group_by(dataset, sample_id, samp_nn, year, region, smu) %>%
 #   reframe(smu_prob = sum(prob),
 #           smu_ppn = smu_prob / samp_nn,
-#           .groups = "drop") %>% 
-#   distinct() %>% 
-#   rename(prob = smu_ppn) 
+#           .groups = "drop") %>%
+#   distinct() %>%
+#   rename(prob = smu_ppn)
 # 
-# all_samps2_yr <- expand_dat_yr %>% 
-#   left_join(., 
+# all_samps2_yr <- expand_dat_yr %>%
+#   left_join(.,
 #             all_samps_yr %>%
-#               select(sample_id, smu, prob), 
-#             by = c("sample_id", "smu")) %>% 
+#               select(sample_id, smu, prob),
+#             by = c("sample_id", "smu")) %>%
 #   mutate(
 #     prob = replace_na(prob, 0)
-#   ) 
+#   )
 # 
-# annual_mean <- all_samps2_yr %>% 
-#   filter(smu == "Fraser_Summer_5.2") %>% 
-#   group_by(dataset, region, year) %>% 
+# annual_mean <- all_samps2_yr %>%
+#   filter(smu == "Fraser_Summer_5.2") %>%
+#   group_by(dataset, region, year) %>%
 #   summarize(mean_prob = mean(prob))
 # 
 # annual_comp <- ggplot(annual_mean, aes(x = region, y = mean_prob)) +
 #   geom_boxplot() +
 #   facet_wrap(~dataset) +
 #   ggsidekick::theme_sleek() +
-#   labs(y = "Observed Proportion of\nSummer 5_2 in August Catch", 
+#   labs(y = "Observed Proportion of\nSummer 5_2 in August Catch",
 #        x = "Area G Region")
 # 
 # png(here::here("figs", "summer_impacts", "annual_comp.png"), res = 250,
@@ -332,7 +342,7 @@ week_ppn <- catch %>%
 
 
 ## MODEL FIT -------------------------------------------------------------------
-
+# 
 # fit4 <- brm(
 #   bf(prob ~ region*week_z + region*I(week_z^2) + dataset2 + (1 | year),
 #      phi ~ dataset2 + samp_nn,
@@ -350,7 +360,7 @@ week_ppn <- catch %>%
 #   chains = 4, iter = 2000, warmup = 1000,
 #   cores = 4, seed = 1234
 # )
-# saveRDS(fit4, 
+# saveRDS(fit4,
 #         here::here("data", "model_fits", "summer_impacts", "fit4.rds"))
 
 fit4 <- readRDS(here::here("data", "model_fits", "summer_impacts", "fit4.rds"))
