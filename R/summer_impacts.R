@@ -695,16 +695,19 @@ cwt_dat <- read.csv(
       as.POSIXct(., format = "%d/%m/%Y"
       ),
     month_day = as.Date(paste(2014,strftime(date_rec, format = "%m-%d"),sep="-")) 
-  ) %>% 
-  glimpse()
+  ) 
 
 png(here::here("figs", "summer_impacts", "cwt_plot.png"), res = 250,
     units = "in", height = 3.5, width = 5.5)
-ggplot(cwt_dat) +
-  geom_point(
-    aes(x = month_day, y = estimated_number, fill = fishery_description),
-    shape = 21
+ggplot(cwt_dat,
+       aes(x = month_day, y = estimated_number, fill = fishery_description)) +
+  geom_bar(
+    stat = "identity"
     ) +
+  # geom_smooth(
+  #   method = "gam",
+  #   formula = y ~ s(x, bs = "tp", k = 4)
+  # ) +
   ggsidekick::theme_sleek() +
   scale_fill_discrete(
     name = ""
