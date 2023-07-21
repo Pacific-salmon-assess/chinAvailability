@@ -15,15 +15,38 @@ library(brms)
 library(tidybayes)
 
 
+## WEEK KEY --------------------------------------------------------------------
+
+# make model week key to convert stat week to evenly spaced factors
+# week_key <- expand.grid(
+#   month = seq(1, 12, by = 1) %>%
+#     str_pad(., 2, pad = "0"),
+#   week = seq(1, 5, by = 1)
+# ) %>%
+#   arrange(month, week) %>%
+#   # remove week 5 in Feb
+#   filter(!(month == "02" & week == "5")) %>%
+#   mutate(
+#     stat_week = paste(month, week, sep = "-"),
+#     model_week = as.factor(stat_week) %>%
+#       as.numeric()
+#   )
+
+
 ## RECREATIONAL DATA -----------------------------------------------------------
 
 
-comp_in_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
+comp_in_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   mutate(
     week = lubridate::week(date),
-    Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)
+    Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)#,
+    # x = as.POSIXct(strptime(paste0(date, "-1"), format = "%Y-%m-%d")),
+    # y = format(x, "%m"),
+    # z = 1 + as.integer(format(x, "%d")) %/% 7,
+    # stat_week = paste(y, z, sep = "-") %>% 
+    #   as.factor(),
+    # model_week = as.numeric(stat_week)
   ) 
-
 
 summer52_stocks <- comp_in_raw %>% 
   filter(Region1Name == "Fraser_Summer_5.2") %>% 
@@ -57,7 +80,7 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>
    Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)
  )
 
-comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
+comm_dat_raw <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   select(-c(Region1Name:pst_agg)) %>% 
   #adjust stock IDs to make sure correct
   left_join(., stock_key, by = "stock") %>% 
@@ -67,16 +90,20 @@ comm_dat <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   mutate(
     smu = ifelse(Region1Name == "Fraser_Summer_5.2", Region1Name, "other"),
     sample_id = paste(week, year, region, "comm", sep = "_"),
-    dataset = "comm"
-  ) %>% 
+    dataset = "comm"#,
+    # x = as.POSIXct(strptime(paste0(date, "-1"), format = "%Y-%m-%d")),
+    # y = format(x, "%m"),
+    # z = 1 + as.integer(format(x, "%d")) %/% 7,
+    # stat_week = paste(y, z, sep = "-") %>% 
+    #   as.factor(),
+    # model_week = as.numeric(stat_week)
+  ) 
+
+comm_dat <- comm_dat_raw %>% 
   select(
     dataset, fish_id = id, sample_id, week, year, region, area, smu,
     prob = adj_prob
   )
-
-# comm_dat %>%
-#   filter(adj_prob > 0.7 & smu == "Fraser_Summer_5.2" & month == "9")
-
 
 
 ## TAGGING DATA ----------------------------------------------------------------
@@ -166,13 +193,21 @@ dd$week_z <- scale(dd$week) %>% as.numeric()
 
 
 week_comp <- ggplot(dd, 
-       aes(x = week, y = prob, size = samp_nn, fill = year)) +
+       aes(x = week, y = prob * 100, size = samp_nn, fill = year)) +
   geom_jitter(alpha = 0.5, shape = 21) +
   scale_fill_discrete(guide = "none") +
   scale_size_continuous(name = "Weekly\nSample\nSize") +
   facet_grid(dataset2 ~ region) +
   ggsidekick::theme_sleek() +
-  labs(y = "Proportion of Sample", x = "Week")
+  scale_x_continuous(
+    breaks = c(5, 13, 22, 31, 40, 49),
+    labels = c("2-1", "4-1", "6-1", "8-1", "10-1", "12-1")
+  ) +
+  scale_y_continuous(
+    breaks = seq(0.0, 7.5, by = 2.5),
+    labels = c("0%", "2.5%", "5.0%", "7.5%")
+  ) +
+  labs(y = "Percentage of Sample", x = "Stat Week")
 
 
 png(here::here("figs", "summer_impacts", "weekly_comp.png"), res = 250,
@@ -482,12 +517,20 @@ preds4 %>%
             lo_pred = quantile(.epred, 0.05),
             up_pred = quantile(.epred, 0.95)) %>% 
   ggplot(data = ,
-       aes(x = week, y = med_pred)) +
+       aes(x = week, y = med_pred * 100)) +
   geom_line() +
-  geom_ribbon(aes(ymin = lo_pred, ymax = up_pred), alpha = 0.2) +
-  facet_wrap(~region) + 
-  labs(y = "Predicted Proportion\nSummer 5_2 in Catch", 
-       x = "Week") +
+  geom_ribbon(aes(ymin = lo_pred * 100, ymax = up_pred * 100), alpha = 0.2) +
+  facet_wrap(~region) +
+  scale_x_continuous(
+    breaks = c(5, 13, 22, 31, 40, 49),
+    labels = c("2-1", "4-1", "6-1", "8-1", "10-1", "12-1")
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 0.8, by = 0.2),
+    labels = c("0%", "0.2%", "0.4%", "0.6%", "0.8%")
+  ) +
+  labs(y = "Predicted \nSummer 5_2 in Catch", 
+       x = "Stat Week") +
   ggsidekick::theme_sleek()
 dev.off()
 
@@ -660,11 +703,19 @@ kobe_plot <- pred_catch %>%
   ) %>% 
   left_join(., total_catch_dat, by = "scenario") %>% 
   mutate(diff_catch = total_catch / tac) %>% 
-  ggplot(., aes(y = mean_diff, x = diff_catch)) +
-  geom_pointrange(aes(ymin = lo_diff, ymax = up_diff, fill = scenario),
+  ggplot(., aes(y = mean_diff * 100, x = diff_catch * 100)) +
+  geom_pointrange(aes(ymin = lo_diff * 100, ymax = up_diff * 100, fill = scenario),
                   shape = 21) +
-  labs(y = "Difference in Predicted\nEscapement", 
-       x = "Predicted Proportion of TAC Caught") +
+  labs(y = "Difference in Predicted\nEscapement (%)", 
+       x = "Predicted Percentage of TAC Caught (%)") +
+  scale_x_continuous(
+    breaks = seq(30, 80, by = 10),
+    labels = c(paste(seq(30, 80, by = 10), "%", sep = ""))
+  ) +
+  scale_y_continuous(
+    breaks = seq(0.0, 0.8, by = 0.2),
+    labels = c("0%", "0.2%", "0.4%", "0.6%", "0.8%")
+  ) +
   ggsidekick::theme_sleek()
 
 
