@@ -17,6 +17,7 @@ knitr-cache
 *.accdb
 *.laccdb
 *.mdb
+data/rec/sc_biodata_aug_23.csv
 
 # History files
 .Rhistory
