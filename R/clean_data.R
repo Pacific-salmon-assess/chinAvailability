@@ -22,11 +22,16 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds"))
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
 
 # recreational composition data since through 2021 (clean to match rec_raw)
-rec_raw_new <- read.csv(
-  here::here("data", "rec", "sc_biodata_jan_23.csv"),
-  stringsAsFactors = FALSE, na.strings=c("","NA")
+rec_raw_new <- read_csv(
+  here::here("data", "rec", "sc_biodata_aug_23.csv"),
+  # here::here("data", "rec", "sc_biodata_jan_23.csv"),
+  na = c("","NA"),
+  # remove header
+  skip = 6
 ) %>% 
-  janitor::clean_names(.) 
+  janitor::clean_names(.) %>% 
+  # remove blanks
+  filter(!is.na(biokey))
 
 
 # remove duplicates, id numbers w/ multiple in columns, check unique vals are
@@ -35,88 +40,113 @@ rec_raw_new <- read.csv(
 wide_rec <- rec_raw_new %>% 
   # change US area 7 (near San Juan island) to SSoG
   mutate(
-    area = ifelse(area == "US7", "19GST", area),
-    area_n = as.numeric(str_replace_all(area, "[:letter:]", "")),
+    new_pfma = str_replace_all(new_pfma, ".00", ""),
+    area = case_when(
+      is.na(area) ~ as.character(new_pfma),
+      new_area == "US7" ~ "US7",
+      TRUE ~ as.character(area)
+      ),
+    area_n = as.numeric(area),
     # separate northern areas of 13 (normally in JS) and add to NSoG
     cap_region = case_when(
-      subarea %in% c("13M", "13N") ~ "N. Strait of Georgia",
+      new_creel_subarea %in% c("13M", "13N") ~ "N. Strait of Georgia",
       area_n > 124 ~ "NWVI",
       area_n < 28 & area > 24 ~ "NWVI",
-      area %in% c("20W", "20E", "20", "121", "21", "19JDF") ~ 
+      area %in% c("20W", "20E", "20", "121", "21", "19JDF") ~
         "Juan de Fuca Strait",
       area_n < 125 & area_n > 120 ~ "SWVI",
       area_n < 25 & area_n > 20 ~ "SWVI",
       area %in% c("14", "15", "16") ~ "N. Strait of Georgia",
-      area %in% c("17", "18", "19", "19GST", "28", "29") ~ 
+      area %in% c("17", "18", "19", "19GST", "28", "29") ~
         "S. Strait of Georgia",
       area %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
       area %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
     ),
+    date = as.POSIXct(collection_date, format="%d-%b-%Y"),
+    month_n = lubridate::month(date),
+    week_n = lubridate::week(date),
+    # temporary key for identifying weird sizes below
+    temp_key = paste(biokey, date, sep = "_"),
+    # convert lat/lon to numeric
+    lat = as.numeric(lat),
+    long = as.numeric(long)
+    )
+
+# check to see if true duplicates by grouping by biokey then checking to see if 
+# fork lengths and resolved stock id match
+# dups <- wide_rec %>% 
+#   group_by(biokey) %>%
+#   filter(n() > 1) %>% 
+#   mutate(row_id = row_number()) 
+# 
+# biokey_seq <- unique(dups$biokey)
+# code_vec <- NULL
+# for (i in seq_along(biokey_seq)) {
+#   dum <- dups %>% filter(biokey == biokey_seq[i])
+#   if (!is.na(dum$length_mm[1]) & dum$length_mm[1] != dum$length_mm[2]) {
+#     code_vec <- c(code_vec, biokey_seq[i])
+#   } else if (dum$resolved_stock_origin[1] != dum$resolved_stock_origin[2]) {
+#     code_vec <- c(code_vec, biokey_seq[i])
+#   }
+# }
+# 
+# # all duplicates appear to be valid so remove second entry
+# wide_rec <- wide_rec %>% 
+#   group_by(biokey) %>% 
+#   mutate(row_id = row_number()) %>% 
+#   filter(!row_id == "2") %>% 
+#   ungroup()
+
+# correct some size entries
+weird_sizes <- wide_rec %>%
+  filter(length_mm < 150 | length_mm > 1500) %>%
+  select(temp_key, length_mm, new_disposition, contains("size"))
+
+corrected_sizes <- read.csv(
+  here::here("data", "rec", "southcoast_size_errors_corrected.csv"),
+  colClasses = "character"
+) %>% 
+  mutate(
+    new_length_mm = ifelse(is.na(new_length_mm), "remove", new_length_mm)
+  ) %>% 
+  select(temp_key, new_length_mm)
+
+# export then paste/add corrections into southcoast_size_errors_corrected.csv
+write.csv(weird_sizes %>%
+            filter(!temp_key %in% corrected_sizes$temp_key)
+          ,
+          here::here("data", "rec", "southcoast_size_errors.csv"),
+          row.names = FALSE)
+
+wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
+  mutate(
+    fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) %>% 
+      as.numeric(),
     legal_lim = case_when(
       area_n < 20 & area_n > 11 ~ 620,
       area_n %in% c("28, 29") ~ 620,
       TRUE ~ 450
     ),
     legal = case_when(
-      length_mm >= legal_lim ~ "legal",
-      length_mm < legal_lim ~ "sublegal",
       disposition == "Kept" ~ "legal",
-      disposition == "Released" ~ "sublegal"
+      fl >= legal_lim ~ "legal",
+      fl < legal_lim ~ "sublegal"
     ),
-    date = as.POSIXct(collection_date, format="%d-%b-%Y"),
-    month_n = lubridate::month(date)
-    )
-
-
-# check to see if true duplicates by grouping by biokey then checking to see if 
-# fork lengths and resolved stock id match
-dups <- wide_rec %>% 
-  group_by(biokey) %>%
-  filter(n() > 1) %>% 
-  mutate(row_id = row_number()) 
-
-biokey_seq <- unique(dups$biokey)
-code_vec <- NULL
-for (i in seq_along(biokey_seq)) {
-  dum <- dups %>% filter(biokey == biokey_seq[i])
-  if (!is.na(dum$length_mm[1]) & dum$length_mm[1] != dum$length_mm[2]) {
-    code_vec <- c(code_vec, biokey_seq[i])
-  } else if (dum$resolved_stock_origin[1] != dum$resolved_stock_origin[2]) {
-    code_vec <- c(code_vec, biokey_seq[i])
-  }
-}
-
-# all duplicates appear to be valid so remove second entry
-wide_rec2 <- wide_rec %>% 
-  group_by(biokey) %>% 
-  mutate(row_id = row_number()) %>% 
-  filter(!row_id == "2") %>% 
-  ungroup()
-
-# correct some size entries
-weird_sizes <- wide_rec2 %>%
-  filter(length_mm < 150 | length_mm > 1500) %>%
-  select(biokey, length_mm, new_disposition, contains("size"))
-
-corrected_sizes <- read.csv(
-  here::here("data", "rec", "southcoast_size_errors_corrected.csv")
-) %>% 
-  mutate(
-    new_length_mm = ifelse(is.na(new_length_mm), "remove", new_length_mm)
-  ) %>% 
-  select(biokey, new_length_mm)
-
-# export then paste/add corrections into southcoast_size_errors_corrected.csv
-write.csv(weird_sizes %>%
-            filter(!biokey %in% corrected_sizes$biokey),
-          here::here("data", "rec", "southcoast_size_errors.csv"),
-          row.names = FALSE)
-
-wide_rec3 <- full_join(wide_rec2, corrected_sizes, by = "biokey") %>%
-  mutate(
-    fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) %>% 
-      as.numeric()
+    fl = ifelse((fl < 150 | fl > 1500), NaN, fl)
   ) 
+
+
+# sample sizes
+nrow(wide_rec3) #103k samples
+nrow(wide_rec3 %>% 
+       filter(!is.na(resolved_stock_origin))) #73k stock
+nrow(wide_rec3 %>% 
+       filter(!is.na(resolved_stock_origin) & !is.na(lat))) #69k stock/loc 
+
+wide_rec3 %>% 
+  filter(!is.na(resolved_stock_origin) & !is.na(lat)) %>% 
+  group_by(cap_region) %>% 
+  tally()
 
 
 # GSI CLEAN --------------------------------------------------------------------
@@ -124,10 +154,7 @@ wide_rec3 <- full_join(wide_rec2, corrected_sizes, by = "biokey") %>%
 # trim for GSI purposes
 wide_rec3_trim <- wide_rec3 %>% 
   filter(
-    !is.na(resolved_stock_source)#,
-    # for now remove all samples that don't also DNA data (unrepresentative 
-    # sampling)
-    # !is.na(dna_results_stock_1)
+    !is.na(resolved_stock_source)
   ) %>% 
   mutate(
     # make oto/dna/cwt equivalent
@@ -143,9 +170,9 @@ wide_rec3_trim <- wide_rec3 %>%
     )
   ) %>% 
   select(
-    id = biokey, date, month, year, cap_region, area, area_n, subarea, 
-    fishing_location, legal, 
-    fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
+    id = biokey, date, week_n, month_n, year, cap_region, area, area_n, subarea, 
+    lat, lon = long,
+    legal, fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob"),
@@ -191,7 +218,6 @@ long_rec <- wide_rec3_trim %>%
   select(-rank) %>% 
   mutate(
     stock = toupper(stock),
-    subarea = ifelse(subarea %in% c("US7"), "19B", subarea),
     creelsub = gsub("(\\d+)([[:alpha:]])", "\\1-\\2", subarea)
   ) %>% 
   filter(!is.na(stock),
