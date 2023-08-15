@@ -3,52 +3,47 @@
 # spatial scale of models; equivalent process with creel data
 
 library(tidyverse)
+library(maptools)
+library(rmapshaper)
+library(mapdata)
 
-# samples up to 2019 generated in Chinook distribution project
-# rec_raw <- readRDS(here::here("data", "rec", "recIndProbsLong.rds"))
 
-### TEMPORARY AMALGAMATION ONLY
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
-  rename(stock_region = region, region = cap_region) %>% 
-  mutate(month_n = lubridate::month(date),
-         subarea = case_when(
-           # subarea %in% c("18B", "18D", "18E") ~ "18BDE",
-           subarea %in% c("21B") ~ "21A",
-           subarea %in% c("US7") ~ "19B",
-           subarea %in% c("29-11", "29I") ~ "29B",
-           subarea %in% c("29DW", "29DE") ~ "29D",
-           # subarea %in% c("121C") ~ "121BC",
-           # consolidate subareas due to small sample sizes and doc issues w/
-           # convergence
-           # subarea %in% c("19C", "19D", "19E") ~ "19CDE",
-           # subarea %in% c("20A", "20E") ~ "20AE",
-           # subarea %in% c("20C", "20D") ~ "20CD",
-           # subarea %in% c("29G", "29F") ~ "29FG",
-           # subarea == "29E" ~ "29DE",
-           # grepl("29D", subarea) ~ "29DE",
-           # subarea %in% c("29B", "29C") ~ "29BC",
-           TRUE ~ subarea
-         ),
-         reg = case_when(
-           subarea == "21A" ~ "SWVI",
-           area %in% c("121", "21") ~ "SWVI",
-           subarea == "19C" ~ "SSoG",
-           area %in% c("20W", "20E", "19JDF") ~ "JdFS",
-           area %in% c("18", "19GST", "29") ~ "SSoG",
-           TRUE ~ "out"
-         ),
-         reg = as.factor(reg),
-         core_area = case_when(
-           subarea == "121B" ~ "no",
-           subarea == "29DE" ~ "yes",
-           reg %in% c("SWVI") ~ "yes", 
-           subarea %in% c("18BDE", "19B", "19C", "20AE") ~ "yes",
-           TRUE ~ "no"
-         )
-  ) 
+  janitor::clean_names() %>% 
+  rename(stock_region = region, region = cap_region)  %>% 
+  mutate(
+    pst_agg = case_when(
+      stock == "Capilano" ~ "SOG",
+      grepl(".2", region1name) ~ "Fraser Yearling",
+      stock == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
+      region1name == "Fraser Fall" ~ "Fraser Fall",
+      TRUE ~ pst_agg
+    ),
+    lon = ifelse(lon > 0, -1 * lon, lon)
+  )
 
-alpha_scale <- c(0.3, 0.95)
-names(alpha_scale) <- c("no", "yes")
+
+# map data
+coast <- readRDS(
+  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+  sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  sf::st_crop(xmin = -130, ymin = 48, xmax = -122, ymax = 52)
+
+
+# spatial distribution ---------------------------------------------------------
+
+sum_dat <- rec_raw %>% 
+  filter(!is.na(lat)) %>% 
+  group_by(id, week_n, month_n, year, region, area, lat, lon, legal, 
+           pst_agg) %>% 
+  summarize(prob = sum(prob),
+            .groups = "drop") 
+
+ggplot(rec_raw %>% select(lat, lon) %>% distinct()) +
+  geom_point(aes(x = lon, y = lat), shape = 21, fill = "red") +
+  geom_sf(data = coast, color = "black", fill = NA) +
+  ggsidekick::theme_sleek() 
+
 
 # sample coverage for GSI ------------------------------------------------------
 

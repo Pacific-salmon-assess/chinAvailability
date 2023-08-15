@@ -4,8 +4,7 @@
 
 library(tidyverse)
 
-# stock keys (old and new version have slightly different stock formats, keep
-# both)
+# stock key
 stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds"))
 
 # spatial data for creel subareas in southern bc to use as a covariate
@@ -227,7 +226,9 @@ long_rec <- wide_rec3_trim %>%
   # left_join(., creel_spatial %>% select(creelsub, dist_123i),
   #           by = "creelsub")
 
-stocks_to_add <- long_rec %>%
+
+# check for missing regional assignments
+long_rec %>%
   filter(
     is.na(Region1Name)
   ) %>%
@@ -236,8 +237,17 @@ stocks_to_add <- long_rec %>%
   ) %>%
   arrange(stock) %>%
   distinct()
-saveRDS(stocks_to_add,
-        here::here("data", "rec", "southcoast_missing_stocks.rds"))
+
+
+# saveRDS(
+#   long_rec %>%
+#     select(
+#       stock, region
+#     ) %>%
+#     arrange(stock) %>%
+#     distinct(),
+#   here::here("data", "rec", "southcoast_updated_stocks.rds")
+# )
 
 ## export
 saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
@@ -250,11 +260,9 @@ wide_size <- wide_rec3 %>%
          fishing_location, legal, fl, sex, ad = adipose_fin_clipped) %>%
   #remove missing and non-sensical size_classes
   filter(
-    !is.na(fl),
-    !fl == "remove"
+    !is.na(fl)
   ) %>% 
   mutate(
-    fl = as.numeric(fl),
     size_bin = cut(
       fl, 
       breaks = c(-Inf, 451, 601, 751, 901, Inf), 
