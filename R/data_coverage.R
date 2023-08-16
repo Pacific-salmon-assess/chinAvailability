@@ -32,17 +32,38 @@ coast <- readRDS(
 
 # spatial distribution ---------------------------------------------------------
 
+# calc max probability for each sample
 sum_dat <- rec_raw %>% 
-  filter(!is.na(lat)) %>% 
   group_by(id, week_n, month_n, year, region, area, lat, lon, legal, 
            pst_agg) %>% 
   summarize(prob = sum(prob),
-            .groups = "drop") 
+            .groups = "drop") %>% 
+  # remove if location unknown or assignment uncertain
+  filter(!is.na(lat),
+         !prob < 0.7) 
+  
+# all observed locations
+obs_stations <- rec_raw %>% 
+  select(lat, lon) %>% 
+  distinct()
 
-ggplot(rec_raw %>% select(lat, lon) %>% distinct()) +
-  geom_point(aes(x = lon, y = lat), shape = 21, fill = "red") +
+# map including observed locations
+base_map <- ggplot() +
+  geom_point(data = obs_stations, aes(x = lon, y = lat),
+             shape = 3, alpha = 0.4) +
+  # geom_point(aes(x = lon, y = lat), shape = 21, fill = "red") +
   geom_sf(data = coast, color = "black", fill = NA) +
-  ggsidekick::theme_sleek() 
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+
+# example with WCVI data
+base_map +
+  geom_jitter(
+    data = sum_dat %>% filter(pst_agg == "WCVI"),
+    aes(x = lon, y = lat),
+    shape = 23, alpha = 0.05, fill = "red", width = 0.05
+  )
 
 
 # sample coverage for GSI ------------------------------------------------------
