@@ -10,16 +10,15 @@ library(mapdata)
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   janitor::clean_names() %>% 
-  rename(stock_region = region, region = cap_region)  %>% 
+  rename(stock_region = region) %>% 
+  filter(!is.na(lat), !is.na(lon)) %>% 
+  # redefine region based on analysis
   mutate(
-    pst_agg = case_when(
-      stock == "Capilano" ~ "SOG",
-      grepl(".2", region1name) ~ "Fraser Yearling",
-      stock == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
-      region1name == "Fraser Fall" ~ "Fraser Fall",
-      TRUE ~ pst_agg
-    ),
-    lon = ifelse(lon > 0, -1 * lon, lon)
+    cap_region = case_when(
+      lat < 48.8 & lon > -125.25 & lon < -124.25 ~ "swiftsure",
+      lat < 48.45 & lon < -123.4 & lon > -124.25 ~ "sooke",
+      TRUE ~ "outside"
+    )
   )
 
 
@@ -27,114 +26,97 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
 coast <- readRDS(
   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
   sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
-  sf::st_crop(xmin = -130, ymin = 48, xmax = -122, ymax = 52)
+  sf::st_crop(xmin = -126, ymin = 48, xmax = -122, ymax = 48.8)
+
+## convert back to WGS84 and export
+hab_sf <- readRDS(
+   here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+)
 
 
 # spatial distribution ---------------------------------------------------------
 
-# calc max probability for each sample
-sum_dat <- rec_raw %>% 
-  group_by(id, week_n, month_n, year, region, area, lat, lon, legal, 
-           pst_agg) %>% 
-  summarize(prob = sum(prob),
-            .groups = "drop") %>% 
-  # remove if location unknown or assignment uncertain
-  filter(!is.na(lat),
-         !prob < 0.7) 
-  
 # all observed locations
-obs_stations <- rec_raw %>% 
-  select(lat, lon) %>% 
-  distinct()
+obs_stations <- rec_raw %>%
+  filter(lat < 48.8) %>% 
+  select(id, lat, lon, rkw_habitat, cap_region) %>% 
+  distinct() %>% 
+  group_by(lat, lon, rkw_habitat, cap_region) %>% 
+  tally()
+
 
 # map including observed locations
 base_map <- ggplot() +
-  geom_point(data = obs_stations, aes(x = lon, y = lat),
-             shape = 3, alpha = 0.4) +
-  # geom_point(aes(x = lon, y = lat), shape = 21, fill = "red") +
   geom_sf(data = coast, color = "black", fill = NA) +
+  geom_sf(data = hab_sf, color = "red") +
   ggsidekick::theme_sleek() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 
-# example with WCVI data
+pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"))
 base_map +
-  geom_jitter(
-    data = sum_dat %>% filter(pst_agg == "WCVI"),
-    aes(x = lon, y = lat),
-    shape = 23, alpha = 0.05, fill = "red", width = 0.05
+  geom_point(
+    data = obs_stations, 
+    aes(x = lon, y = lat, size = n, colour = rkw_habitat, shape = cap_region),
+    alpha = 0.4
+  ) +
+  theme(
+    legend.position = "top"
   )
+dev.off()
 
 
 # sample coverage for GSI ------------------------------------------------------
 
-subarea_list <- rec_raw %>%
-  group_by(area, subarea, region, year, month_n, legal) %>%
+# number of samples stratified by location and whether spatio-temporal overlap
+# w/ RKW samples
+pdf(here::here("figs", "data_coverage", "samples_by_location.pdf"))
+rec_raw %>%
+  filter(!legal == "sublegal", 
+         !cap_region == "outside") %>% 
+  group_by(rkw_habitat, cap_region, year, month_n) %>%
   summarize(n = length(unique(id)),
             .groups = "drop") %>% 
-  mutate(year = as.factor(year)) %>% 
+  mutate(
+    whale_samples_time = ifelse(
+      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
+        rkw_habitat == "yes",
+      "yes",
+      "no"
+      )
+  ) %>% 
   ungroup() %>% 
-  split(., .$region)
-area_list <- rec_raw %>%
-  group_by(area, region, year, month_n, legal) %>%
-  summarize(n = length(unique(id)),
-            .groups = "drop") %>%
-  ungroup() %>% 
-  split(., .$region)
-
-
-# visualize coverage by subarea or area
-subarea_coverage <- purrr::map2(
-  subarea_list, names(subarea_list),
-  function (x, y) {
-    p <- ggplot(x, aes(x = as.factor(month_n), y = n, fill = year)) +
-      geom_bar(position="stack", stat="identity") +
-      ggsidekick::theme_sleek() +
-      facet_wrap(~subarea, scales = "free_y") +
-      labs(x = "Month", y = "Samples", title = y)
-    print(p)
-  }
-)
-
-area_coverage <- purrr::map2(
-  area_list, names(area_list),
-  function (x, y) {
-    p <- ggplot(x, aes(x = as.factor(month_n), y = n, fill = legal)) +
-      geom_bar(position="stack", stat="identity") +
-      ggsidekick::theme_sleek() +
-      facet_grid(area~year) +
-      labs(x = "Month", y = "Samples", title = y)
-    print(p)
-  }
-)
-
-
-# as above but focused only on core regions
-subarea_trim <- subarea_list %>% 
-  bind_rows() %>% 
-  filter(area %in% c("19GST", "19JDF", "20E", "20W", "21", "121")) 
-
-
-png(here::here("figs", "data_coverage", "gsi_samples_subarea_trim.png"))
-ggplot(subarea_trim, 
-       aes(x = as.factor(month_n), y = n, fill = year, alpha = core_area)) +
+  ggplot(., aes(x = as.factor(month_n), y = n, fill = whale_samples_time)) +
   geom_bar(position="stack", stat="identity") +
-  scale_alpha_manual(values = alpha_scale) +
   ggsidekick::theme_sleek() +
-  facet_wrap(~subarea, scales = "free_y") +
-  labs(x = "Month", y = "Samples")
+  facet_grid(rkw_habitat ~ cap_region, scales = "free_y") +
+  labs(y = "Number of Samples")
 dev.off()
 
 
-
-
-# export
-pdf(here::here("figs", "data_coverage", "gsi_samples_new_subarea.pdf"))
-subarea_coverage
-dev.off()
-
-pdf(here::here("figs", "data_coverage", "gsi_samples_new_area.pdf"))
-area_coverage
+# stock comp stratified by location and whether spatio-temporal overlap
+# w/ RKW samples
+pdf(here::here("figs", "data_coverage", "comp_by_location.pdf"))
+rec_raw %>%
+  filter(!legal == "sublegal", 
+         !cap_region == "outside") %>% 
+  group_by(cap_region, month_n, rkw_habitat) %>% 
+  mutate(total_samples = sum(prob),
+         month = as.factor(month_n)) %>% 
+  group_by(cap_region, rkw_habitat, month, total_samples, 
+           stock_group) %>% 
+  summarize(
+    agg_prob = sum(prob),
+    agg_ppn = agg_prob / total_samples,
+    .groups = "drop"
+  ) %>%  
+  distinct() %>% 
+  ggplot(., aes(fill = stock_group, y = agg_ppn, x = month)) + 
+  geom_bar(position="stack", stat="identity") +
+  # scale_fill_manual(name = "Stock", values = stock_pal) +
+  facet_grid(rkw_habitat ~ cap_region) +
+  labs(x = "Month", y = "Agg Probability") +
+  ggsidekick::theme_sleek()
 dev.off()
 
 

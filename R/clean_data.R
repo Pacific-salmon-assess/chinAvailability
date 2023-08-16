@@ -3,19 +3,46 @@
 # Updated: May 8, 2023
 
 library(tidyverse)
+library(sf)
+library(ggplot2)
+library(tidyverse)
 
-# stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds"))
 
-# spatial data for creel subareas in southern bc to use as a covariate
-# creel_spatial <- readRDS(
-#   here::here("data", "spatial", "creel_subarea_spatial.rds")
-# ) %>% 
-#   sf::st_drop_geometry() %>% 
-#   #coerce 20-D to equal specific subarea
-#   mutate(
-#     creelsub = ifelse(creelsub == "20-DO", "20-D", creelsub)
-#   )
+# CRITICAL HABITAT CLEAN -------------------------------------------------------
+
+if (Sys.info()['sysname'] == "Windows") {
+  shp_path <- "C:/Users/FRESHWATERC/Documents/drive docs/spatial/"
+} else {
+  shp_path <- "/Users/cam/Google Drive/spatial"
+}
+
+
+# shapefile boundaries (most conservative 70% boundary based on posterior draws)
+swift_shp <- st_read(
+  here::here(shp_path, "srkw_foraging_areas", 
+             "swiftsure.forage.0.25exc.0.7prop.poly_NAD83_BCAlbers.shp"))
+haro_shp <- st_read(
+  here::here(shp_path, "srkw_foraging_areas", 
+             "haro.forage.0.25exc.0.7prop.poly_NAD83_BCAlbers.shp"))
+hab_sf <- rbind(swift_shp, haro_shp) %>%
+  sf::st_transform(., crs = sp::CRS("+init=epsg:3005"))
+
+
+# coastline cropped 
+coast_albers <- rbind(rnaturalearth::ne_states( "United States of America", 
+                                                returnclass = "sf"), 
+                      rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>% 
+  sf::st_crop(., 
+              xmin = -125.5, ymin = 48.15, xmax = -122.25, ymax = 49.25) %>% 
+  sf::st_transform(., crs = sp::CRS("+init=epsg:3005"))
+
+
+## convert back to WGS84 and export
+saveRDS(
+  hab_sf %>% 
+    st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")),
+  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+)
 
 
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
@@ -35,16 +62,14 @@ rec_raw_new <- read_csv(
 
 # remove duplicates, id numbers w/ multiple in columns, check unique vals are
 # correct, merge with id2
-
 wide_rec <- rec_raw_new %>% 
-  # change US area 7 (near San Juan island) to SSoG
   mutate(
     new_pfma = str_replace_all(new_pfma, ".00", ""),
     area = case_when(
       is.na(area) ~ as.character(new_pfma),
       new_area == "US7" ~ "US7",
       TRUE ~ as.character(area)
-      ),
+    ),
     area_n = as.numeric(area),
     # separate northern areas of 13 (normally in JS) and add to NSoG
     cap_region = case_when(
@@ -68,8 +93,10 @@ wide_rec <- rec_raw_new %>%
     temp_key = paste(biokey, date, sep = "_"),
     # convert lat/lon to numeric
     lat = as.numeric(lat),
-    long = as.numeric(long)
-    )
+    lon = as.numeric(long) %>%
+      ifelse(. > 0, -1 * ., .)
+  ) 
+
 
 # check to see if true duplicates by grouping by biokey then checking to see if 
 # fork lengths and resolved stock id match
@@ -96,7 +123,8 @@ wide_rec <- rec_raw_new %>%
 #   filter(!row_id == "2") %>% 
 #   ungroup()
 
-# correct some size entries
+
+## correct some size entries
 weird_sizes <- wide_rec %>%
   filter(length_mm < 150 | length_mm > 1500) %>%
   select(temp_key, length_mm, new_disposition, contains("size"))
@@ -135,6 +163,38 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   ) 
 
 
+## identify whether samples caught inside/outside critical habitat
+rec_sf <- wide_rec3 %>%
+  filter(!is.na(lat), !is.na(lon)) %>% 
+  st_as_sf(
+    ., 
+    coords = c("lon", "lat"), 
+    crs = sp::CRS("+proj=longlat +datum=WGS84")
+  ) %>% 
+  # specify same projection as habitat shape file
+  sf::st_transform(., crs = sp::CRS("+init=epsg:3005"))
+
+rec_sf_sub <- rec_sf %>% 
+  # select pts in habitat
+  st_intersection(., hab_sf)
+
+# visual check
+ggplot() + 
+  ggsidekick::theme_sleek() +
+  theme(axis.title = element_blank()) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  geom_sf(data = hab_sf, color = "red", fill = NA, size = 1.25) +
+  geom_sf(data = coast_albers) +
+  geom_sf(data = rec_sf_sub[1:100, ],
+              shape = 23, alpha = 0.05, fill = "blue") 
+
+# add to std dataframe
+wide_rec3$rkw_habitat = ifelse(
+  wide_rec3$biokey %in% rec_sf_sub$biokey, "yes", "no"
+)
+
+
 # sample sizes
 nrow(wide_rec3) #103k samples
 nrow(wide_rec3 %>% 
@@ -149,6 +209,21 @@ wide_rec3 %>%
 
 
 # GSI CLEAN --------------------------------------------------------------------
+
+# stock key
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>%
+  janitor::clean_names() %>% 
+  mutate(
+    stock_group = case_when(
+      pst_agg %in% c("CA_ORCST", "CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa",
+                     "WACST", "Russia", "CR-upper_sp") ~ "other",
+      stock == "Capilano" | region1name %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
+      grepl(".2", region1name) ~ "Fraser Yearling",
+      region1name == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
+      region1name == "Fraser_Fall" ~ "Fraser Fall",
+      TRUE ~ pst_agg
+    )
+  )
 
 # trim for GSI purposes
 wide_rec3_trim <- wide_rec3 %>% 
@@ -170,7 +245,7 @@ wide_rec3_trim <- wide_rec3 %>%
   ) %>% 
   select(
     id = biokey, date, week_n, month_n, year, cap_region, area, area_n, subarea, 
-    lat, lon = long,
+    lat, lon, rkw_habitat,
     legal, fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
@@ -230,7 +305,7 @@ long_rec <- wide_rec3_trim %>%
 # check for missing regional assignments
 long_rec %>%
   filter(
-    is.na(Region1Name)
+    is.na(region1name)
   ) %>%
   select(
     stock, region
