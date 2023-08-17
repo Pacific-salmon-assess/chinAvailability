@@ -18,6 +18,12 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       lat < 48.8 & lon > -125.25 & lon < -124.25 ~ "swiftsure",
       lat < 48.45 & lon < -123.4 & lon > -124.25 ~ "sooke",
       TRUE ~ "outside"
+    ),
+    whale_samples_time = ifelse(
+      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
+        rkw_habitat == "yes",
+      "yes",
+      "no"
     )
   )
 
@@ -71,26 +77,39 @@ dev.off()
 # number of samples stratified by location and whether spatio-temporal overlap
 # w/ RKW samples
 pdf(here::here("figs", "data_coverage", "samples_by_location.pdf"))
+# stacked bar
 rec_raw %>%
   filter(!legal == "sublegal", 
          !cap_region == "outside") %>% 
-  group_by(rkw_habitat, cap_region, year, month_n) %>%
+  group_by(whale_samples_time, rkw_habitat, cap_region, year, month_n) %>%
   summarize(n = length(unique(id)),
             .groups = "drop") %>% 
-  mutate(
-    whale_samples_time = ifelse(
-      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
-        rkw_habitat == "yes",
-      "yes",
-      "no"
-      )
-  ) %>% 
   ungroup() %>% 
   ggplot(., aes(x = as.factor(month_n), y = n, fill = whale_samples_time)) +
   geom_bar(position="stack", stat="identity") +
   ggsidekick::theme_sleek() +
   facet_grid(rkw_habitat ~ cap_region, scales = "free_y") +
   labs(y = "Number of Samples")
+
+# bubbles
+rec_raw %>%
+  filter(!legal == "sublegal", 
+         !cap_region == "outside") %>% 
+  group_by(cap_region, month_n, rkw_habitat) %>% 
+  mutate(total_samples = sum(prob),
+         month = as.factor(month_n),
+         sample_id = paste(month, cap_region, rkw_habitat, year, sep = "_")) %>% 
+  group_by(sample_id) %>% 
+  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
+  ungroup() %>% 
+  select(sample_id, month_n, cap_region, rkw_habitat, year, nn) %>% 
+  distinct() %>%
+  ggplot() +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = rkw_habitat),
+              alpha = 0.5, width = 0.25) +
+  facet_wrap(~cap_region) +
+  ggsidekick::theme_sleek() +
+  labs(x = "Month", y = "Year")
 dev.off()
 
 
@@ -113,122 +132,14 @@ rec_raw %>%
   distinct() %>% 
   ggplot(., aes(fill = stock_group, y = agg_ppn, x = month)) + 
   geom_bar(position="stack", stat="identity") +
-  # scale_fill_manual(name = "Stock", values = stock_pal) +
   facet_grid(rkw_habitat ~ cap_region) +
   labs(x = "Month", y = "Agg Probability") +
   ggsidekick::theme_sleek()
 dev.off()
 
 
-# visualize seasonal changes in composition by area (NOTE excludes sublegal
-# samples)
-stock_comp_dat <- rec_raw %>%
-  filter(legal == "legal") %>% 
-  group_by(area, month) %>% 
-  mutate(total_samples = sum(prob)) %>% 
-  group_by(area, region, month, month_n, total_samples, pst_agg) %>% 
-  summarize(
-    agg_prob = sum(prob),
-    agg_ppn = agg_prob / total_samples,
-    .groups = "drop"
-  ) %>%  
-  distinct() 
-stock_comp_list <- split(stock_comp_dat, stock_comp_dat$region)
-
-  
-stock_pal <- disco::disco("rainbow", n = length(unique(stock_comp_dat$pst_agg)))
-  
-seasonal_stock_comp <- purrr::map2(
-  stock_comp_list, names(stock_comp_list),
-  function (x, y) {
-    p <- ggplot(x, aes(fill = pst_agg, y = agg_ppn, x = month_n)) + 
-      geom_bar(position="stack", stat="identity") +
-      scale_fill_manual(name = "Stock", values = stock_pal) +
-      facet_wrap(~area) +
-      labs(x = "Month", y = "Agg Probability", 
-           title = y) +
-      ggsidekick::theme_sleek()
-    print(p)
-  }
-)
-
-# as above but for subareas, restricted to regions of focus and aggregated 
-# post-hoc
-
-subarea_comp_dat <- rec_raw %>%
-  filter(legal == "legal",
-         !reg_f == "out") %>%
-  group_by(subarea, month) %>% 
-  mutate(total_samples = sum(prob)) %>% 
-  group_by(subarea, reg_f, month, month_n, total_samples, pst_agg, core_area) %>% 
-  summarize(
-    agg_prob = sum(prob),
-    agg_ppn = agg_prob / total_samples,
-    .groups = "drop"
-  ) %>%  
-  distinct() %>% 
-  mutate(strata = paste(reg_f, subarea))
-
-stock_pal <- disco::disco("rainbow", n = length(unique(subarea_comp_dat$pst_agg)))
 
 
-labs <- subarea_comp_dat %>% 
-  dplyr::select(month_n, strata, total_samples) %>% 
-  distinct() 
-
-
-subset_stock_comp <- ggplot() + 
-  geom_bar(data = subarea_comp_dat, 
-           aes(fill = pst_agg, y = agg_ppn, x = month_n, alpha = core_area),
-           position="stack", stat="identity") +
-  scale_fill_discrete(name = "Stock") +
-  scale_alpha_manual(name = "Core Area", values = alpha_scale) +
-  geom_text(data = labs, aes(x = month_n, y = -Inf, label = total_samples),
-            position = position_dodge(width = 0.9), size = 2.5,
-            vjust = -0.5) +
-  facet_wrap(~strata) +
-  labs(x = "Month", y = "Agg Probability") +
-  ggsidekick::theme_sleek()
-
-
-pdf(here::here("figs", "data_coverage", "mean_monthly_stock_comp.pdf"))
-seasonal_stock_comp
-dev.off()
-
-png(here::here("figs", "data_coverage", "mean_monthly_stock_comp_subarea.png"),
-    height = 7, width = 10, units = "in", res = 250)
-subset_stock_comp
-dev.off()
-
-
-## bubble plot
-# alpha_scale <- c(0.3, 0.95)
-# names(alpha_scale) <- c("no", "yes")
-png(here::here("figs", "data_coverage", "weekly_bubble_subarea.png"),
-    height = 7, width = 7, units = "in", res = 250)
-rec_raw %>%
-  filter(!reg == "out") %>% 
-  mutate(
-    week = lubridate::week(date),
-    month_n = lubridate::month(date),
-    sample_id = paste(month_n, subarea, week, year, sep = "_")
-    ) %>% 
-  group_by(sample_id) %>% 
-  mutate(nn = length(unique(id)) %>% as.numeric) %>% 
-  ungroup() %>% 
-  select(sample_id, year, reg, subarea, month_n, nn) %>%
-  distinct() %>%
-  ggplot() +
-  geom_jitter(aes(x = month_n, y = year, size = nn, colour = reg),
-              alpha = 0.5, width = 0.25) +
-  facet_wrap(~fct_reorder(subarea, as.numeric(reg)),
-             ncol = 3) +
-  ggsidekick::theme_sleek() +
-  theme(
-    legend.position = "null"
-  ) +
-  labs(x = "Month", y = "Year")
-dev.off()
 
 
 # sample coverage for size -----------------------------------------------------
