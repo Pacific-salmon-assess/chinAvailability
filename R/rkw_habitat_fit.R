@@ -1,10 +1,15 @@
 ## Model Fitting
-# Use GSI samples through 2020 to explore composition coverage and determine
-# spatial scale of models; equivalent process with creel data
+# Fit data to estimate seasonal changes in stock composition and determine 
+# whether comp similar inside/outside core habitat areas
+# cap_region defines whether or not samples were collected in coarse region
+# corresponding to habitat polygo
+# rkw_habitat defines whether or not samples were collected within foraging 
+# habitat polygon
 
 library(tidyverse)
 library(stockseasonr)
 
+source(here::here("R", "utils.R"))
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   janitor::clean_names() %>% 
@@ -34,7 +39,7 @@ comp_in <- rec_raw %>%
     !cap_region == "outside"
   ) %>% 
   mutate(
-    sample_id = paste(cap_region, week_n,  #rkw_habitat,
+    sample_id = paste(cap_region, week_n, rkw_habitat,
                       year, sep = "_")
   ) %>% 
   group_by(sample_id) %>% 
@@ -47,102 +52,28 @@ comp_in <- rec_raw %>%
   ) %>% 
   ungroup() %>% 
   group_by(sample_id, 
-           # rkw_habitat, 
+           rkw_habitat,
            cap_region, week_n, month_n, year, nn, 
            stock_group2) %>% 
   summarize(prob = sum(prob), .groups = "drop") %>% 
   filter(
-    month_n >= 5 & month_n <= 10
+    month_n >= 5 & month_n <= 9
   )
 
 # subset predicted composition dataset
 pred_dat_comp <- expand.grid(
   cap_region = unique(comp_in$cap_region),
+  rkw_habitat = unique(comp_in$rkw_habitat),
   month_n = seq(min(comp_in$month_n),
                 max(comp_in$month_n),
                 by = 0.1)
   )
 
 
-## COMPARISON ------------------------------------------------------------------
-
-pred_dat1 <- expand.grid(
-  cap_region = unique(comp_in$cap_region)
-)
-
-## compare simple model fit with brms and dirichlet
-fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 + cap_region,
-  comp_dat = comp_in,
-  pred_dat = pred_dat1,
-  model = "dirichlet",
-  random_walk = FALSE,
-  fit = TRUE,
-  # nlminb_loops = 2,
-  newton_loops = 1,
-  silent = FALSE
-)
-
-pred_fit <- clean_pred_foo(fit = fit, preds = pred_dat1)
-
-ggplot(pred_fit$preds) +
-  geom_pointrange(aes(x = cap_region, y = pred_prob_est, ymin = pred_prob_low, 
-                      ymax = pred_prob_up, colour = stock), 
-                  position = position_jitter(width = 0.3))
-
-library(brms)
-
-# extract and convert to matrix of proportions
-comp_matrix <- fit$wide_comp_dat %>% 
-  select(starts_with("stock-")) %>% 
-  as.matrix()
-comp_matrix2 <- (comp_matrix / apply(comp_matrix, 1, sum)) %>% 
-  cbind()
-comp_wide <- comp_wide %>% 
-  select(-starts_with("stock-")) %>% 
-  mutate(
-    y = comp_matrix2
-  )
-
-brms_form <- bf(
-  y ~ 1 + cap_region,
-  family = dirichlet
-)
-
-# explore priors
-get_prior(brms_form, data = comp_wide)
-
-## Set prior with sd = 1
-priors_1 <- c(prior(normal(0,1), class = b),
-              prior(normal(0,1), class = Intercept),
-              prior(student_t(3, 0, 10), class = phi))
-## sample from the priors
-ppp_1 <- brm(formula = brms_form, prior = priors_1, 
-             data = comp_wide, sample_prior = "only",
-             chains = 1, cores = 1)
-# plot
-pred_1 <- predict(ppp_1, summary = F, ndraws = 100)
-plot(density(pred_1[1,,]), 
-     col = scales::alpha("blue", 0.2), 
-     main = "b ~ Normal(0,1)",
-     xlim = c(-0.1, 1.1))
-for(i in 2:100) lines(density(pred_1[i,,]), 
-                      col = scales::alpha("blue", 0.2))
-
-brms_fit <- brm(
-  formula = brms_form, prior = priors_1, 
-  data = comp_wide,
-  chains = 4, cores = parallel::detectCores() - 1
-)
-
-plot(marginal_effects(brms_fit, categorical = T, effects = "cap_region"),
-     plot = T)
-
-
 ## stockseasonr fits -----------------------------------------------------------
 
 fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 + cap_region + 
+  comp_formula = stock_group2 ~ 1 + cap_region + rkw_habitat +
     s(month_n, bs = "tp", k = 4) + (1 | year),
   comp_dat = comp_in,
   pred_dat = pred_dat_comp,
@@ -156,66 +87,29 @@ fit <- fit_stockseasonr(
 
 fit$ssdr
 
-## function to clean and pars and generate preds
-clean_pred_foo <- function(fit, preds) {
-  # make predictions
-  ssdr <- fit$ssdr
-  logit_pred_ppn <- ssdr[rownames(ssdr) == "logit_pred_Pi_prop", ]
-  
-  link_preds <- data.frame(
-    link_prob_est = logit_pred_ppn[ , "Estimate"],
-    link_prob_se =  logit_pred_ppn[ , "Std. Error"]
-  ) %>% 
-    mutate(
-      pred_prob_est = plogis(link_prob_est),
-      pred_prob_low = plogis(link_prob_est + (qnorm(0.025) * link_prob_se)),
-      pred_prob_up = plogis(link_prob_est + (qnorm(0.975) * link_prob_se))
-    ) 
-  
-  stock_seq <- colnames(fit$tmb_data$Y2_ik) %>% 
-    str_remove(., "stock-")
-  pred_out <- purrr::map(stock_seq, function (x) {
-    dum <- preds
-    dum$stock <- x
-    return(dum)
-  }) %>%
-    bind_rows() %>%
-    cbind(., link_preds) %>% 
-    mutate(
-      stock = factor(
-        stock,
-        levels = c("nbc_seak", "wcvi", "fraser_yearling", "fraser_summer 4.1", 
-                   "fraser_fall", "ecvi_somn", "psd", "other")
-      )
-    )
-  
-  # make mean observations
-  obs_out <- fit$wide_comp_dat %>%
-    mutate(samp_nn = apply(fit$tmb_data$Y2_ik, 1, sum)) %>%
-    pivot_longer(cols = starts_with("stock-"), 
-                 names_to = "stock", 
-                 values_to = "obs_count",
-                 names_prefix = "stock-") %>%
-    mutate(obs_ppn = obs_count / samp_nn) %>% 
-    filter(month_n %in% preds$month_n) %>% 
-    mutate(
-      stock = factor(
-        stock,
-        levels = c("nbc_seak", "wcvi", "fraser_yearling", "fraser_summer 4.1", 
-                   "fraser_fall", "ecvi_somn", "psd", "other")
-      )
-    )
-  
- list(
-    preds = pred_out,
-    obs_dat = obs_out
-    )
-}
 
+# make predictions
 pred_fit <- clean_pred_foo(fit = fit, preds = pred_dat_comp)
+preds <- pred_fit$preds %>% 
+  mutate(
+    stock = factor(
+      stock,
+      levels = c("nbc_seak", "wcvi", "fraser_yearling", "fraser_summer_4.1",
+                 "fraser_fall", "ecvi_somn", "psd", "other")
+    )
+  )
+obs <- pred_fit$obs_dat %>% 
+  mutate(
+    stock = factor(
+      stock,
+      levels = c("nbc_seak", "wcvi", "fraser_yearling", "fraser_summer_4.1",
+                 "fraser_fall", "ecvi_somn", "psd", "other")
+    )
+  )
+  
 
-
-p <- ggplot(data = pred_fit$preds, aes(x = month_n)) +
+# seasonal patterns
+p <- ggplot(data = pred_fit$preds, aes(x = month_n, colour = rkw_habitat)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(cap_region~stock) +
   ggsidekick::theme_sleek() +
@@ -223,13 +117,42 @@ p <- ggplot(data = pred_fit$preds, aes(x = month_n)) +
 
 p_ribbon <- p +
   geom_ribbon(data = pred_fit$preds,
-              aes(ymin = pred_prob_low, ymax = pred_prob_up),
+              aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = rkw_habitat),
               alpha = 0.2)
 
 p_obs <- p +
-  geom_jitter(data = pred_fit$obs_dat,
+  geom_jitter(data = obs,
               aes(x = month_n, y = obs_ppn, size = samp_nn), alpha = 0.1) +
-  # geom_point(data = full_pred_list$mean_dat,
-  #            aes(x = month_n, y = mean_obs_ppn), alpha = 0.6, color = "blue") +
   scale_size_continuous() +
   theme(legend.position = "top")
+
+
+# pull parameter estimates for rkw habitat effects by stock
+habitat_effs <- pred_fit$pars %>% 
+  filter(grepl("rkw_", parameter)) %>% 
+  mutate(
+    lo = estimate + qnorm(0.025) * std_error,
+    up = estimate + qnorm(0.975) * std_error,
+    stock = str_remove(parameter, "rkw_habitatyes_") %>% 
+      factor(
+        .,
+        levels = c("nbc_seak", "wcvi", "fraser_yearling", "fraser_summer_4.1",
+                   "fraser_fall", "ecvi_somn", "psd", "other")
+      )
+  )
+
+dot_plot <- ggplot(habitat_effs) +
+  geom_pointrange(aes(x = stock, y = estimate, ymin = lo, ymax = up)) + 
+  ggsidekick::theme_sleek() +
+  geom_hline(aes(yintercept = 0), lty = 2) +
+  labs(y = "Habitat Effect") +
+  ggsidekick::theme_sleek()
+
+
+pdf(here::here("figs", "rkw_habitat", "stratified_habitat_effects.pdf"))
+p_ribbon
+p_obs
+dot_plot
+dev.off()
+
+# WCVI and Summer 4_1 fish more abundant inside zones than out
