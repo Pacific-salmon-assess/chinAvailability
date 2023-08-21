@@ -14,24 +14,7 @@ source(here::here("R", "utils.R"))
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   janitor::clean_names() %>% 
   rename(stock_region = region) %>% 
-  filter(!is.na(lat), !is.na(lon)) %>% 
-  # redefine region based on analysis
-  mutate(
-    cap_region = case_when(
-      lat < 48.8 & lon > -125.25 & lon < -124.25 ~ "swiftsure",
-      lat < 48.45 & lon < -123.4 & lon > -124.25 ~ "sooke",
-      TRUE ~ "outside"
-    ),
-    whale_samples_time = ifelse(
-      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
-        rkw_habitat == "yes",
-      "yes",
-      "no"
-    ),
-    year = as.factor(year),
-    yday = lubridate::yday(date),
-    day_samp = paste(yday, year)
-  )
+  filter(!is.na(lat), !is.na(lon)) 
 
 comp_in <- rec_raw %>% 
   filter(

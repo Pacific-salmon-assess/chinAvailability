@@ -164,15 +164,17 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
 
 
 ## identify whether samples caught inside/outside critical habitat
+hab_sf <- readRDS(
+  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+)
+
 rec_sf <- wide_rec3 %>%
   filter(!is.na(lat), !is.na(lon)) %>% 
   st_as_sf(
     ., 
     coords = c("lon", "lat"), 
     crs = sp::CRS("+proj=longlat +datum=WGS84")
-  ) %>% 
-  # specify same projection as habitat shape file
-  sf::st_transform(., crs = sp::CRS("+init=epsg:3005"))
+  ) 
 
 rec_sf_sub <- rec_sf %>% 
   # select pts in habitat
@@ -190,19 +192,39 @@ ggplot() +
               shape = 23, alpha = 0.05, fill = "blue") 
 
 # add to std dataframe
-wide_rec3$rkw_habitat = ifelse(
-  wide_rec3$biokey %in% rec_sf_sub$biokey, "yes", "no"
-)
+# wide_rec3$rkw_habitat = ifelse(
+#   wide_rec3$biokey %in% rec_sf_sub$biokey, "yes", "no"
+# )
 
+wide_rec4 <- wide_rec3 %>% 
+  mutate(
+    rkw_habitat = ifelse(
+      biokey %in% rec_sf_sub$biokey, "yes", "no"
+    ),
+    cap_region = case_when(
+      lat < 48.8 & lon > -125.25 & lon < -124.25 ~ "swiftsure",
+      lat < 48.45 & lon < -123.4 & lon > -124.25 ~ "sooke",
+      TRUE ~ "outside"
+    ),
+    whale_samples_time = ifelse(
+      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
+        rkw_habitat == "yes",
+      "yes",
+      "no"
+    ),
+    year = as.factor(year),
+    yday = lubridate::yday(date),
+    day_samp = paste(yday, year)
+  )
 
 # sample sizes
-nrow(wide_rec3) #103k samples
-nrow(wide_rec3 %>% 
-       filter(!is.na(resolved_stock_origin))) #73k stock
-nrow(wide_rec3 %>% 
+nrow(wide_rec4) #103k samples
+nrow(wide_rec4 %>% 
+       filter(!is.na(resolved_stock_origin))) #79k stock
+nrow(wide_rec4 %>% 
        filter(!is.na(resolved_stock_origin) & !is.na(lat))) #69k stock/loc 
 
-wide_rec3 %>% 
+wide_rec4 %>% 
   filter(!is.na(resolved_stock_origin) & !is.na(lat)) %>% 
   group_by(cap_region) %>% 
   tally()
@@ -226,7 +248,7 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>
   )
 
 # trim for GSI purposes
-wide_rec3_trim <- wide_rec3 %>% 
+wide_rec4_trim <- wide_rec4 %>% 
   filter(
     !is.na(resolved_stock_source)
   ) %>% 
@@ -256,7 +278,7 @@ wide_rec3_trim <- wide_rec3 %>%
 
 # replace 0 probabilities with v. small values (just to be safe); then recalc
 # ppns
-prbs <- wide_rec3_trim %>% 
+prbs <- wide_rec4_trim %>% 
   select(starts_with("prob")) %>% 
   as.matrix()
 prbs[prbs == 0] <- .00001
@@ -265,7 +287,7 @@ new_prbs <- prbs / row_sums
 
 
 #pivot to long (probs and stock IDs separately) and join 
-probs <- wide_rec3_trim %>% 
+probs <- wide_rec4_trim %>% 
   # replace with updated probabilities from above
   select(-starts_with("prob")) %>% 
   cbind(., new_prbs) %>% 
@@ -274,14 +296,14 @@ probs <- wide_rec3_trim %>%
                values_to = "prob") %>%
   select(id, rank, prob)
 
-regions <- wide_rec3_trim %>% 
+regions <- wide_rec4_trim %>% 
   select(id, starts_with("region")) %>% 
   pivot_longer(., cols = starts_with("region"), names_to = "rank", 
                names_pattern = "region_(.+)_rollup",
                values_to = "region") %>%
   select(id, rank, region)
 
-long_rec <- wide_rec3_trim %>% 
+long_rec <- wide_rec4_trim %>% 
   select(-starts_with("prob"), -starts_with("region")) %>% 
   pivot_longer(., cols = starts_with("stock"), names_to = "rank", 
                names_pattern = "stock_(.+)",
