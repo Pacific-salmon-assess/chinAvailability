@@ -11,21 +11,7 @@ library(mapdata)
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   janitor::clean_names() %>% 
   rename(stock_region = region) %>% 
-  filter(!is.na(lat), !is.na(lon)) %>% 
-  # redefine region based on analysis
-  mutate(
-    cap_region = case_when(
-      lat < 48.8 & lon > -125.25 & lon < -124.25 ~ "swiftsure",
-      lat < 48.45 & lon < -123.4 & lon > -124.25 ~ "sooke",
-      TRUE ~ "outside"
-    ),
-    whale_samples_time = ifelse(
-      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
-        rkw_habitat == "yes",
-      "yes",
-      "no"
-    )
-  )
+  filter(!is.na(lat), !is.na(lon)) 
 
 
 # map data
@@ -34,7 +20,6 @@ coast <- readRDS(
   sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
   sf::st_crop(xmin = -126, ymin = 48, xmax = -122, ymax = 48.8)
 
-## convert back to WGS84 and export
 hab_sf <- readRDS(
    here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
 )
@@ -59,15 +44,24 @@ base_map <- ggplot() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 
+shape_pal <- c(21, 22, 23)
+names(shape_pal) <- unique(obs_stations$cap_region)
+
 pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"))
 base_map +
   geom_point(
     data = obs_stations, 
-    aes(x = lon, y = lat, size = n, colour = rkw_habitat, shape = cap_region),
+    aes(x = lon, y = lat, size = n, fill = rkw_habitat, shape = cap_region),
     alpha = 0.4
   ) +
+  scale_shape_manual(values = shape_pal) +
   theme(
     legend.position = "top"
+  ) +
+  guides(
+    fill = guide_legend(
+      override.aes = list(shape = 21)
+    )
   )
 dev.off()
 
