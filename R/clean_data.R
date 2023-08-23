@@ -17,7 +17,8 @@ if (Sys.info()['sysname'] == "Windows") {
 }
 
 
-# shapefile boundaries (most conservative 70% boundary based on posterior draws)
+# shapefile habitat boundaries (most conservative 70% boundary based on 
+# posterior draws)
 swift_shp <- st_read(
   here::here(shp_path, "srkw_foraging_areas", 
              "swiftsure.forage.0.25exc.0.7prop.poly_NAD83_BCAlbers.shp"))
@@ -25,7 +26,8 @@ haro_shp <- st_read(
   here::here(shp_path, "srkw_foraging_areas", 
              "haro.forage.0.25exc.0.7prop.poly_NAD83_BCAlbers.shp"))
 hab_sf <- rbind(swift_shp, haro_shp) %>%
-  sf::st_transform(., crs = sp::CRS("+init=epsg:3005"))
+  # sf::st_transform(., crs = sp::CRS("+init=epsg:3005")) %>% 
+  st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84"))
 
 
 # coastline cropped 
@@ -33,15 +35,46 @@ coast_albers <- rbind(rnaturalearth::ne_states( "United States of America",
                                                 returnclass = "sf"), 
                       rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>% 
   sf::st_crop(., 
-              xmin = -125.5, ymin = 48.15, xmax = -122.25, ymax = 49.25) %>% 
-  sf::st_transform(., crs = sp::CRS("+init=epsg:3005"))
+              xmin = -125.5, ymin = 48.15, xmax = -122.25, ymax = 49.25) 
 
 
-## convert back to WGS84 and export
+# pfma boundaries
+pfma_areas <- st_read(
+  here::here(shp_path, "pfma_subareas", "shape_files",
+             "PFMA_Subareas_50k.shp")) %>% 
+  st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  janitor::clean_names() %>% 
+  #subset to southern
+  filter(mgnt_area %in% c(123, 121, 21, 20, 19, 18)) 
+
+# identify subareas w/ habitat
+pfma_areas_sub <- pfma_areas %>% 
+  # select pts in habitat
+  st_intersection(., hab_sf)
+pfma_areas$rkw_overlap <- ifelse(
+  !(pfma_areas$label %in% pfma_areas_sub$label | pfma_areas$label == "19-3") |
+    # exclude areass w/ very minimal overlap
+    pfma_areas$label %in% c("19-3", "123-3", "18-6"),
+  "no",
+  "yes"
+)
+
+# check by plotting
+ggplot() +
+  geom_sf(data = coast_albers, colour = "black", fill = "white") + 
+  geom_sf(data = hab_sf, colour = "red") +
+  # geom_sf(data = pfma_areas %>% filter(mgnt_area %in% c("19", "18")), 
+  #         aes(fill = as.factor(label))) +
+  geom_sf(data = pfma_areas, aes(colour = rkw_overlap), fill = NA) +
+  ggsidekick::theme_sleek()
+
 saveRDS(
-  hab_sf %>% 
-    st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")),
+  hab_sf ,
   here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+)
+saveRDS(
+  pfma_areas ,
+  here::here("data", "spatial", "pfma_subareas_sBC.rds")
 )
 
 
@@ -159,14 +192,11 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
       fl >= legal_lim ~ "legal",
       fl < legal_lim ~ "sublegal"
     ),
-    fl = ifelse((fl < 150 | fl > 1500), NaN, fl)
+    fl = ifelse((fl < 150 | fl > 1500), NaN, fl),
+    # shift Cullite location south slightly to overlap with subareas
+    lat = ifelse(new_location == "Cullite", 48.505, lat)
   ) 
 
-
-## identify whether samples caught inside/outside critical habitat
-hab_sf <- readRDS(
-  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
-)
 
 rec_sf <- wide_rec3 %>%
   filter(!is.na(lat), !is.na(lon)) %>% 
@@ -176,34 +206,35 @@ rec_sf <- wide_rec3 %>%
     crs = sp::CRS("+proj=longlat +datum=WGS84")
   ) 
 
-rec_sf_sub <- rec_sf %>% 
-  # select pts in habitat
-  st_intersection(., hab_sf)
+## identify whether samples caught inside/outside critical habitat
+hab_sf <- readRDS(
+  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+)
+rec_sf_sub <- st_intersection(rec_sf, hab_sf)
 
-# visual check
-ggplot() + 
-  ggsidekick::theme_sleek() +
-  theme(axis.title = element_blank()) +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0)) +
-  geom_sf(data = hab_sf, color = "red", fill = NA, size = 1.25) +
-  geom_sf(data = coast_albers) +
-  geom_sf(data = rec_sf_sub[1:100, ],
-              shape = 23, alpha = 0.05, fill = "blue") 
+# assign areas with creel names
+pfma_areas <- readRDS(
+  here::here("data", "spatial", "pfma_subareas_sBC.rds")
+)
+rec_sf_areas <- st_intersection(rec_sf, pfma_areas)
+rec_sf_areas_trim <- rec_sf_areas %>% 
+  sf::st_drop_geometry() %>% 
+  select(biokey, new_location,
+         subarea_new = label, 
+         subarea_inc_rkw = rkw_overlap)
 
-# add to std dataframe
-# wide_rec3$rkw_habitat = ifelse(
-#   wide_rec3$biokey %in% rec_sf_sub$biokey, "yes", "no"
-# )
 
 wide_rec4 <- wide_rec3 %>% 
+  left_join(., rec_sf_areas_trim, by = "biokey") %>% 
   mutate(
     rkw_habitat = ifelse(
       biokey %in% rec_sf_sub$biokey, "yes", "no"
     ),
+    # identify regions based on subarea boundaries and coherent habitat
     cap_region = case_when(
-      lat < 48.8 & lon > -125.25 & lon < -124.25 ~ "swiftsure",
-      lat < 48.45 & lon < -123.4 & lon > -124.25 ~ "sooke",
+      subarea_inc_rkw == "yes" & lon < -124.25 ~ "swiftsure",
+      subarea_inc_rkw == "yes" & lon < -123.5 & lon > -124.25 ~ "sooke",
+      subarea_inc_rkw == "yes" & lon > -123.5 ~ "haro",
       TRUE ~ "outside"
     ),
     whale_samples_time = ifelse(
@@ -266,8 +297,9 @@ wide_rec4_trim <- wide_rec4 %>%
     )
   ) %>% 
   select(
-    id = biokey, date, week_n, month_n, year, cap_region, area, area_n, subarea, 
-    lat, lon, rkw_habitat,
+    id = biokey, date, week_n, month_n, year, cap_region, area, area_n, 
+    subarea = subarea_new, 
+    lat, lon, rkw_habitat, cap_region, subarea_inc_rkw, whale_samples_time,
     legal, fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,

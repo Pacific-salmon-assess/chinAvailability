@@ -17,12 +17,17 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
 # map data
 coast <- readRDS(
   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
-  sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
   sf::st_crop(xmin = -126, ymin = 48, xmax = -122, ymax = 48.8)
 
 hab_sf <- readRDS(
    here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
 )
+
+pfma_subareas <- readRDS(
+  here::here("data", "spatial", "pfma_subareas_sBC.rds")
+) %>% 
+  sf::st_crop(xmin = -126, ymin = 48, xmax = -122, ymax = 48.8)
 
 
 # spatial distribution ---------------------------------------------------------
@@ -40,11 +45,12 @@ obs_stations <- rec_raw %>%
 base_map <- ggplot() +
   geom_sf(data = coast, color = "black", fill = NA) +
   geom_sf(data = hab_sf, color = "red") +
+  geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
   ggsidekick::theme_sleek() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 
-shape_pal <- c(21, 22, 23)
+shape_pal <- c(21, 22, 23, 24)
 names(shape_pal) <- unique(obs_stations$cap_region)
 
 pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"), width = 9,
