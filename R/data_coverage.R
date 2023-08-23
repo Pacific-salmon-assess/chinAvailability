@@ -47,7 +47,8 @@ base_map <- ggplot() +
 shape_pal <- c(21, 22, 23)
 names(shape_pal) <- unique(obs_stations$cap_region)
 
-pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"))
+pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"), width = 9,
+    height = 4)
 base_map +
   geom_point(
     data = obs_stations, 
