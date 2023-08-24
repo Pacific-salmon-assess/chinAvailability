@@ -18,11 +18,13 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
 coast <- readRDS(
   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
   # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
-  sf::st_crop(xmin = -126, ymin = 48, xmax = -122, ymax = 48.8)
+  sf::st_crop(xmin = -126, ymin = 48, xmax = -122.75, ymax = 48.8)
 
 hab_sf <- readRDS(
    here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
-)
+) %>% 
+  # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  sf::st_crop(xmin = -126, ymin = 48, xmax = -122.75, ymax = 48.8)
 
 pfma_subareas <- readRDS(
   here::here("data", "spatial", "pfma_subareas_sBC.rds")
@@ -53,9 +55,7 @@ base_map <- ggplot() +
 shape_pal <- c(21, 22, 23, 24)
 names(shape_pal) <- unique(obs_stations$cap_region)
 
-pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"), width = 9,
-    height = 4)
-base_map +
+loc_map <- base_map +
   geom_point(
     data = obs_stations, 
     aes(x = lon, y = lat, size = n, fill = rkw_habitat, shape = cap_region),
@@ -67,10 +67,23 @@ base_map +
   ) +
   guides(
     fill = guide_legend(
-      override.aes = list(shape = 21)
-    )
+      override.aes = list(shape = 21),
+      nrow = 2, byrow = TRUE,
+      title = "Inside\nSRKW\nPoly."
+    ),
+    size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize"),
+    colour = guide_legend(nrow = 2, byrow = TRUE, 
+                          title = "PFMA\nIncludes\nPoly."),
+    shape = guide_legend(nrow = 2, byrow = TRUE, title = "Region")
   )
+
+pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"), width = 9,
+    height = 4)
+loc_map
 dev.off()
+
+# export for use in RMD
+saveRDS(loc_map, here::here("figs", "data_coverage", "harvest_locations.rds"))
 
 
 # sample coverage for GSI ------------------------------------------------------
@@ -137,9 +150,6 @@ rec_raw %>%
   labs(x = "Month", y = "Agg Probability") +
   ggsidekick::theme_sleek()
 dev.off()
-
-
-
 
 
 
