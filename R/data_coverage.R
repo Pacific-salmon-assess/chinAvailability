@@ -37,9 +37,9 @@ pfma_subareas <- readRDS(
 # all observed locations
 obs_stations <- rec_raw %>%
   filter(lat < 48.8) %>% 
-  select(id, lat, lon, rkw_habitat, cap_region) %>% 
+  select(id, lat, lon, rkw_habitat, strata) %>% 
   distinct() %>% 
-  group_by(lat, lon, rkw_habitat, cap_region) %>% 
+  group_by(lat, lon, rkw_habitat, strata) %>% 
   tally()
 
 
@@ -52,13 +52,13 @@ base_map <- ggplot() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 
-shape_pal <- c(21, 22, 23, 24)
-names(shape_pal) <- unique(obs_stations$cap_region)
+shape_pal <- c(21, 22)#, 23, 24)
+names(shape_pal) <- unique(obs_stations$rkw_habitat)
 
 loc_map <- base_map +
   geom_point(
     data = obs_stations, 
-    aes(x = lon, y = lat, size = n, fill = rkw_habitat, shape = cap_region),
+    aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata),
     alpha = 0.4
   ) +
   scale_shape_manual(values = shape_pal) +
@@ -71,10 +71,10 @@ loc_map <- base_map +
       nrow = 2, byrow = TRUE,
       title = "Inside\nSRKW\nPoly."
     ),
-    size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize"),
-    colour = guide_legend(nrow = 2, byrow = TRUE, 
-                          title = "PFMA\nIncludes\nPoly."),
-    shape = guide_legend(nrow = 2, byrow = TRUE, title = "Region")
+    size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize")#,
+    # colour = guide_legend(nrow = 2, byrow = TRUE, 
+    #                       title = "PFMA\nIncludes\nPoly."),
+    # shape = guide_legend(nrow = 2, byrow = TRUE, title = "Region")
   )
 
 pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"), width = 9,

@@ -5,7 +5,6 @@
 library(tidyverse)
 library(sf)
 library(ggplot2)
-library(tidyverse)
 
 
 # CRITICAL HABITAT CLEAN -------------------------------------------------------
@@ -219,7 +218,7 @@ pfma_areas <- readRDS(
 rec_sf_areas <- st_intersection(rec_sf, pfma_areas)
 rec_sf_areas_trim <- rec_sf_areas %>% 
   sf::st_drop_geometry() %>% 
-  select(biokey, new_location,
+  select(biokey, #new_location,
          subarea_new = label, 
          subarea_inc_rkw = rkw_overlap)
 
@@ -236,6 +235,32 @@ wide_rec4 <- wide_rec3 %>%
       subarea_inc_rkw == "yes" & lon < -123.5 & lon > -124.25 ~ "sooke",
       subarea_inc_rkw == "yes" & lon > -123.5 ~ "haro",
       TRUE ~ "outside"
+    ),
+    strata = case_when(
+      subarea_new == "21-0" ~ "nitinat_nearshore",
+      rkw_habitat == "yes" & subarea_new %in% c("121-1", "121-2") ~
+        "nitinat_midshore",
+      rkw_habitat == "no" & subarea_new %in% c("121-1", "121-2", "121-3") ~ "swiftsure",
+      subarea_new %in% c("123-1", "123-2", "123-3") ~ "barkley_corner",
+      rkw_habitat == "yes" & subarea_new %in% c("20-1", "20-3") ~ 
+        "renfrew_habitat",
+      rkw_habitat == "no" & subarea_new %in% c("20-1", "20-2", "20-3") ~ 
+        "renfrew_nonhabitat",
+      rkw_habitat == "yes" & subarea_new %in% c("20-5") ~ "sooke_habitat",
+      rkw_habitat == "no" & subarea_new %in% c("20-4", "20-5", "20-6", "20-7") ~
+        "sooke_nonhabitat",
+      subarea_new %in% c("19-1", "19-2", "19-3") ~ "victoria",
+      rkw_habitat == "yes" & subarea_new %in% c("19-4") ~ 
+        "s_haro_habitat",
+      rkw_habitat == "no" & subarea_new %in% c("19-4") ~ 
+        "s_haro_nonhabitat",
+      rkw_habitat == "yes" & subarea_new %in% c("19-5") ~ 
+        "n_haro_habitat",
+      rkw_habitat == "no" & subarea_new %in% c("19-5", "19-6", "18-10", "18-4") ~ 
+        "n_haro_nonhabitat",
+      subarea_new %in% c("19-8", "19-7", "18-7") ~ "saanich",
+      area %in% c("18", "19") ~ "SoG outside",
+      area == "123" ~ "WCVI outside"
     ),
     whale_samples_time = ifelse(
       (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
@@ -298,7 +323,7 @@ wide_rec4_trim <- wide_rec4 %>%
   ) %>% 
   select(
     id = biokey, date, week_n, month_n, year, cap_region, area, area_n, 
-    subarea = subarea_new, 
+    fishing_site = new_location, subarea = subarea_new, strata,
     lat, lon, rkw_habitat, cap_region, subarea_inc_rkw, whale_samples_time,
     legal, fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
