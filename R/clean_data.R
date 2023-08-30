@@ -192,8 +192,9 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
       fl < legal_lim ~ "sublegal"
     ),
     fl = ifelse((fl < 150 | fl > 1500), NaN, fl),
-    # shift Cullite location south slightly to overlap with subareas
-    lat = ifelse(new_location == "Cullite", 48.505, lat)
+    # shift locations to overlap with subareas
+    lat = ifelse(new_location == "Cullite", 48.505, lat),
+    lon = ifelse(new_location == "Moresby I.", -123.287, lon)
   ) 
 
 
@@ -226,7 +227,7 @@ rec_sf_areas_trim <- rec_sf_areas %>%
 wide_rec4 <- wide_rec3 %>% 
   left_join(., rec_sf_areas_trim, by = "biokey") %>% 
   mutate(
-    rkw_habitat = ifelse(
+    rkw_habitat1 = ifelse(
       biokey %in% rec_sf_sub$biokey, "yes", "no"
     ),
     # identify regions based on subarea boundaries and coherent habitat
@@ -238,30 +239,32 @@ wide_rec4 <- wide_rec3 %>%
     ),
     strata = case_when(
       subarea_new == "21-0" ~ "nitinat_nearshore",
-      rkw_habitat == "yes" & subarea_new %in% c("121-1", "121-2") ~
+      rkw_habitat1 == "yes" & subarea_new %in% c("121-1", "121-2") ~
         "nitinat_midshore",
-      rkw_habitat == "no" & subarea_new %in% c("121-1", "121-2", "121-3") ~ "swiftsure",
+      rkw_habitat1 == "no" & subarea_new %in% c("121-1", "121-2", "121-3") ~ "swiftsure",
       subarea_new %in% c("123-1", "123-2", "123-3") ~ "barkley_corner",
-      rkw_habitat == "yes" & subarea_new %in% c("20-1", "20-3") ~ 
+      rkw_habitat1 == "yes" & subarea_new %in% c("20-1", "20-3") ~ 
         "renfrew_habitat",
-      rkw_habitat == "no" & subarea_new %in% c("20-1", "20-2", "20-3") ~ 
+      rkw_habitat1 == "no" & subarea_new %in% c("20-1", "20-2", "20-3") ~ 
         "renfrew_nonhabitat",
-      rkw_habitat == "yes" & subarea_new %in% c("20-5") ~ "sooke_habitat",
-      rkw_habitat == "no" & subarea_new %in% c("20-4", "20-5", "20-6", "20-7") ~
+      rkw_habitat1 == "yes" & subarea_new %in% c("20-5") ~ "sooke_habitat",
+      rkw_habitat1 == "no" & subarea_new %in% c("20-4", "20-5", "20-6", "20-7") ~
         "sooke_nonhabitat",
       subarea_new %in% c("19-1", "19-2", "19-3") ~ "victoria",
-      rkw_habitat == "yes" & subarea_new %in% c("19-4") ~ 
-        "s_haro_habitat",
-      rkw_habitat == "no" & subarea_new %in% c("19-4") ~ 
-        "s_haro_nonhabitat",
-      rkw_habitat == "yes" & subarea_new %in% c("19-5") ~ 
+      # combine s_haro habitat and nonhabitat given small number of samps
+      # rkw_habitat1 == "yes" & subarea_new %in% c("19-4") ~ 
+      #   "s_haro_habitat",
+      subarea_new %in% c("19-4") ~ "s_haro",
+      rkw_habitat1 == "yes" & subarea_new %in% c("19-5") ~ 
         "n_haro_habitat",
-      rkw_habitat == "no" & subarea_new %in% c("19-5", "19-6", "18-10", "18-4") ~ 
+      rkw_habitat1 == "no" & subarea_new %in% 
+        c("19-5", "19-6", "18-6", "18-10", "18-4", "18-5", "18-11", "18-2") ~ 
         "n_haro_nonhabitat",
-      subarea_new %in% c("19-8", "19-7", "18-7") ~ "saanich",
-      area %in% c("18", "19") ~ "SoG outside",
-      area == "123" ~ "WCVI outside"
+      subarea_new %in% c("19-7", "18-7") ~ "saanich",
+      area %in% c("18", "19") ~ "sog_outside",
+      area == "123" ~ "wcvi_outside"
     ),
+    rkw_habitat = ifelse(grepl("outside", strata), "outside", rkw_habitat1),
     whale_samples_time = ifelse(
       (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
         rkw_habitat == "yes",

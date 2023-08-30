@@ -52,7 +52,7 @@ base_map <- ggplot() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0))
 
-shape_pal <- c(21, 22)#, 23, 24)
+shape_pal <- c(21, 22, 23)#, 23, 24)
 names(shape_pal) <- unique(obs_stations$rkw_habitat)
 
 loc_map <- base_map +
@@ -69,7 +69,7 @@ loc_map <- base_map +
     fill = guide_legend(
       override.aes = list(shape = 21),
       nrow = 2, byrow = TRUE,
-      title = "Inside\nSRKW\nPoly."
+      title = "Habitat\nStrata"
     ),
     size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize")#,
     # colour = guide_legend(nrow = 2, byrow = TRUE, 
@@ -77,7 +77,7 @@ loc_map <- base_map +
     # shape = guide_legend(nrow = 2, byrow = TRUE, title = "Region")
   )
 
-pdf(here::here("figs", "data_coverage", "harvest_locations.pdf"), width = 9,
+pdf(here::here("figs", "data_coverage", "harvest_locations_strata.pdf"), width = 9,
     height = 4)
 loc_map
 dev.off()
