@@ -25,6 +25,7 @@ comp_in <- rec_raw %>%
     #exclude samples collected outside areas in relatively close proximity to 
     # SRKW foraging areas
     !rkw_habitat == "outside",
+    !strata == "saanich",
     !is.na(strata)
   ) %>% 
   mutate(
@@ -33,7 +34,14 @@ comp_in <- rec_raw %>%
     #consolidate stocks
     stock_group = ifelse(
       stock_group %in% c("other", "NBC_SEAK"), "other", stock_group
-    )
+    ),
+    strata_region = ifelse(
+      grepl("vic", strata) | grepl("sooke", strata) |
+        grepl("n_haro", strata) | grepl("s_haro", strata),
+      "east",
+      "west"
+    ) %>% 
+      factor()
   ) %>% 
   group_by(sample_id) %>% 
   mutate(
@@ -45,7 +53,7 @@ comp_in <- rec_raw %>%
   ) %>% 
   ungroup() %>% 
   group_by(sample_id, 
-           strata,
+           strata, strata_region,
            week_n, month_n, year, nn, 
            stock_group2) %>% 
   summarize(prob = sum(prob), .groups = "drop") 
@@ -85,12 +93,15 @@ east_dat <- comp_in %>%
     month_n > 3 & month_n < 10
   ) %>% 
   select(-strata2)
-
+all_dat <- comp_in %>% 
+  filter(
+    month_n > 3 & month_n < 10
+  )
 
 # make tibble
 dat_tbl <- tibble(
-  group = c("swiftsure", "sooke", "haro", "east"),
-  data = list(swift_dat, sooke_dat, haro_dat, east_dat)
+  group = c("swiftsure", "sooke", "haro", "east", "full"),
+  data = list(swift_dat, sooke_dat, haro_dat, east_dat, all_dat)
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -98,7 +109,9 @@ dat_tbl <- tibble(
       ~ expand.grid(
         strata = unique(.x$strata),
         month_n = seq(min(.x$month_n), max(.x$month_n), by = 0.1)
-      ) 
+      ) %>% 
+        left_join(., all_dat %>% select(strata, strata_region) %>% distinct(),
+                  by = "strata")
     )#,
     # formula = ifelse(
     #   group == "swif"
@@ -143,24 +156,37 @@ sooke_fit <- fit_stockseasonr(
   newton_loops = 1,
   silent = FALSE
 )
-haro_fit <- fit_stockseasonr(
+# haro_fit <- fit_stockseasonr(
+#   comp_formula = stock_group2 ~ 1 + strata +
+#     s(month_n, bs = "tp", k = 3) +
+#     (1 | year),
+#   comp_dat = dat_tbl$data[[3]],
+#   pred_dat = dat_tbl$pred_dat[[3]],
+#   model = "dirichlet",
+#   random_walk = FALSE,
+#   fit = TRUE,
+#   newton_loops = 1,
+#   silent = FALSE
+# )
+east_fit <- fit_stockseasonr(
   comp_formula = stock_group2 ~ 1 + strata +
-    s(month_n, bs = "tp", k = 3) +
+    s(month_n, bs = "tp", k = 4, m = 2) +
     (1 | year),
-  comp_dat = dat_tbl$data[[3]],
-  pred_dat = dat_tbl$pred_dat[[3]],
+  comp_dat = dat_tbl$data[[4]],
+  pred_dat = dat_tbl$pred_dat[[4]],
   model = "dirichlet",
   random_walk = FALSE,
   fit = TRUE,
   newton_loops = 1,
   silent = FALSE
 )
-east_fit <- fit_stockseasonr(
+all_fit <- fit_stockseasonr(
   comp_formula = stock_group2 ~ 1 + strata +
-    s(month_n, bs = "tp", k = 4) +
+    s(month_n, bs = "tp", k = 4, m = 2, by = strata_region) +
+    # s(month_n, bs = "tp", k = 4, m = 1, by = strata_region) +
     (1 | year),
-  comp_dat = dat_tbl$data[[4]],
-  pred_dat = dat_tbl$pred_dat[[4]],
+  comp_dat = dat_tbl$data[[5]],
+  pred_dat = dat_tbl$pred_dat[[5]],
   model = "dirichlet",
   random_walk = FALSE,
   fit = TRUE,
@@ -172,7 +198,7 @@ east_fit <- fit_stockseasonr(
 # make predictions
 pred_swift <- clean_pred_foo(fit = swift_fit, preds = dat_tbl$pred_dat[[1]])
 pred_sooke <- clean_pred_foo(fit = sooke_fit, preds = dat_tbl$pred_dat[[2]])
-pred_haro <- clean_pred_foo(fit = haro_fit, preds = dat_tbl$pred_dat[[3]])
+pred_all <- clean_pred_foo(fit = all_fit, preds = dat_tbl$pred_dat[[5]])
 pred_east <- clean_pred_foo(fit = east_fit, preds = dat_tbl$pred_dat[[4]])
 
 preds <- rbind(
@@ -180,8 +206,8 @@ preds <- rbind(
     mutate(region = "swift"),
   pred_sooke$preds %>% 
     mutate(region = "sooke"),
-  pred_haro$preds %>%
-    mutate(region = "haro"),
+  pred_all$preds %>%
+    mutate(region = "all"),
   pred_east$preds %>%
     mutate(region = "east")
   ) %>% 
@@ -195,14 +221,15 @@ preds <- rbind(
       stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
       "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
     )
-  )
+  ) %>% 
+  filter(strata_region == "west")
 obs <- rbind(
   pred_swift$obs_dat %>% 
     mutate(region = "swift"),
   pred_sooke$obs_dat %>% 
     mutate(region = "sooke"),
-  pred_haro$obs_dat %>%
-    mutate(region = "haro"),
+  pred_all$obs_dat %>%
+    mutate(region = "all"),
   pred_east$obs_dat %>%
     mutate(region = "east")
 ) %>% 
@@ -216,11 +243,12 @@ obs <- rbind(
       stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
       "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
     )
-  )
+  ) %>% 
+  filter(strata_region == "west")
   
 
 # seasonal patterns inside/outside rkw_habitat
-p_hab <- ggplot(data = preds %>% filter(!region == "swift"), 
+p_hab <- ggplot(data = preds, 
                  aes(x = month_n, colour = strata)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(region~stock) +
@@ -228,16 +256,16 @@ p_hab <- ggplot(data = preds %>% filter(!region == "swift"),
   geom_line(aes(y = pred_prob_est)) 
 
 p_ribbon_hab <- p_hab +
-  geom_ribbon(data = preds %>% filter(!region == "swift"),
+  geom_ribbon(data = preds,
               aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = strata),
               alpha = 0.2) 
 
 p_obs_hab <- ggplot() +
-  geom_jitter(data = obs %>% filter(!region == "swift"),
+  geom_jitter(data = obs,
               aes(x = month_n, y = obs_ppn, colour = strata, 
                   size = samp_nn),
               alpha = 0.1) +
-  geom_line(data = preds %>% filter(!region == "swift"),
+  geom_line(data = preds,
             aes(x = month_n, colour = strata, y = pred_prob_est),
             linewidth = 1.25) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
@@ -248,7 +276,7 @@ p_obs_hab <- ggplot() +
 
 
 
-pdf(here::here("figs", "rkw_habitat", "strata_effects_pooling.pdf"),
+pdf(here::here("figs", "rkw_habitat", "strata_effects_pooling_east.pdf"),
     height =  4.5, width = 8)
 p_ribbon_hab
 p_obs_hab
