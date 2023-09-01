@@ -17,7 +17,7 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   janitor::clean_names() %>% 
   rename(stock_region = region)
 
-comp_in <- rec_raw %>% 
+rec_trim <- rec_raw %>% 
   filter(
     !is.na(lat),
     !is.na(lon),
@@ -30,7 +30,8 @@ comp_in <- rec_raw %>%
   ) %>% 
   mutate(
     sample_id = paste(strata, week_n, year, sep = "_"),
-    strata = as.factor(strata),
+    strata = ifelse(grepl("n_haro", strata), "n_haro", strata) %>% 
+      factor(),
     #consolidate stocks
     stock_group = ifelse(
       stock_group %in% c("other", "NBC_SEAK"), "other", stock_group
@@ -42,7 +43,9 @@ comp_in <- rec_raw %>%
       "west"
     ) %>% 
       factor()
-  ) %>% 
+  )
+
+comp_in <- rec_trim  %>% 
   group_by(sample_id) %>% 
   mutate(
     nn = length(unique(id)) %>% as.numeric,
@@ -59,49 +62,83 @@ comp_in <- rec_raw %>%
   summarize(prob = sum(prob), .groups = "drop") 
 
 
+## MAP OF LOCATIONS ------------------------------------------------------------
+
+# map data
+coast <- readRDS(
+  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+  # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.9, ymax = 49)
+
+hab_sf <- readRDS(
+  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+) %>% 
+  # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.9, ymax = 49)
+
+pfma_subareas <- readRDS(
+  here::here("data", "spatial", "pfma_subareas_sBC.rds")
+) %>% 
+  sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122, ymax = 49)
+
+
+# all observed locations
+obs_stations <- rec_trim %>%
+  select(id, lat, lon, strata_region, strata) %>% 
+  distinct() %>% 
+  group_by(lat, lon, strata_region, strata) %>% 
+  tally()
+
+# map including observed locations
+base_map <- ggplot() +
+  geom_sf(data = coast, color = "black", fill = NA) +
+  geom_sf(data = hab_sf, color = "red") +
+  geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+
+shape_pal <- c(21, 22)
+names(shape_pal) <- unique(obs_stations$strata_region)
+
+base_map +
+  geom_point(
+    data = obs_stations, 
+    aes(x = lon, y = lat, size = n, shape = strata_region, fill = strata),
+    alpha = 0.6
+  ) +
+  scale_shape_manual(values = shape_pal) +
+  theme(
+    legend.position = "top"
+  ) +
+  guides(
+    fill = guide_legend(
+      override.aes = list(shape = 21),
+      nrow = 2, byrow = TRUE,
+      title = "Habitat\nStrata"
+    ),
+    size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize")
+  )
+
+
+## MODEL FIT  ------------------------------------------------------------------
+
+
 # make distinct geographic datasets for model fitting
 swift_dat <- comp_in %>% 
   filter(
-    grepl("renfrew", strata) | grepl("swiftsure", strata) | 
-      grepl("bark", strata) | grepl("nitinat", strata)
-  )
-sooke_dat <- comp_in %>% 
-  filter(
-    grepl("sooke", strata) | grepl("vic", strata) | grepl("s_haro", strata),
-    month_n > 3 & month_n < 10
-  )
-haro_dat <- comp_in %>% 
-  mutate(
-    strata2 = ifelse(grepl("n_haro", strata), "n_haro", as.character(strata)),
-    strata = as.factor(strata2)
+    strata_region == "west"
   ) %>% 
-  filter(
-    # grepl("vic", strata) |
-    grepl("n_haro", strata) |# grepl("saanich", strata) |
-      grepl("s_haro", strata),
-    month_n > 3 & month_n < 10
-  ) %>% 
-  select(-strata2)
+  droplevels()
 east_dat <- comp_in %>% 
-  mutate(
-    strata2 = ifelse(grepl("n_haro", strata), "n_haro", as.character(strata)),
-    strata = as.factor(strata2)
-  ) %>% 
-  filter(
-    grepl("vic", strata) | grepl("sooke", strata) |
-    grepl("n_haro", strata) | grepl("s_haro", strata),
-    month_n > 3 & month_n < 10
-  ) %>% 
-  select(-strata2)
-all_dat <- comp_in %>% 
-  filter(
-    month_n > 3 & month_n < 10
-  )
+  filter(strata_region == "east") %>% 
+  droplevels()
+
 
 # make tibble
 dat_tbl <- tibble(
-  group = c("swiftsure", "sooke", "haro", "east", "full"),
-  data = list(swift_dat, sooke_dat, haro_dat, east_dat, all_dat)
+  group = c("swiftsure", "east"),
+  data = list(swift_dat, east_dat)
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -109,20 +146,16 @@ dat_tbl <- tibble(
       ~ expand.grid(
         strata = unique(.x$strata),
         month_n = seq(min(.x$month_n), max(.x$month_n), by = 0.1)
-      ) %>% 
-        left_join(., all_dat %>% select(strata, strata_region) %>% distinct(),
-                  by = "strata")
-    )#,
-    # formula = ifelse(
-    #   group == "swif"
-    # )
+      ) 
+    )
   )
 
 
 ## stockseasonr fits -----------------------------------------------------------
 
 swift_fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 + strata + s(month_n, bs = "tp", k = 3) + 
+  comp_formula = stock_group2 ~ 1 + strata + 
+    s(month_n, bs = "tp", k = 4, m = 2) +
     (1 | year),
   comp_dat = dat_tbl$data[[1]],
   pred_dat = dat_tbl$pred_dat[[1]],
@@ -132,21 +165,22 @@ swift_fit <- fit_stockseasonr(
   newton_loops = 1,
   silent = FALSE
 )
-# sooke_fit <- fit_stockseasonr(
-#   comp_formula = stock_group2 ~ 1 + strata + s(month_n, bs = "cc", k = 4, m = 2) + 
-#     # s(month_n, by = strata, bs = "cc", k = 4, m = 1) +
-#     (1 | year),
-#   comp_dat = dat_tbl$data[[2]],
-#   pred_dat = dat_tbl$pred_dat[[2]],
-#   model = "dirichlet",
-#   random_walk = FALSE,
-#   fit = TRUE,
-#   newton_loops = 1,
-#   silent = FALSE
-# )
-sooke_fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 +
-    strata + s(month_n, bs = "tp", k = 3) + 
+swift_fit2 <- fit_stockseasonr(
+  comp_formula = stock_group2 ~ 1 + strata + 
+    s(month_n, bs = "tp", k = 3, m = 2) +
+    (1 | year),
+  comp_dat = dat_tbl$data[[1]],
+  pred_dat = dat_tbl$pred_dat[[1]],
+  model = "dirichlet",
+  random_walk = FALSE,
+  fit = TRUE,
+  newton_loops = 1,
+  silent = FALSE
+)
+
+east_fit <- fit_stockseasonr(
+  comp_formula = stock_group2 ~ 1 + strata +
+    s(month_n, bs = "cc", k = 4, m = 2) +
     (1 | year),
   comp_dat = dat_tbl$data[[2]],
   pred_dat = dat_tbl$pred_dat[[2]],
@@ -156,58 +190,15 @@ sooke_fit <- fit_stockseasonr(
   newton_loops = 1,
   silent = FALSE
 )
-# haro_fit <- fit_stockseasonr(
-#   comp_formula = stock_group2 ~ 1 + strata +
-#     s(month_n, bs = "tp", k = 3) +
-#     (1 | year),
-#   comp_dat = dat_tbl$data[[3]],
-#   pred_dat = dat_tbl$pred_dat[[3]],
-#   model = "dirichlet",
-#   random_walk = FALSE,
-#   fit = TRUE,
-#   newton_loops = 1,
-#   silent = FALSE
-# )
-east_fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 + strata +
-    s(month_n, bs = "tp", k = 4, m = 2) +
-    (1 | year),
-  comp_dat = dat_tbl$data[[4]],
-  pred_dat = dat_tbl$pred_dat[[4]],
-  model = "dirichlet",
-  random_walk = FALSE,
-  fit = TRUE,
-  newton_loops = 1,
-  silent = FALSE
-)
-all_fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 + strata +
-    s(month_n, bs = "tp", k = 4, m = 2, by = strata_region) +
-    # s(month_n, bs = "tp", k = 4, m = 1, by = strata_region) +
-    (1 | year),
-  comp_dat = dat_tbl$data[[5]],
-  pred_dat = dat_tbl$pred_dat[[5]],
-  model = "dirichlet",
-  random_walk = FALSE,
-  fit = TRUE,
-  newton_loops = 1,
-  silent = FALSE
-)
 
 
 # make predictions
-pred_swift <- clean_pred_foo(fit = swift_fit, preds = dat_tbl$pred_dat[[1]])
-pred_sooke <- clean_pred_foo(fit = sooke_fit, preds = dat_tbl$pred_dat[[2]])
-pred_all <- clean_pred_foo(fit = all_fit, preds = dat_tbl$pred_dat[[5]])
-pred_east <- clean_pred_foo(fit = east_fit, preds = dat_tbl$pred_dat[[4]])
+pred_swift <- clean_pred_foo(fit = swift_fit2, preds = dat_tbl$pred_dat[[1]])
+pred_east <- clean_pred_foo(fit = east_fit, preds = dat_tbl$pred_dat[[2]])
 
 preds <- rbind(
   pred_swift$preds %>% 
     mutate(region = "swift"),
-  pred_sooke$preds %>% 
-    mutate(region = "sooke"),
-  pred_all$preds %>%
-    mutate(region = "all"),
   pred_east$preds %>%
     mutate(region = "east")
   ) %>% 
@@ -221,15 +212,10 @@ preds <- rbind(
       stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
       "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
     )
-  ) %>% 
-  filter(strata_region == "west")
+  ) 
 obs <- rbind(
   pred_swift$obs_dat %>% 
     mutate(region = "swift"),
-  pred_sooke$obs_dat %>% 
-    mutate(region = "sooke"),
-  pred_all$obs_dat %>%
-    mutate(region = "all"),
   pred_east$obs_dat %>%
     mutate(region = "east")
 ) %>% 
@@ -243,24 +229,22 @@ obs <- rbind(
       stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
       "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
     )
-  ) %>% 
-  filter(strata_region == "west")
-  
+  ) 
 
-# seasonal patterns inside/outside rkw_habitat
-p_hab <- ggplot(data = preds, 
+
+p <- ggplot(data = preds, 
                  aes(x = month_n, colour = strata)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(region~stock) +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_prob_est)) 
 
-p_ribbon_hab <- p_hab +
+p_ribbon <- p +
   geom_ribbon(data = preds,
               aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = strata),
               alpha = 0.2) 
 
-p_obs_hab <- ggplot() +
+p_obs <- ggplot() +
   geom_jitter(data = obs,
               aes(x = month_n, y = obs_ppn, colour = strata, 
                   size = samp_nn),
@@ -275,10 +259,44 @@ p_obs_hab <- ggplot() +
   theme(legend.position = "top")
 
 
+west_stacked <- ggplot(data = preds %>% 
+         filter(region == "swift"), 
+       aes(x = month_n)) +
+  geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
+            stat = "identity") +
+  scale_fill_brewer(name = "Stock", palette = "Spectral") +
+  scale_colour_brewer(name = "Stock", palette = "Spectral") +
+  labs(y = "Predicted Composition", x = "Month") +
+  theme_classic() +
+  theme(legend.position = "right",
+        axis.text = element_text(size=9),
+        plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
+  ) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA), xlim = c(1, 12)) +
+  facet_wrap(~strata)
 
-pdf(here::here("figs", "rkw_habitat", "strata_effects_pooling_east.pdf"),
-    height =  4.5, width = 8)
-p_ribbon_hab
-p_obs_hab
+east_stacked <- ggplot(data = preds %>% 
+                         filter(region == "east"), 
+                       aes(x = month_n)) +
+  geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
+            stat = "identity") +
+  scale_fill_brewer(name = "Stock", palette = "Spectral") +
+  scale_colour_brewer(name = "Stock", palette = "Spectral") +
+  labs(y = "Predicted Composition", x = "Month") +
+  theme_classic() +
+  theme(legend.position = "right",
+        axis.text = element_text(size=9),
+        plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
+  ) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA), xlim = c(1, 12)) +
+  facet_wrap(~strata)
+
+
+pdf(here::here("figs", "rkw_habitat", "all_size_preds.pdf"),
+    height = 7, width = 8.5)
+p
+p_ribbon
+p_obs
+west_stacked
+east_stacked
 dev.off()
-
