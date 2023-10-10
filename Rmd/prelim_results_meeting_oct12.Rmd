@@ -1,0 +1,142 @@
+---
+title: "Stock Composition in SRKW Habitat"
+output: 
+  pdf_document:
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+
+library(tidyverse)
+library(stockseasonr)
+
+source(here::here("R", "utils.R"))
+
+rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
+  janitor::clean_names() %>% 
+  rename(stock_region = region)
+```
+
+Here are some basic model predictions of stock composition within SRKW critical habitat based on samples collected from the recreational fishery (2014-2022). The model accounts for changes in mean stock composition among years and months, as well as spatial location. SRKW foraging habitat was defined based on model estimates where probability of likely foraging was greater than 0.25 and the posterior estimate was greater than 0.7 (relevant file "swiftsure.forage.0.25exc.0.7prop.poly_NAD83_BCAlbers.shp"). Note that this is a conservative estimate of foraging resulting in relatively large polygons. 
+
+```{r clean, include=FALSE}
+rec_trim <- rec_raw %>% 
+  filter(
+    !is.na(lat),
+    !is.na(lon),
+    !legal == "sublegal",
+    #exclude samples collected outside areas in relatively close proximity to 
+    # SRKW foraging areas
+    !rkw_habitat == "outside",
+    !strata == "saanich",
+    !is.na(strata)
+  ) %>% 
+  mutate(
+    sample_id = paste(strata, week_n, year, sep = "_"),
+    #redefine single station at S border of n_haro as s_haro
+    strata = ifelse(grepl("n_haro", strata) & lat < 48.55,
+                    "s_haro",
+                    strata),
+    strata = ifelse(grepl("n_haro", strata), "n_haro", strata) %>% 
+      factor(),
+    #consolidate stocks
+    stock_group = ifelse(
+      stock_group %in% c("other", "NBC_SEAK"), "other", stock_group
+    ),
+    strata_region = ifelse(
+      grepl("vic", strata) | grepl("sooke", strata) |
+        grepl("n_haro", strata) | grepl("s_haro", strata),
+      "east",
+      "west"
+    ) %>% 
+      factor()
+  )
+
+comp_in <- rec_trim  %>% 
+  group_by(sample_id) %>% 
+  mutate(
+    nn = length(unique(id)) %>% as.numeric,
+    # add abbreviated key for model fitting
+    stock_group2 = tolower(stock_group) %>% 
+      str_replace_all(., " ", "_") %>% 
+      paste("stock", ., sep = "-")
+  ) %>% 
+  ungroup() %>% 
+  group_by(sample_id, 
+           strata, strata_region,
+           week_n, month_n, year, nn, 
+           stock_group2) %>% 
+  summarize(prob = sum(prob), .groups = "drop") 
+
+# subset predicted composition dataset
+# pred_dat_comp <- expand.grid(
+#   cap_region = unique(comp_in$cap_region),
+#   rkw_habitat = unique(comp_in$rkw_habitat),
+#   month_n = seq(min(comp_in$month_n),
+#                 max(comp_in$month_n),
+#                 by = 0.1)
+#   )
+
+plot_list <- readRDS(here::here("figs", "rkw_habitat", "rkw_strata_fit_preds.rds"))
+
+```
+
+Geo-referenced fishing locations show that there are a relatively large number of samples collected inside and outside SRKW habitat (colours). Note that I grouped spatial locations into two broad categories, west and east, which will be fit by separate models due to differences in sample coverage (east has yearround sampling, west is only summer). 
+
+```{r fishing_locations, fig.cap="Fishing locations and associated GSI samples. Grey polygons outlined in red represent predicted SRKW foraging habtiat. Coloured polygons represent statistical subareas. Subareas are colored depending on whether they include (blue) or exclude (red) SRKW foraging habitat. The color of points represent spatial strata within a subarea that do or do not overlap habitat. The size of points represent the number of individuals sampled. The shape of points correspond to regions, each of which include a single statistical model.", fig.height=3, warning=FALSE, echo=FALSE}
+samp_locs <- readRDS(here::here("data", "spatial", "samp_loc_plot.RDS"))
+samp_locs +
+  theme(axis.text = element_blank(),
+        axis.title = element_blank())
+```
+
+The goal of the initial analysis was to guide future model development by testing two hypotheses:
+
+1. How variable is stock composition within a region between strata?
+2. Does stock composition differ when smaller Chinook salmon are excluded?
+
+To answer the first question I compared model predictions of stock composition among nearby strata. To answer the second I fit two suites of models, the first includes all GSI samples from legal sized Chinook (>65 or 45 cm depending on PFMA) and the second only includes samples from Chinook larger than 73 cm. After removing all samples from sublegal fish, all samples collected before May or after September, and samples outside the three regions of interest (triangles, squares, and diamonds only in above map) there were 8400 GSI samples, 3335 of which originated from fish larger than 73 cm.
+
+The following figures show mean model predictions with raw data. Each point represents one observation, i.e. the stock composition of the samples collected in a single region/habitat strata, week and year. 
+
+Generally strata within regions had similar patterns while those in different regions were more variable. Note that the model captures average patterns quite well, however individual observations show greater variability. 
+
+```{r area_preds_obs, fig.cap = "Mean predicted stock composition and observed weekly samples. Colors represent predictions across different strata from region-specific models.", echo=FALSE}
+plot_list[[2]] +
+  theme(legend.position = "top")
+```
+
+In the western region there were strong differences at fine scales, however differences between habitat and non-habitat strata or within the Nitinat zone were minor. Swiftsure had markedly fewer WCVI and Fraser yearling stocks, which were replaced by mostly Columbia River fish. Barkley Corner had more WCVI and less Puget Sound. 
+
+```{r west_stacked, fig.cap = "Mean predicted stock composition and observed stock composition within western region.", echo=FALSE}
+plot_list[[3]]
+```
+
+In the eastern region there were strong differences at fine scales, but not between Sooke habitat and non-habitat strata. Fraser yearling fish were only present in large abundances near Sooke, while Haro had particularly large contributions of Puget Sound and ECVI stocks.
+
+```{r east_stacked, fig.cap = "Mean predicted stock composition and observed stock composition within eastern region.", echo=FALSE}
+plot_list[[4]]
+```
+
+Constraining the analysis to only include large individuals (greater than 75 cm fork length) increased the contribution of Fraser Yearling, WCVI and Fraser Summer 4_1 individuals and reduced the contribution of Puget Sound fish. However these effects were most noticeable in the eastern region. In the west, effects were minor.
+
+```{r west_stacked_large, fig.cap = "Mean predicted stock composition and observed stock composition within western region, constrained only to fish >73 cm.", echo=FALSE}
+plot_list[[5]]
+```
+
+```{r east_stacked_large, fig.cap = "Mean predicted stock composition and observed stock composition within eastern region, constrained only to fish >73 cm.", echo=FALSE}
+plot_list[[6]]
+```
+
+*Questions*:
+
+1. Should adjacent regions with similar stock compositions be consolidated to ease presentation?
+2. Should we keep the current subareas? Add more? Are strata assignments around Nitinat sensible or should some be added to Swiftsure?
+3. How should size be addressed? 
+  + Can fit size-specific models as shown here
+  + Evaluate outside of the model framework by prioritizing stocks based on i) presence in diet, ii) spatio-temporal overlap, and iii) size
+4. Are prey data available for comparison?
