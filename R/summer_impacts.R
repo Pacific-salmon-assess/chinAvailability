@@ -39,29 +39,30 @@ library(tidybayes)
 comp_in_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   mutate(
     week = lubridate::week(date),
-    Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)#,
+    region1name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", region1name)#,
     # x = as.POSIXct(strptime(paste0(date, "-1"), format = "%Y-%m-%d")),
     # y = format(x, "%m"),
     # z = 1 + as.integer(format(x, "%d")) %/% 7,
     # stat_week = paste(y, z, sep = "-") %>% 
     #   as.factor(),
     # model_week = as.numeric(stat_week)
-  ) 
-
-summer52_stocks <- comp_in_raw %>% 
-  filter(Region1Name == "Fraser_Summer_5.2") %>% 
-  select(stock, Region1Name, Region1Name) %>% 
-  distinct() %>% 
-  arrange(stock, Region1Name) 
-
-rec_dat <- comp_in_raw %>% 
-  filter(cap_region %in% c("NWVI", "SWVI"),
+  ) %>% 
+  filter(cap_region == "outside",
          area > 100,
          fl >= 550#,
          # month %in% c("June", "July", "August", "September")
-         ) %>% 
+  )  
+  
+
+summer52_stocks <- comp_in_raw %>% 
+  filter(region1name == "Fraser_Summer_5.2") %>% 
+  select(stock, region1name, region1name) %>% 
+  distinct() %>% 
+  arrange(stock, region1name) 
+
+rec_dat <- comp_in_raw %>% 
   mutate(
-    smu = ifelse(Region1Name == "Fraser_Summer_5.2", Region1Name, "other"),
+    smu = ifelse(region1name == "Fraser_Summer_5.2", region1name, "other"),
     sample_id = paste(week, year, cap_region, "rec", sep = "_"),
     year = as.factor(year),
     dataset = "rec"
@@ -71,6 +72,16 @@ rec_dat <- comp_in_raw %>%
     smu, prob
   )
 
+week_sum <- rec_dat %>% 
+  filter(!smu == "other") %>% 
+  group_by(week) %>% 
+  summarize(sum_prob = sum(prob)) %>% 
+  print(n = Inf)
+
+rec_dat %>% 
+  filter(!smu == "other") %>% 
+  pull(prob) %>% 
+  sum()
 
 
 ## COMMERCIAL DATA -------------------------------------------------------------
@@ -78,7 +89,7 @@ rec_dat <- comp_in_raw %>%
 stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>% 
  mutate(
    Region1Name = ifelse(stock == "CLEARWATERRFA", "Fraser_Fall", Region1Name)
- )
+ ) 
 
 comm_dat_raw <- readRDS(here::here("data", "comm", "wcviIndProbsLong.rds")) %>%
   select(-c(Region1Name:pst_agg)) %>% 
@@ -104,6 +115,17 @@ comm_dat <- comm_dat_raw %>%
     dataset, fish_id = id, sample_id, week, year, region, area, smu,
     prob = adj_prob
   )
+
+week_sum2 <- comm_dat %>% 
+  filter(!smu == "other") %>% 
+  group_by(week) %>% 
+  summarize(sum_prob = sum(prob)) %>% 
+  print(n = Inf)
+
+comm_dat %>% 
+  filter(!smu == "other") %>% 
+  pull(prob) %>% 
+  sum()
 
 
 ## TAGGING DATA ----------------------------------------------------------------
