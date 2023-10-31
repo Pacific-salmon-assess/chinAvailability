@@ -328,7 +328,8 @@ wide_rec4_trim <- wide_rec4 %>%
     id = biokey, date, week_n, month_n, year, cap_region, area, area_n, 
     fishing_site = new_location, subarea = subarea_new, strata,
     lat, lon, rkw_habitat, cap_region, subarea_inc_rkw, whale_samples_time,
-    legal, fl, sex, ad = adipose_fin_clipped, resolved_stock_source, 
+    legal, fl, sex, ad = adipose_fin_clipped,
+    age = resolved_age, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob"),
@@ -414,7 +415,8 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
 wide_size <- wide_rec3 %>% 
   select(id = biokey, date, month, year, cap_region, area, area_n, subarea, 
-         fishing_location, legal, fl, sex, ad = adipose_fin_clipped) %>%
+         fishing_location, legal, fl, sex, ad = adipose_fin_clipped,
+         resolved_stock_source, resolved_stock_region) %>%
   #remove missing and non-sensical size_classes
   filter(
     !is.na(fl)
