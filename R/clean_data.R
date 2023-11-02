@@ -289,7 +289,12 @@ wide_rec4 %>%
   tally()
 
 
+saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
+
+
 # GSI CLEAN --------------------------------------------------------------------
+
+wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
 
 # stock key
 stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>%
@@ -413,9 +418,13 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
 ## CLEAN SIZE ------------------------------------------------------------------
 
-wide_size <- wide_rec3 %>% 
-  select(id = biokey, date, month, year, cap_region, area, area_n, subarea, 
-         fishing_location, legal, fl, sex, ad = adipose_fin_clipped,
+wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
+
+wide_size <- wide_rec4 %>% 
+  select(id = biokey, date, week_n, month_n, year, cap_region, area, area_n,
+         fishing_site = new_location, subarea = subarea_new, strata,
+         lat, lon, rkw_habitat, subarea_inc_rkw,
+         whale_samples_time, legal, fl, sex, ad = adipose_fin_clipped,
          resolved_stock_source, resolved_stock_region) %>%
   #remove missing and non-sensical size_classes
   filter(
@@ -424,8 +433,11 @@ wide_size <- wide_rec3 %>%
   mutate(
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 451, 601, 751, 901, Inf), 
-      labels=c("<45", "45-60", "60-75", "75-90", ">90")
+      breaks = c(-Inf, 551, 701, 851, Inf), 
+      labels = c("<55", "55-70", "70-85", ">85")
+    ),
+    size_bin2 = factor(
+      size_bin, labels = c("sublegal", "small", "medium", "large")
     ),
     month_n = lubridate::month(date)
   ) 
@@ -440,25 +452,15 @@ ggplot(size_n) +
   facet_wrap(~cap_region)
 
 wide_size %>%
-  group_by(size_bin, year, cap_region) %>%
+  group_by(size_bin, month_n, cap_region) %>%
   summarize(n = length(unique(id))) %>%
-  group_by(year, cap_region) %>% 
+  group_by(month_n, cap_region) %>% 
   mutate(total_n = sum(n),
          ppn_obs = n / total_n) %>% 
-  ggplot(., aes(x = as.factor(year), y = ppn_obs, fill = size_bin)) +
+  ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
   geom_bar(position="stack", stat="identity") +
   ggsidekick::theme_sleek() +
   facet_wrap(~cap_region)
-
-
-# # export size data as proportions
-# rec_size_ppn_out <- size_dat %>%
-#   mutate(sample_id = paste(month_n, region, jDay, year, sep = "_"),
-#          region_c = region,
-#          region = factor(abbreviate(region, minlength = 4)),
-#          region = fct_relevel(region, "QCaJS", "JdFS", "NSoG", "SSoG")) %>%  
-#   group_by(sample_id, region, region_c, year, month_n, size_bin) %>% 
-#   summarize(sum_count = length(unique(id)), .groups = "drop") 
 
 saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
