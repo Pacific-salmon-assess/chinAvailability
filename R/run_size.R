@@ -152,8 +152,8 @@ for (i in seq_along(ret_list)) {
 }
 
 annual_ret <- ret_list %>%
-  bind_rows() %>% 
-  filter(year %in% c("1979", "1980")) 
+  bind_rows()# %>% 
+  # filter(year %in% c("1979", "1980")) 
 
 annual_ret %>% 
   group_by(mu, yday, year) %>% 
@@ -161,3 +161,18 @@ annual_ret %>%
   ggplot(.) +
   geom_line(aes(x = yday, y = mu_run)) +
   facet_grid(mu~year, scales = "free_y")
+
+
+# time series of MU returns
+ret_tbl %>% 
+  group_by(mu, year) %>% 
+  summarize(total_return = sum(return)) %>% 
+  ggplot(.) +
+  geom_point(aes(x = year, y = total_return)) +
+  facet_wrap(~mu)
+
+ret_tbl %>% 
+  group_by(year) %>% 
+  summarize(total_return = sum(return)) %>% 
+  ggplot(.) +
+  geom_point(aes(x = year, y = total_return)) 
