@@ -69,24 +69,15 @@ obs_stations <- rec_raw %>%
 base_map <- ggplot() +
   geom_sf(data = coast, color = "black", fill = NA) +
   geom_sf(data = hab_sf, color = "red") +
-  geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
+  # geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
   ggsidekick::theme_sleek() +
   scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0))
-
-shape_pal <- c(21, 22, 23)#, 23, 24)
-names(shape_pal) <- unique(obs_stations$rkw_habitat)
-
-base_map +
-  geom_point(
-    data = obs_stations, 
-    aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata3),
-    alpha = 0.7,
-    shape = 21
-  ) +
+  scale_y_continuous(expand = c(0, 0)) +
   # scale_shape_manual(values = shape_pal) +
   theme(
-    legend.position = "top"
+    legend.position = "top",
+    axis.text = element_blank(),
+    axis.title = element_blank()
   ) +
   scale_fill_brewer(type = "qual", palette = "Paired") +
   guides(
@@ -104,3 +95,41 @@ base_map +
     #                       title = "PFMA\nIncludes\nPoly."),
     # shape = guide_legend(nrow = 2, byrow = TRUE, title = "Region")
   )
+
+
+strata1 <- base_map +
+  geom_point(
+    data = obs_stations, 
+    aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata),
+    alpha = 0.7,
+    shape = 21
+  ) 
+strata2 <- base_map +
+  geom_point(
+    data = obs_stations, 
+    aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata2),
+    alpha = 0.7,
+    shape = 21
+  ) 
+strata3 <- base_map +
+  geom_point(
+    data = obs_stations, 
+    aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata3),
+    alpha = 0.7,
+    shape = 21
+  ) 
+
+png(here::here("figs", "strata_breakdown", "strata1.png"), 
+    height = 3.5, width = 7, units = "in", res = 250)
+strata1
+dev.off()
+
+png(here::here("figs", "strata_breakdown", "strata2.png"), 
+    height = 3.5, width = 7, units = "in", res = 250)
+strata2
+dev.off()
+
+png(here::here("figs", "strata_breakdown", "strata3.png"), 
+    height = 3.5, width = 7, units = "in", res = 250)
+strata3
+dev.off()
