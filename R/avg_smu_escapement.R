@@ -139,14 +139,18 @@ smu_dat_period <- list(fraser_dat, wcvi_dat, ecvi_dat) %>%
   ) %>%
   distinct()
 
-
+png(here::here("figs", "avg_escapement.png"),
+    height = 4.5, width = 5, units = "in", res = 250)
 ggplot() +
   geom_pointrange(
-    data = smu_dat_period,
-    aes(x = management_period, y = mean_esc, ymax = up, ymin = lo, fill = region),
+    data = smu_dat_period %>% filter(!agg_name == "WCVI"),
+    aes(x = management_period, y = mean_esc, ymax = up, ymin = lo, 
+        fill = region),
     shape = 21) +
-  geom_hline(data = mean_esc, aes(yintercept = mean_esc), colour = "red") +
+  geom_hline(data = mean_esc %>% filter(!agg_name == "WCVI"), 
+             aes(yintercept = mean_esc), colour = "red") +
   ggsidekick::theme_sleek() +
   facet_wrap(~agg_name, scales = "free_y") +
   labs(x = "Management Period", y = "Mean Escapement") +
   scale_fill_discrete(guide = "none")
+dev.off()
