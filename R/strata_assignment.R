@@ -37,9 +37,10 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     strata = ifelse(grepl("n_haro", strata), "n_haro", strata) %>% 
       factor(),
     strata2 = case_when(
-      lon < -125 ~ "outside",
+      lon < -125 & strata != "wcvi_outside" ~ "barkley_corner",
       strata == "swiftsure" & lat > 48.55 ~ "nitinat_midshore",
-      strata == "nitinat_midshore" & lon > -124.82 ~ "renfrew_habitat",
+      # strata == "nitinat_midshore" & lon > -124.82 ~ "renfrew_habitat",
+      grepl("nitinat", strata) & lon > -124.83 ~ "renfrew_habitat",
       strata == "victoria" & lon < -123.48 ~ "sooke_nonhabitat",
       strata == "s_haro" ~ "victoria",
       TRUE ~ strata
