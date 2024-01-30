@@ -43,7 +43,7 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       grepl("nitinat", strata) & lon > -124.83 ~ "renfrew_habitat",
       strata == "victoria" & lon < -123.48 ~ "sooke_nonhabitat",
       strata == "s_haro" ~ "victoria",
-      TRUE ~ strata
+      TRUE ~ as.character(strata)
     ),
     strata3 = case_when(
       grepl("renfrew", strata2) ~ "renfrew",
@@ -134,3 +134,18 @@ png(here::here("figs", "strata_breakdown", "strata3.png"),
     height = 3.5, width = 7, units = "in", res = 250)
 strata3
 dev.off()
+
+
+## export key used in model fitting
+strata_out <- rec_raw %>% 
+  select(
+    fishing_site, lat, lon, strata, strata2, strata3
+  ) %>% 
+  distinct() 
+
+saveRDS(
+  strata_out,
+  here::here(
+    "data", "rec", "strata_key.rds"
+  )
+)
