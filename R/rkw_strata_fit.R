@@ -52,8 +52,8 @@ rec_trim <- rec_raw %>%
     ) %>% 
       factor()
   ) %>% 
-  select(-c(strata, strata3)) %>% 
-  rename(strata = strata2)
+  select(-c(strata, strata2)) %>% 
+  rename(strata = strata3)
 
 comp_in <- rec_trim  %>% 
   group_by(sample_id) %>% 
@@ -91,66 +91,25 @@ comp_in_large <- rec_trim  %>%
   summarize(prob = sum(prob), .groups = "drop") 
 
 
-## MAP OF LOCATIONS ------------------------------------------------------------
+## SAMPLING COVERAGE -----------------------------------------------------------
 
-## REPLACED WITH MAPS IN strata_assignment.R
+comp_in %>% 
+  select(-c(stock_group2, prob)) %>% 
+  distinct() %>% 
+  ggplot(.) +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = strata_region),
+             alpha = 0.4
+             ) +
+  facet_wrap(~ strata)
 
-# map data
-# coast <- readRDS(
-#   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
-#   # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
-#   sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.9, ymax = 49)
-# 
-# hab_sf <- readRDS(
-#   here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
-# ) %>% 
-#   # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
-#   sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.9, ymax = 49)
-# 
-# pfma_subareas <- readRDS(
-#   here::here("data", "spatial", "pfma_subareas_sBC.rds")
-# ) %>% 
-#   sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122, ymax = 49)
-# 
-# 
-# # all observed locations
-# obs_stations <- rec_trim %>%
-#   select(id, lat, lon, strata_region, strata) %>% 
-#   distinct() %>% 
-#   group_by(lat, lon, strata_region, strata) %>% 
-#   tally()
-# 
-# # map including observed locations
-# base_map <- ggplot() +
-#   geom_sf(data = coast, color = "black", fill = NA) +
-#   geom_sf(data = hab_sf, color = "red") +
-#   geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
-#   ggsidekick::theme_sleek() +
-#   scale_x_continuous(expand = c(0, 0)) +
-#   scale_y_continuous(expand = c(0, 0))
-# 
-# shape_pal <- c(21, 22)
-# names(shape_pal) <- unique(obs_stations$strata_region)
-# fill_pal <- pals::polychrome(n = length(unique(obs_stations$strata)))
-# names(fill_pal) <- unique(obs_stations$strata)
-# 
-# samp_locs <- base_map +
-#   geom_point(
-#     data = obs_stations, 
-#     aes(x = lon, y = lat, size = n, shape = strata_region, fill = strata),
-#     alpha = 0.6
-#   ) +
-#   scale_shape_manual(values = shape_pal) +
-#   scale_fill_manual(values = fill_pal) +
-#   theme(
-#     legend.position = "top"
-#   ) +
-#   guides(
-#     fill = "none",
-#     shape = "none",
-#     size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize")
-#   )
-
+comp_in_large %>% 
+  select(-c(stock_group2, prob)) %>% 
+  distinct() %>% 
+  ggplot(.) +
+  geom_jitter(aes(x = month_n, y = year, size = nn, colour = strata_region),
+              alpha = 0.4
+  ) +
+  facet_wrap(~ strata)
 
 
 ## MODEL FIT  ------------------------------------------------------------------
@@ -193,7 +152,7 @@ dat_tbl <- tibble(
 # number of knots only has an impact when poorly sampled months (May) are included
 swift_fit <- fit_stockseasonr(
   comp_formula = stock_group2 ~ 1 + strata + 
-    s(month_n, bs = "tp", k = 4, m = 2) +
+    s(month_n, bs = "tp", k = 3, m = 2) +
     (1 | year),
   comp_dat = dat_tbl$data[[1]],
   pred_dat = dat_tbl$pred_dat[[1]],
@@ -246,9 +205,9 @@ preds <- rbind(
   pred_swift$preds %>% 
     mutate(region = "swift"),
   pred_east$preds %>%
-    mutate(region = "east"),
-  pred_large$preds %>%
-    mutate(region = "large")
+    mutate(region = "east")#,
+  # pred_large$preds %>%
+  #   mutate(region = "large")
   ) %>% 
   mutate(
     stock = factor(
@@ -265,9 +224,9 @@ obs <- rbind(
   pred_swift$obs_dat %>% 
     mutate(region = "swift"),
   pred_east$obs_dat %>%
-    mutate(region = "east"),
-  pred_large$obs_dat %>%
-    mutate(region = "large")
+    mutate(region = "east")#,
+  # pred_large$obs_dat %>%
+  #   mutate(region = "large")
 ) %>% 
   mutate(
     stock = factor(
@@ -281,8 +240,8 @@ obs <- rbind(
     )
   ) 
 
-colour_pal <- pals::polychrome(n = length(unique(obs_stations$strata)))
-names(colour_pal) <- unique(obs_stations$strata)
+colour_pal <- pals::polychrome(n = length(unique(comp_in$strata)))
+names(colour_pal) <- unique(comp_in$strata)
 
 
 p <- ggplot(data = preds %>% filter(!region == "large"), 

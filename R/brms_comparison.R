@@ -6,6 +6,8 @@
 library(tidyverse)
 library(stockseasonr)
 library(brms)
+library(tidybayes)
+
 options(mc.cores = parallel::detectCores())
 
 source(here::here("R", "utils.R"))
@@ -94,9 +96,11 @@ ggplot(pred_fit$preds) +
 ggplot(data = pred_fit$preds, 
            aes(x = month_n, colour = cap_region)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
-  facet_wrap(~stock) +
+  facet_grid(cap_region~stock) +
   ggsidekick::theme_sleek() +
   geom_line(aes(y = pred_prob_est)) + 
+  geom_ribbon(aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = cap_region),
+              alpha = 0.3) +
   geom_jitter(data = pred_fit$obs_dat,
               aes(x = month_n, y = obs_ppn, colour = cap_region, 
                   size = samp_nn),
@@ -119,9 +123,9 @@ comp_wide <- fit$wide_comp_dat %>%
   )
 
 brms_form <- bf(
-  y ~ 1 #+ #cap_region + 
-    # s(month_n, bs = "tp", k = 4, m = 2) +
-    # (1 | year)
+  y ~ 1 + cap_region + 
+    s(month_n, bs = "tp", k = 4, m = 2) +
+    (1 | year)
     ,
   phi ~ nn,
   family = dirichlet
@@ -135,51 +139,29 @@ priors_1 <- c(
   # prior(normal(0, 5), class = Intercept),
   prior(normal(0, 5), class = Intercept, dpar = "mustockother"),
   prior(normal(0, 5), class = Intercept, dpar = "mustockpsd"),
+  prior(normal(0, 5), class = b, coef = "cap_regionwest", dpar = "mustockother"),
+  prior(normal(0, 5), class = b, coef = "cap_regionwest", dpar = "mustockpsd"),
   prior(normal(0, 5), class = Intercept, dpar = "phi"),
   prior(normal(0, 5), class = b, coef = "nn", dpar = "phi")
 )
-# priors_2 <- c(
-#   #prior(normal(0, 10), class = b, dpar = ""),
-#   #prior(normal(0, 10), class = Intercept, dpar = ""),
-#   prior(normal(0, 5), class = Intercept, dpar = ""),
-#   prior(normal(0, 5), class = Intercept, dpar = "mustockother"),
-#   prior(normal(0, 5), class = Intercept, dpar = "mustockpsd"),
-#   prior(normal(0, 5), class = sd, group = "year", dpar = "mustockpsd"),
-#   prior(normal(0, 5), class = sd, group = "year", dpar = "mustockother"),
-#   prior(student_t(3, 0, 10), class = Intercept, dpar = "phi"),
-#   prior(normal(0, 2), class = b, coef = "nn", dpar = "phi")
-# )
+
 ## sample from the priors
 ppp_1 <- brm(formula = brms_form, prior = priors_1,
              data = comp_wide, sample_prior = "only",
              chains = 1, cores = 1)
-ppp_2 <- brm(formula = brms_form, prior = priors_2,
-             data = comp_wide, sample_prior = "only",
-             chains = 1, cores = 1)
-
-pred_1 <- prior_draws(ppp_1, draws = 1000)
-pred_2 <- prior_draws(ppp_2, draws = 1000)
-
 
 nd <- data.frame(
   nn = c(10, 100)
 )
 
-# plot
+# plot (ineffective)
 pred_1 <- predict(ppp_1, summary = F, ndraws = 100)
+pp_draws <- prior_draws(ppp_1, ndraws = 100)
 pp_draws <- posterior_predict(ppp_1, newdata = nd)
 pp_draws <- simulate(ppp_1, newdata = nd)
 
 
 pred_2 <- predict(ppp_2, summary = F, ndraws = 100)
-
-
-# plot(density(pred_1[1,,]), 
-#      col = scales::alpha("blue", 0.2), 
-#      main = "b ~ Normal(0,1)",
-#      xlim = c(-0.1, 1.1))
-# for(i in 2:100) lines(density(pred_1[i,,]), 
-#                       col = scales::alpha("blue", 0.2))
 
 # look at par ests
 # mean(pred_1[ , , 1])
@@ -191,25 +173,69 @@ pred_2 <- predict(ppp_2, summary = F, ndraws = 100)
 
 
 brms_fit <- brm(
-  formula = brms_form, prior = priors_2,
+  formula = brms_form, prior = priors_1,
   data = comp_wide,
-  chains = 4, cores = parallel::detectCores() - 1
+  chains = 4, cores = parallel::detectCores() - 1,
+  control = list(adapt_delta = 0.95)
 )
 
-# brms_fit2 <- brm(
-#   formula = brms_form2, prior = priors_2, 
-#   data = comp_wide,
-#   chains = 4, cores = parallel::detectCores() - 1
-# )
+# plot(marginal_effects(brms_fit, categorical = T, effects = "cap_region"),
+#      plot = T)
+# plot(marginal_effects(brms_fit2, categorical = T, effects = "cap_region"),
+#      plot = T)
+# 
+# comp_in %>% 
+#   mutate(pp = prob / nn) %>% 
+#   group_by(cap_region, stock_group2) %>% 
+#   summarize(
+#     mean_ppn = mean(pp)
+#   )
 
-plot(marginal_effects(brms_fit, categorical = T, effects = "cap_region"),
-     plot = T)
-plot(marginal_effects(brms_fit2, categorical = T, effects = "cap_region"),
-     plot = T)
-
-comp_in %>% 
-  mutate(pp = prob / nn) %>% 
-  group_by(cap_region, stock_group2) %>% 
+pred_dat1$year <- "2021" 
+pred_dat1$nn <- 13 
+brms_preds <- epred_draws(brms_fit, newdata = pred_dat1, re_formula = NA)
+brms_preds2 <- brms_preds %>% 
+  mutate(stock = str_remove(.category, "stock-")) %>% 
+  group_by(cap_region, month_n, stock) %>% 
   summarize(
-    mean_ppn = mean(pp)
+    pred_prob_est = median(.epred),
+    pred_prob_low = quantile(.epred, 0.025),
+    pred_prob_up = quantile(.epred, 0.975)
+  ) %>% 
+  mutate(
+    model = "brms"
   )
+
+
+ggplot(data = brms_preds2, 
+       aes(x = month_n, colour = cap_region)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(cap_region~stock) +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_prob_est)) + 
+  geom_ribbon(aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = cap_region),
+              alpha = 0.3) +
+  geom_jitter(data = pred_fit$obs_dat,
+              aes(x = month_n, y = obs_ppn, colour = cap_region, 
+                  size = samp_nn),
+              alpha = 0.2)
+
+ss_preds <- pred_fit$preds %>% 
+  mutate(
+    model = "ss"
+  ) %>% 
+  select(colnames(brms_preds2)) 
+
+dd <- rbind(ss_preds, brms_preds2)
+
+ggplot(data = dd, 
+       aes(x = month_n)) +
+  labs(y = "Predicted Stock Proportion", x = "Month") +
+  facet_grid(cap_region~stock) +
+  ggsidekick::theme_sleek() +
+  geom_line(aes(y = pred_prob_est, colour = model)) + 
+  geom_ribbon(aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = model),
+              alpha = 0.3) +
+  geom_jitter(data = pred_fit$obs_dat,
+              aes(x = month_n, y = obs_ppn, size = samp_nn),
+              alpha = 0.2)
