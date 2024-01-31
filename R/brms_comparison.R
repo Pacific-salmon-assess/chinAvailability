@@ -131,32 +131,49 @@ brms_form <- bf(
 get_prior(brms_form, data = comp_wide)
 
 ## Set prior with sd = 1 for slopes and intercepts
-# priors_1 <- c(prior(normal(0, 1), class = b),
-#               prior(normal(0, 1), class = Intercept))
-priors_2 <- c(#prior(normal(0, 10), class = b, dpar = ""),
-              #prior(normal(0, 10), class = Intercept, dpar = ""),
-              prior(normal(0, 5), class = Intercept, dpar = ""),
-              prior(normal(0, 5), class = Intercept, dpar = "mustockother"),
-              prior(normal(0, 5), class = Intercept, dpar = "mustockpsd"),
-              prior(student_t(3, 0, 10), class = Intercept, dpar = "phi"),
-              prior(normal(0, 5), class = sd, group = "year", dpar = "mustockpsd"),
-              prior(normal(0, 5), class = sd, group = "year", dpar = "mustockother"),
-              prior(normal(0, 2), class = b, coef = "nn", dpar = "phi")
-              )
+priors_1 <- c(
+  # prior(normal(0, 5), class = Intercept),
+  prior(normal(0, 5), class = Intercept, dpar = "mustockother"),
+  prior(normal(0, 5), class = Intercept, dpar = "mustockpsd"),
+  prior(normal(0, 5), class = Intercept, dpar = "phi"),
+  prior(normal(0, 5), class = b, coef = "nn", dpar = "phi")
+)
+# priors_2 <- c(
+#   #prior(normal(0, 10), class = b, dpar = ""),
+#   #prior(normal(0, 10), class = Intercept, dpar = ""),
+#   prior(normal(0, 5), class = Intercept, dpar = ""),
+#   prior(normal(0, 5), class = Intercept, dpar = "mustockother"),
+#   prior(normal(0, 5), class = Intercept, dpar = "mustockpsd"),
+#   prior(normal(0, 5), class = sd, group = "year", dpar = "mustockpsd"),
+#   prior(normal(0, 5), class = sd, group = "year", dpar = "mustockother"),
+#   prior(student_t(3, 0, 10), class = Intercept, dpar = "phi"),
+#   prior(normal(0, 2), class = b, coef = "nn", dpar = "phi")
+# )
 ## sample from the priors
-ppp_1 <- brm(formula = brms_form,# prior = priors_1,
+ppp_1 <- brm(formula = brms_form, prior = priors_1,
              data = comp_wide, sample_prior = "only",
              chains = 1, cores = 1)
 ppp_2 <- brm(formula = brms_form, prior = priors_2,
              data = comp_wide, sample_prior = "only",
              chains = 1, cores = 1)
 
+pred_1 <- prior_draws(ppp_1, draws = 1000)
 pred_2 <- prior_draws(ppp_2, draws = 1000)
 
 
+nd <- data.frame(
+  nn = c(10, 100)
+)
+
 # plot
-# pred_1 <- predict(ppp_1, summary = F, ndraws = 100)
+pred_1 <- predict(ppp_1, summary = F, ndraws = 100)
+pp_draws <- posterior_predict(ppp_1, newdata = nd)
+pp_draws <- simulate(ppp_1, newdata = nd)
+
+
 pred_2 <- predict(ppp_2, summary = F, ndraws = 100)
+
+
 # plot(density(pred_1[1,,]), 
 #      col = scales::alpha("blue", 0.2), 
 #      main = "b ~ Normal(0,1)",
