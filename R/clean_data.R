@@ -302,11 +302,12 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>
   mutate(
     stock_group = case_when(
       pst_agg %in% c("CA_ORCST", "CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa",
-                     "WACST", "Russia", "CR-upper_sp") ~ "other",
+                     "WACST", "Russia", "CR-upper_sp", "NBC_SEAK") ~ "other",
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
-      grepl(".2", region1name) ~ "Fraser Yearling",
-      region1name == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
-      region1name == "Fraser_Fall" ~ "Fraser Fall",
+      # grepl(".2", region1name) ~ "Fraser Yearling",
+      grepl("Fraser", region1name) ~ region1name,
+      # region1name == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
+      # region1name == "Fraser_Fall" ~ "Fraser Fall",
       TRUE ~ pst_agg
     )
   )

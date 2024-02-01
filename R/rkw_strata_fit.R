@@ -42,9 +42,9 @@ rec_trim <- rec_raw %>%
   left_join(., strata_key, by = c("fishing_site", "lat", "lon")) %>%
   mutate(
     sample_id = paste(strata, week_n, year, sep = "_"),
-    stock_group = ifelse(
-      stock_group %in% c("other", "NBC_SEAK"), "other", stock_group
-    ),
+    # stock_group = ifelse(
+    #   stock_group %in% c("other", "NBC_SEAK"), "other", stock_group
+    # ),
     strata_region = ifelse(
       lon > -124,
       "east",
@@ -176,30 +176,31 @@ east_fit <- fit_stockseasonr(
   silent = FALSE
 )
 
-large_fit <- fit_stockseasonr(
-  comp_formula = stock_group2 ~ 1 + strata +
-    s(month_n, bs = "tp", k = 3, m = 2, by = strata_region) +
-    (1 | year),
-  comp_dat = dat_tbl$data[[3]],
-  pred_dat = dat_tbl$pred_dat[[3]],
-  model = "dirichlet",
-  random_walk = FALSE,
-  fit = TRUE,
-  newton_loops = 1,
-  silent = FALSE
-)
+# convergence issues with large only samples
+# large_fit <- fit_stockseasonr(
+#   comp_formula = stock_group2 ~ 1 + strata +
+#     s(month_n, bs = "tp", k = 3, m = 2, by = strata_region) +
+#     (1 | year),
+#   comp_dat = dat_tbl$data[[3]],
+#   pred_dat = dat_tbl$pred_dat[[3]],
+#   model = "dirichlet",
+#   random_walk = FALSE,
+#   fit = TRUE,
+#   newton_loops = 1,
+#   silent = FALSE
+# )
 
 
 #check
 east_fit$ssdr[rownames(east_fit$ssdr) == "B2_jk", ] 
 swift_fit$ssdr[rownames(swift_fit$ssdr) == "B2_jk", ] 
-large_fit$ssdr[rownames(large_fit$ssdr) == "B2_jk", ] 
+# large_fit$ssdr[rownames(large_fit$ssdr) == "B2_jk", ] 
 
 
 # make predictions
 pred_swift <- clean_pred_foo(fit = swift_fit, preds = dat_tbl$pred_dat[[1]])
 pred_east <- clean_pred_foo(fit = east_fit, preds = dat_tbl$pred_dat[[2]])
-pred_large <- clean_pred_foo(fit = large_fit, preds = dat_tbl$pred_dat[[3]])
+# pred_large <- clean_pred_foo(fit = large_fit, preds = dat_tbl$pred_dat[[3]])
 
 preds <- rbind(
   pred_swift$preds %>% 
@@ -210,14 +211,27 @@ preds <- rbind(
   #   mutate(region = "large")
   ) %>% 
   mutate(
+    # stock = factor(
+    #   stock,
+    #   levels = c("wcvi", "fraser_yearling", "fraser_summer_4.1",
+    #              "fraser_fall", "ecvi_somn", "psd", "other")
+    # ),
+    # stock = fct_recode(
+    #   stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
+    #   "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
+    # )
     stock = factor(
       stock,
-      levels = c("wcvi", "fraser_yearling", "fraser_summer_4.1",
-                 "fraser_fall", "ecvi_somn", "psd", "other")
+      levels = c(
+        "wcvi", "fraser_spring_4.2", "fraser_spring_5.2", "fraser_summer_5.2",
+        "fraser_summer_4.1", "fraser_fall", "ecvi_somn", "psd", "other"
+      )
     ),
     stock = fct_recode(
-      stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
-      "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
+      stock, "fr_spr_4.2" = "fraser_spring_4.2", 
+      "fr_spr_5.2" = "fraser_spring_5.2", "fr_sum_5.2" = "fraser_summer_5.2",
+      "puget" = "psd", "fr_sum_4.1" = "fraser_summer_4.1",
+      "fr_fall" = "fraser_fall"
     )
   ) 
 obs <- rbind(
@@ -229,19 +243,35 @@ obs <- rbind(
   #   mutate(region = "large")
 ) %>% 
   mutate(
+    # stock = factor(
+    #   stock,
+    #   levels = c("wcvi", "fraser_yearling", "fraser_summer_4.1",
+    #              "fraser_fall", "ecvi_somn", "psd", "other")
+    # ),
+    # stock = fct_recode(
+    #   stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
+    #   "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
+    # )
     stock = factor(
       stock,
-      levels = c("wcvi", "fraser_yearling", "fraser_summer_4.1",
-                 "fraser_fall", "ecvi_somn", "psd", "other")
+      levels = c(
+        "wcvi", "fraser_spring_4.2", "fraser_spring_5.2", "fraser_summer_5.2",
+        "fraser_summer_4.1", "fraser_fall", "ecvi_somn", "psd", "other"
+      )
     ),
     stock = fct_recode(
-      stock, "fr_yearling" = "fraser_yearling", "puget" = "psd",
-      "fr_sum_4.1" = "fraser_summer_4.1", "fr_fall" = "fraser_fall"
+      stock, "fr_spr_4.2" = "fraser_spring_4.2", 
+      "fr_spr_5.2" = "fraser_spring_5.2", "fr_sum_5.2" = "fraser_summer_5.2",
+      "puget" = "psd", "fr_sum_4.1" = "fraser_summer_4.1",
+      "fr_fall" = "fraser_fall"
     )
   ) 
 
-colour_pal <- pals::polychrome(n = length(unique(comp_in$strata)))
-names(colour_pal) <- unique(comp_in$strata)
+colour_pal <- RColorBrewer::brewer.pal(
+  n = length(levels(comp_in$strata)),
+  "Paired"
+)#pals::polychrome(n = length(unique(comp_in$strata)))
+names(colour_pal) <- levels(comp_in$strata)
 
 
 p <- ggplot(data = preds %>% filter(!region == "large"), 
@@ -255,7 +285,8 @@ p <- ggplot(data = preds %>% filter(!region == "large"),
 p_ribbon <- p +
   geom_ribbon(data = preds %>% filter(!region == "large"),
               aes(ymin = pred_prob_low, ymax = pred_prob_up, fill = strata),
-              alpha = 0.2) 
+              alpha = 0.2) +
+  scale_fill_manual(values = colour_pal)
 
 p_obs <- ggplot() +
   geom_jitter(data = obs %>% filter(!region == "large"),
@@ -274,8 +305,7 @@ p_obs <- ggplot() +
 
 
 west_stacked <- ggplot(data = preds %>% 
-         filter(region == "swift",
-                region == "large"), 
+         filter(region == "swift"), 
        aes(x = month_n)) +
   geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
             stat = "identity") +
@@ -291,8 +321,7 @@ west_stacked <- ggplot(data = preds %>%
   facet_wrap(~strata) 
 
 east_stacked <- ggplot(data = preds %>% 
-                         filter(region == "east",
-                                region == "large"), 
+                         filter(region == "east"), 
                        aes(x = month_n)) +
   geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
             stat = "identity") +

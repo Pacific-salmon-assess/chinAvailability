@@ -34,7 +34,8 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     strata = ifelse(grepl("n_haro", strata) & lat < 48.55,
                     "s_haro",
                     strata),
-    strata = ifelse(grepl("n_haro", strata), "n_haro", strata) ,
+    strata = ifelse(grepl("n_haro", strata), "n_haro", strata)  %>% 
+      fct_reorder(., lon),
     strata2 = case_when(
       lon < -125 & strata != "wcvi_outside" ~ "barkley_corner",
       strata == "swiftsure" & lat > 48.55 ~ "nitinat_midshore",
@@ -43,13 +44,15 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       strata == "victoria" & lon < -123.48 ~ "sooke_nonhabitat",
       strata == "s_haro" ~ "victoria",
       TRUE ~ strata
-    ),
+    ) %>% 
+      fct_reorder(., lon),
     strata3 = case_when(
       grepl("renfrew", strata2) ~ "renfrew",
       grepl("nitinat", strata2) ~ "nitinat",
       grepl("sooke", strata2) ~ "sooke",
       TRUE ~ strata2
-    )
+    ) %>% 
+      fct_reorder(., lon)
   )
 
 # strata = original designation based on PFMA and overlap w habitat
