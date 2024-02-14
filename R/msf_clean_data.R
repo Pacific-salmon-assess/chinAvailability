@@ -43,7 +43,7 @@ msf_wide_trim <- msf_wide %>%
   # focus on taggable size (> 60 cm)
   filter(
     !is.na(resolved_stock_source),
-    length_mm > 60
+    length_mm > 600
   ) %>%
   select(
     id = biokey, date, week_n, month_n, year, area, 
