@@ -27,8 +27,8 @@ rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   janitor::clean_names() %>% 
   filter(!is.na(lat), 
          !is.na(lon),
-         #remove due to convergence issues and unique stock comp
-         !strata == "saanich")
+         #remove due to  unique stock comp
+         !strata %in% c("other"))
 
 
 ## CLUSTER ANALYSIS ------------------------------------------------------------
@@ -61,7 +61,7 @@ rec_trim <- rec_raw %>%
   ungroup() %>% 
   # remove sites with fewer than 10 samples
   filter(
-    !n_samps < 10
+    !n_samps < 8
   ) %>%
   # remove sum_prob column so pivot possible
   select(
@@ -86,8 +86,8 @@ rec_mat_scaled <- scale(rec_mat)
 # 1) includes spatial location plus stock comp; centered and scaled to make
 # comparable
 # 2) includes only stock comp with Bray curtis dissimilarity
-fviz_nbclust(rec_mat[ , -c(1:2)], kmeans, method = "silhouette")
 fviz_nbclust(rec_mat_scaled, kmeans, method = "silhouette")
+fviz_nbclust(rec_mat[ , -c(1:2)], kmeans, method = "silhouette")
 
 dist_matrix <- dist(rec_mat_scaled)
 hclust_fit <- hclust(dist_matrix, method = "ward.D2")
@@ -102,8 +102,8 @@ plot(hclust_fit2, cex = 0.6, hang = -1)
 
 
 # add cluster IDs
-rec_trim$cluster_1 <- cutree(hclust_fit, k = 4) %>% as.factor()
-rec_trim$cluster_2 <- cutree(hclust_fit2, k = 4) %>% as.factor()
+rec_trim$cluster_1 <- cutree(hclust_fit, k = 6) %>% as.factor()
+rec_trim$cluster_2 <- cutree(hclust_fit2, k = 6) %>% as.factor()
 
   
 
