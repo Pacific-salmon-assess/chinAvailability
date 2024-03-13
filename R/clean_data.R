@@ -324,7 +324,7 @@ saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
 wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>%
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2024.rds")) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
@@ -342,55 +342,49 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2023.rds")) %>
 # trim for GSI purposes
 wide_rec4_trim <- wide_rec4 %>% 
   filter(
-    !is.na(resolved_stock_source)
-  ) %>% 
-  select(
-    id = biokey, date, week_n, month_n, year, cap_region, area, area_n, 
-    fishing_site = new_location, subarea = subarea_new, strata,
-    lat, lon, rkw_habitat, cap_region, subarea_inc_rkw, whale_samples_time,
-    legal, fl, sex, ad = adipose_fin_clipped,
-    age = resolved_age, resolved_stock_source
-  ) 
+    !is.na(stock_1)
+  )
 
-# replace 0 probabilities with v. small values (just to be safe); then recalc
-# ppns
-prbs <- wide_rec4_trim %>% 
-  select(starts_with("prob")) %>% 
-  as.matrix()
-prbs[prbs == 0] <- .00001
-row_sums <- apply(prbs, 1, sum, na.rm = T)
-new_prbs <- prbs / row_sums
+# # replace 0 probabilities with v. small values (just to be safe); then recalc
+# # ppns
+# prbs <- wide_rec4_trim %>% 
+#   select(starts_with("prob")) %>% 
+#   as.matrix()
+# prbs[prbs == 0] <- .00001
+# row_sums <- apply(prbs, 1, sum, na.rm = T)
+# new_prbs <- prbs / row_sums
 
 
 #pivot to long (probs and stock IDs separately) and join 
 probs <- wide_rec4_trim %>% 
   # replace with updated probabilities from above
-  select(-starts_with("prob")) %>% 
-  cbind(., new_prbs) %>% 
+  # select(-starts_with("prob")) %>% 
+  # cbind(., new_prbs) %>% 
   pivot_longer(., cols = starts_with("prob"), names_to = "rank", 
                names_pattern = "prob_(.+)",
                values_to = "prob") %>%
   select(id, rank, prob)
 
-regions <- wide_rec4_trim %>% 
-  select(id, starts_with("region")) %>% 
-  pivot_longer(., cols = starts_with("region"), names_to = "rank", 
-               names_pattern = "region_(.+)_rollup",
-               values_to = "region") %>%
-  select(id, rank, region)
+# regions <- wide_rec4_trim %>% 
+#   select(id, starts_with("region")) %>% 
+#   pivot_longer(., cols = starts_with("region"), names_to = "rank", 
+#                names_pattern = "region_(.+)_rollup",
+#                values_to = "region") %>%
+#   select(id, rank, region)
 
 long_rec <- wide_rec4_trim %>% 
-  select(-starts_with("prob"), -starts_with("region")) %>% 
+  select(-starts_with("prob")
+         #, -starts_with("region")
+         ) %>% 
   pivot_longer(., cols = starts_with("stock"), names_to = "rank", 
                names_pattern = "stock_(.+)",
                values_to = "stock") %>% 
   left_join(., probs, by = c("id", "rank")) %>% 
-  left_join(., regions, by = c("id", "rank")) %>% 
+  # left_join(., regions, by = c("id", "rank")) %>% 
   arrange(desc(date), id, desc(prob)) %>% 
-  select(-rank) %>% 
   mutate(
     stock = toupper(stock),
-    creelsub = gsub("(\\d+)([[:alpha:]])", "\\1-\\2", subarea)
+    creelsub = gsub("(\\d+)([[:alpha:]])", "\\1-\\2", subarea_new)
   ) %>% 
   filter(!is.na(stock),
          !is.na(prob)) %>% 
@@ -406,7 +400,7 @@ long_rec %>%
     is.na(region1name)
   ) %>%
   select(
-    stock, region
+    stock
   ) %>%
   arrange(stock) %>%
   distinct()
@@ -431,11 +425,11 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
 
 wide_size <- wide_rec4 %>% 
-  select(id = biokey, date, week_n, month_n, year, cap_region, area, area_n,
-         fishing_site = new_location, subarea = subarea_new, strata,
-         lat, lon, rkw_habitat, subarea_inc_rkw,
-         whale_samples_time, legal, fl, sex, ad = adipose_fin_clipped,
-         resolved_stock_source, resolved_stock_region) %>%
+  # select(id = biokey, date, week_n, month_n, year, cap_region, area, area_n,
+  #        fishing_site = new_location, subarea = subarea_new, strata,
+  #        lat, lon, rkw_habitat, subarea_inc_rkw,
+  #        whale_samples_time, legal, fl, sex, ad = adipose_fin_clipped,
+  #        resolved_stock_source, resolved_stock_region) %>%
   #remove missing and non-sensical size_classes
   filter(
     !is.na(fl)
@@ -448,29 +442,28 @@ wide_size <- wide_rec4 %>%
     ),
     size_bin2 = factor(
       size_bin, labels = c("sublegal", "small", "medium", "large")
-    ),
-    month_n = lubridate::month(date)
+    )
   ) 
 
 # visualize sample coverage through space and time
 size_n <- wide_size %>% 
-  group_by(month_n, year, cap_region) %>% 
+  group_by(month_n, year, strata) %>% 
   tally() 
 
 ggplot(size_n) +
   geom_raster(aes(x = month_n, y = year, fill = n)) +
-  facet_wrap(~cap_region)
+  facet_wrap(~strata)
 
 wide_size %>%
-  group_by(size_bin, month_n, cap_region) %>%
+  group_by(size_bin, month_n, strata) %>%
   summarize(n = length(unique(id))) %>%
-  group_by(month_n, cap_region) %>% 
+  group_by(month_n, strata) %>% 
   mutate(total_n = sum(n),
          ppn_obs = n / total_n) %>% 
   ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
   geom_bar(position="stack", stat="identity") +
   ggsidekick::theme_sleek() +
-  facet_wrap(~cap_region)
+  facet_wrap(~strata)
 
 saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
