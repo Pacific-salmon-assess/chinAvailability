@@ -42,8 +42,7 @@ msf_wide <- read_csv(
 msf_wide_trim <- msf_wide %>% 
   # focus on taggable size (> 60 cm)
   filter(
-    !is.na(resolved_stock_source),
-    length_mm > 600
+    !is.na(resolved_stock_source)
   ) %>%
   select(
     id = biokey, date, week_n, month_n, year, area, 
@@ -55,6 +54,10 @@ msf_wide_trim <- msf_wide %>%
     starts_with("prob")
   ) 
 
+
+# export to combine with other rec samples
+saveRDS(msf_wide_trim, 
+        here::here("data", "rec", "clean_msf_gsi.rds"))
 
 
 #pivot to long (probs and stock IDs separately) and join 
@@ -91,8 +94,9 @@ long_msf <- msf_wide_trim %>%
     )
   )
 
-
 comp_in <- long_msf  %>% 
+  # focus on >600 mm fl inds
+  filter(fl > 600) %>% 
   group_by(sample_id) %>% 
   mutate(
     nn = length(unique(id)) %>% as.numeric#,
@@ -106,6 +110,8 @@ comp_in <- long_msf  %>%
            subarea, area, week_n, month_n, year, nn,
            stock_group) %>% 
   summarize(prob = sum(prob), .groups = "drop") 
+
+
 
 
 

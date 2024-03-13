@@ -150,12 +150,15 @@ obs_stations <- rec_raw %>%
       select(fishing_site, cluster_1, cluster_2)
   ) 
 
+pfma_subareas <- readRDS(
+  here::here("data", "spatial", "pfma_subareas_sBC.rds")
+) 
 
 # map including observed locations
 base_map <- ggplot() +
   geom_sf(data = coast, color = "black", fill = NA) +
-  geom_sf(data = hab_sf, color = "red") +
-  # geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
+  # geom_sf(data = hab_sf, color = "red") +
+  geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
   ggsidekick::theme_sleek() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
@@ -175,11 +178,6 @@ base_map <- ggplot() +
     size = "none",
     colour = "none",
     shape = "none"
-    # fill = "none",
-    # size = guide_legend(nrow = 2, byrow = TRUE, title = "GSI\nSample\nSize")#,
-    # colour = guide_legend(nrow = 2, byrow = TRUE, 
-    #                       title = "PFMA\nIncludes\nPoly."),
-    # shape = guide_legend(nrow = 2, byrow = TRUE, title = "Region")
   )
 
 

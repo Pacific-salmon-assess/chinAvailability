@@ -1,6 +1,6 @@
 ## Data Clean
 # Dec. 1, 2021
-# Updated: May 8, 2023
+# Updated: March 12, 2024
 
 library(tidyverse)
 library(sf)
@@ -177,28 +177,61 @@ write.csv(weird_sizes %>%
           here::here("data", "rec", "southcoast_size_errors.csv"),
           row.names = FALSE)
 
+
 wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   mutate(
     fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) %>% 
       as.numeric(),
+    fl = ifelse((fl < 150 | fl > 1500), NaN, fl),
+    # shift locations to overlap with subareas
+    lat = ifelse(new_location == "Cullite", 48.505, lat),
+    lon = ifelse(new_location == "Moresby I.", -123.287, lon),
+    # make oto/dna/cwt equivalent
+    stock_1 = case_when(
+      resolved_stock_source == "DNA" ~ dna_results_stock_1,
+      resolved_stock_source == "CWT" ~ cwt_result,
+      resolved_stock_source == "Otolith Stock" ~ oto_stock,
+    ),
+    prob_1 = case_when(
+      resolved_stock_source == "DNA" ~ prob_1,
+      resolved_stock_source == "CWT" ~ 1.0,
+      resolved_stock_source == "Otolith Stock" ~ 1.0
+    )
+  ) %>% 
+  # trim
+  select(
+    id = biokey, date, week_n, month_n, year, area, fishing_site = new_location,
+    subarea = new_creel_subarea, lat, lon, fl, ad = adipose_fin_clipped,
+    age = resolved_age, resolved_stock_source, 
+    stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
+    stock_4 = dna_stock_4, stock_5 = dna_stock_5,
+    starts_with("prob")
+  )
+
+
+# import mark selective fisheries data and join
+wide_msf <- readRDS(here::here("data", "rec", "clean_msf_gsi.rds")) %>% 
+  mutate(
+    age = NA
+  )
+
+
+wide_all <- rbind(wide_rec3, wide_msf) %>% 
+  mutate(
+    area_n = as.numeric(area),
     legal_lim = case_when(
       area_n < 20 & area_n > 11 ~ 620,
       area_n %in% c("28, 29") ~ 620,
       TRUE ~ 450
     ),
     legal = case_when(
-      disposition == "Kept" ~ "legal",
       fl >= legal_lim ~ "legal",
       fl < legal_lim ~ "sublegal"
-    ),
-    fl = ifelse((fl < 150 | fl > 1500), NaN, fl),
-    # shift locations to overlap with subareas
-    lat = ifelse(new_location == "Cullite", 48.505, lat),
-    lon = ifelse(new_location == "Moresby I.", -123.287, lon)
-  ) 
+    )
+  )
 
 
-rec_sf <- wide_rec3 %>%
+rec_sf <- wide_all %>%
   filter(!is.na(lat), !is.na(lon)) %>% 
   st_as_sf(
     ., 
@@ -219,74 +252,68 @@ pfma_areas <- readRDS(
 rec_sf_areas <- st_intersection(rec_sf, pfma_areas)
 rec_sf_areas_trim <- rec_sf_areas %>% 
   sf::st_drop_geometry() %>% 
-  select(biokey, #new_location,
+  select(id, #new_location,
          subarea_new = label, 
          subarea_inc_rkw = rkw_overlap)
+coast <- readRDS(
+  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+  # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+  sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.75, ymax = 48.8)
 
 
-wide_rec4 <- wide_rec3 %>% 
-  left_join(., rec_sf_areas_trim, by = "biokey") %>% 
+
+wide_rec4 <- wide_all %>% 
+  left_join(., rec_sf_areas_trim, by = "id") %>%
+  # filter(!(lat > 48.8)) %>% 
   mutate(
     rkw_habitat1 = ifelse(
-      biokey %in% rec_sf_sub$biokey, "yes", "no"
+      id %in% rec_sf_sub$id, "yes", "no"
     ),
-    # identify regions based on subarea boundaries and coherent habitat
-    cap_region = case_when(
-      subarea_inc_rkw == "yes" & lon < -124.25 ~ "swiftsure",
-      subarea_inc_rkw == "yes" & lon < -123.5 & lon > -124.25 ~ "sooke",
-      subarea_inc_rkw == "yes" & lon > -123.5 ~ "haro",
-      TRUE ~ "outside"
-    ),
+    # redefine strata manually
     strata = case_when(
-      subarea_new == "21-0" ~ "nitinat_nearshore",
-      rkw_habitat1 == "yes" & subarea_new %in% c("121-1", "121-2") ~
-        "nitinat_midshore",
-      rkw_habitat1 == "no" & subarea_new %in% c("121-1", "121-2", "121-3") ~ "swiftsure",
-      subarea_new %in% c("123-1", "123-2", "123-3") ~ "barkley_corner",
-      rkw_habitat1 == "yes" & subarea_new %in% c("20-1", "20-3") ~ 
-        "renfrew_habitat",
-      rkw_habitat1 == "no" & subarea_new %in% c("20-1", "20-2", "20-3") ~ 
-        "renfrew_nonhabitat",
-      rkw_habitat1 == "yes" & subarea_new %in% c("20-5") ~ "sooke_habitat",
-      rkw_habitat1 == "no" & subarea_new %in% c("20-4", "20-5", "20-6", "20-7") ~
-        "sooke_nonhabitat",
-      subarea_new %in% c("19-1", "19-2", "19-3") ~ "victoria",
-      # combine s_haro habitat and nonhabitat given small number of samps
-      # rkw_habitat1 == "yes" & subarea_new %in% c("19-4") ~ 
-      #   "s_haro_habitat",
-      subarea_new %in% c("19-4") ~ "s_haro",
-      rkw_habitat1 == "yes" & subarea_new %in% c("19-5") ~ 
-        "n_haro_habitat",
-      rkw_habitat1 == "no" & subarea_new %in% 
-        c("19-5", "19-6", "18-6", "18-10", "18-4", "18-5", "18-11", "18-2") ~ 
-        "n_haro_nonhabitat",
-      subarea_new %in% c("19-7", "18-7") ~ "saanich",
-      area %in% c("18", "19") ~ "sog_outside",
-      area == "123" ~ "wcvi_outside"
+      (lat < 48.65 & lon < -124.9) | (lat < 48.55 & lon < -124.7) |
+        (lon < -125.3) | (lat < 48.7 & lon < -125) ~ "swiftsure",
+      lat > 48.61 & lon < -124.78 ~ "swiftsure_nearshore",
+      lon > -124.8 & lon < -124.2 ~ "renfrew",
+      lat < 48.52 ~ "vic",
+      subarea_new == "19-8" | subarea_new == "18-7" | subarea_new == "19-7" ~
+        "saanich", 
+      lat > 48.5 & lat < 48.8 & lon < -122.9 ~ "haro",
+      TRUE ~ "other"
     ),
-    rkw_habitat = ifelse(grepl("outside", strata), "outside", rkw_habitat1),
-    whale_samples_time = ifelse(
-      (year < 2011 | year > 2017) & month_n %in% c("6", "7", "8") & 
-        rkw_habitat == "yes",
-      "yes",
-      "no"
-    ),
-    year = as.factor(year),
-    yday = lubridate::yday(date),
-    day_samp = paste(yday, year)
-  )
+    strata2 = case_when(
+      strata == "vic" & lon > -123.55 ~ "haro",
+      TRUE ~ strata
+    )
+   )
+
+#checks for mapping locations 
+# ggplot() +
+#   geom_sf(data = coast, color = "black", fill = NA) +
+#   # geom_sf(data = pfma_areas, aes(colour = rkw_overlap), fill = NA) +
+#   ggsidekick::theme_sleek() +
+#   scale_x_continuous(expand = c(0, 0)) +
+#   scale_y_continuous(expand = c(0, 0)) +
+#   geom_point(
+#     data = wide_rec4  %>%
+#       group_by(
+#         fishing_site, lat, lon, strata2
+#       ) %>%
+#       summarize(
+#         n = length(unique(id))
+#       ), 
+#     aes(x = lon, y = lat, size = n, fill = strata2),
+#     alpha = 0.7,
+#     shape = 21
+#   )
+
 
 # sample sizes
 nrow(wide_rec4) #103k samples
 nrow(wide_rec4 %>% 
-       filter(!is.na(resolved_stock_origin))) #79k stock
+       filter(!is.na(stock_1))) #79k stock
 nrow(wide_rec4 %>% 
-       filter(!is.na(resolved_stock_origin) & !is.na(lat))) #69k stock/loc 
-
-wide_rec4 %>% 
-  filter(!is.na(resolved_stock_origin) & !is.na(lat)) %>% 
-  group_by(cap_region) %>% 
-  tally()
+       filter(!is.na(stock_1) & !is.na(lat))) #69k stock/loc 
 
 
 saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
@@ -317,30 +344,12 @@ wide_rec4_trim <- wide_rec4 %>%
   filter(
     !is.na(resolved_stock_source)
   ) %>% 
-  mutate(
-    # make oto/dna/cwt equivalent
-    stock_1 = case_when(
-      resolved_stock_source == "DNA" ~ dna_results_stock_1,
-      resolved_stock_source == "CWT" ~ cwt_result,
-      resolved_stock_source == "Otolith Stock" ~ oto_stock,
-    ),
-    prob_1 = case_when(
-      resolved_stock_source == "DNA" ~ prob_1,
-      resolved_stock_source == "CWT" ~ 1.0,
-      resolved_stock_source == "Otolith Stock" ~ 1.0
-    )
-  ) %>% 
   select(
     id = biokey, date, week_n, month_n, year, cap_region, area, area_n, 
     fishing_site = new_location, subarea = subarea_new, strata,
     lat, lon, rkw_habitat, cap_region, subarea_inc_rkw, whale_samples_time,
     legal, fl, sex, ad = adipose_fin_clipped,
-    age = resolved_age, resolved_stock_source, 
-    stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
-    stock_4 = dna_stock_4, stock_5 = dna_stock_5,
-    starts_with("prob"),
-    # retain region data to help build stock key (will eventually be removed)
-    ends_with("rollup")
+    age = resolved_age, resolved_stock_source
   ) 
 
 # replace 0 probabilities with v. small values (just to be safe); then recalc
@@ -585,21 +594,3 @@ saveRDS(catch_subarea, here::here("data", "rec", "rec_creel_subarea.rds"))
 saveRDS(catch_area, here::here("data", "rec", "rec_creel_area.rds"))
 
 
-## ADD LOCATION DATA -----------------------------------------------------------
-
-# add georeferenced locations for stocks along main migratory corridor
-fish_locs <- read.csv(here::here("data", "spatial", "sc_rec_locations.csv"),
-                      na.strings=c("", "#N/A", "-")) %>% 
-  select(aa_biodata_location, new_name:new_lat) %>% 
-  filter(!(grepl("None", aa_biodata_location)),
-         new_pfma %in% c(#"123", "23",
-                         "121", "21", "22", "20", "19", "18")) %>% 
-  distinct()
-
-
-sp_rec <- wide_rec3 %>% 
-  filter(area %in% c(#"123", "23", 
-    "121", "21", "22", "20", "19", "18")) %>%
-  select(biokey, area, aa_biodata_location = fishing_location) %>% 
-  left_join(., fish_locs, by = "aa_biodata_location") %>% 
-  glimpse()
