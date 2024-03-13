@@ -264,13 +264,14 @@ coast <- readRDS(
 
 wide_rec4 <- wide_all %>% 
   left_join(., rec_sf_areas_trim, by = "id") %>%
-  # filter(!(lat > 48.8)) %>% 
+  # filter(!(lat > 48.8)) %>% #focus on focal areas but apply other to non-focal sites
   mutate(
     rkw_habitat1 = ifelse(
       id %in% rec_sf_sub$id, "yes", "no"
     ),
     # redefine strata manually
     strata = case_when(
+      lat > 48.8 ~ "other",
       (lat < 48.65 & lon < -124.9) | (lat < 48.55 & lon < -124.7) |
         (lon < -125.3) | (lat < 48.7 & lon < -125) ~ "swiftsure",
       lat > 48.61 & lon < -124.78 ~ "swiftsure_nearshore",
@@ -296,12 +297,13 @@ wide_rec4 <- wide_all %>%
 #   scale_y_continuous(expand = c(0, 0)) +
 #   geom_point(
 #     data = wide_rec4  %>%
+#       filter(!strata2 == "other") %>% 
 #       group_by(
 #         fishing_site, lat, lon, strata2
 #       ) %>%
 #       summarize(
 #         n = length(unique(id))
-#       ), 
+#       ),
 #     aes(x = lon, y = lat, size = n, fill = strata2),
 #     alpha = 0.7,
 #     shape = 21

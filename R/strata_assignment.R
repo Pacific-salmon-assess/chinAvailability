@@ -25,39 +25,11 @@ hab_sf <- readRDS(
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   janitor::clean_names() %>% 
-  rename(stock_region = region) %>% 
   filter(!is.na(lat), 
          !is.na(lon),
          #remove due to convergence issues and unique stock comp
-         !strata == "saanich",
-         !subarea == "19-8") %>% 
-  mutate(
-    #redefine single station at S border of n_haro as s_haro
-    strata = ifelse(grepl("n_haro", strata) & lat < 48.55,
-                    "s_haro",
-                    strata),
-    strata = ifelse(grepl("n_haro", strata), "n_haro", strata),
-    strata2 = case_when(
-      lon < -125 & strata != "wcvi_outside" ~ "barkley_corner",
-      strata == "swiftsure" & lat > 48.55 ~ "nitinat_midshore",
-      # strata == "nitinat_midshore" & lon > -124.82 ~ "renfrew_habitat",
-      grepl("nitinat", strata) & lon > -124.83 ~ "renfrew_habitat",
-      strata == "victoria" & lon < -123.48 ~ "sooke_nonhabitat",
-      strata == "s_haro" ~ "victoria",
-      TRUE ~ strata
-    ),
-    strata3 = case_when(
-      grepl("renfrew", strata2) ~ "renfrew",
-      grepl("nitinat", strata2) ~ "nitinat",
-      grepl("sooke", strata2) ~ "sooke",
-      TRUE ~ strata2
-    ) %>%
-      fct_reorder(., lon)
-  )
+         !strata == "saanich")
 
-# strata = original designation based on PFMA and overlap w habitat
-# strata2 = pooling based on eyeball + overlap w/ habitat
-# strata3 = pooling based on eyeball + no difference w/ habitat
 
 ## CLUSTER ANALYSIS ------------------------------------------------------------
 
@@ -77,11 +49,11 @@ rec_trim <- rec_raw %>%
       TRUE ~ stock_group
     )
   ) %>% 
-  group_by(strata3, fishing_site, lat, lon, stock_group) %>% 
+  group_by(strata, fishing_site, lat, lon, stock_group) %>% 
   summarize(
     sum_prob = sum(prob)
   ) %>% 
-  group_by(strata3, fishing_site, lat, lon) %>%
+  group_by(strata, fishing_site, lat, lon) %>%
   mutate(
     n_samps = sum(sum_prob),
     ppn = sum_prob / n_samps
@@ -101,7 +73,7 @@ rec_trim <- rec_raw %>%
 
 
 rec_mat <- rec_trim %>% 
-  select(-fishing_site, -strata3) %>% 
+  select(-fishing_site, -strata) %>% 
   as.matrix()
 
 # replace nil observations with 0s
@@ -119,19 +91,19 @@ fviz_nbclust(rec_mat_scaled, kmeans, method = "silhouette")
 
 dist_matrix <- dist(rec_mat_scaled)
 hclust_fit <- hclust(dist_matrix, method = "ward.D2")
-hclust_fit$labels <- rec_trim$strata3
+hclust_fit$labels <- rec_trim$strata
 plot(hclust_fit, cex = 0.6, hang = -1)
 
 
 dist_matrix_ppns <- vegan::vegdist(rec_mat[ , -c(1:2)], method = "bray")
 hclust_fit2 <- hclust(dist_matrix_ppns, method = "ward.D2")
-hclust_fit2$labels <- rec_trim$strata3
+hclust_fit2$labels <- rec_trim$strata
 plot(hclust_fit2, cex = 0.6, hang = -1)
 
 
 # add cluster IDs
-rec_trim$cluster_1 <- cutree(hclust_fit, k = 5) %>% as.factor()
-rec_trim$cluster_2 <- cutree(hclust_fit2, k = 5) %>% as.factor()
+rec_trim$cluster_1 <- cutree(hclust_fit, k = 4) %>% as.factor()
+rec_trim$cluster_2 <- cutree(hclust_fit2, k = 4) %>% as.factor()
 
   
 
@@ -140,9 +112,9 @@ rec_trim$cluster_2 <- cutree(hclust_fit2, k = 5) %>% as.factor()
 # all observed locations
 obs_stations <- rec_raw %>%
   filter(lat < 48.8) %>% 
-  select(id, lat, lon, rkw_habitat, fishing_site, strata, strata2, strata3) %>% 
+  select(id, lat, lon, fishing_site, strata, strata2) %>% 
   distinct() %>% 
-  group_by(lat, lon, rkw_habitat, fishing_site, strata, strata2, strata3) %>% 
+  group_by(lat, lon, fishing_site, strata, strata2) %>% 
   tally() %>% 
   left_join(
     ., 
@@ -157,8 +129,8 @@ pfma_subareas <- readRDS(
 # map including observed locations
 base_map <- ggplot() +
   geom_sf(data = coast, color = "black", fill = NA) +
-  # geom_sf(data = hab_sf, color = "red") +
-  geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
+  geom_sf(data = hab_sf, color = "red") +
+  # geom_sf(data = pfma_subareas, aes(colour = rkw_overlap), fill = NA) +
   ggsidekick::theme_sleek() +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
@@ -168,7 +140,7 @@ base_map <- ggplot() +
     axis.text = element_blank(),
     axis.title = element_blank()
   ) +
-  scale_fill_brewer(type = "qual", palette = "Paired") +
+  # scale_fill_brewer(type = "qual", palette = "Paired") +
   guides(
     fill = guide_legend(
       override.aes = list(shape = 21),
@@ -185,36 +157,29 @@ strata1 <- base_map +
   geom_point(
     data = obs_stations, 
     aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata),
-    alpha = 0.7,
+    alpha = 0.8,
     shape = 21
   ) 
 strata2 <- base_map +
   geom_point(
     data = obs_stations, 
     aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata2),
-    alpha = 0.7,
+    alpha = 0.8,
     shape = 21
-  ) 
-strata3 <- base_map +
-  geom_point(
-    data = obs_stations, 
-    aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = strata3),
-    alpha = 0.7,
-    shape = 21
-  ) 
+  )
 
 cluster1 <- base_map +
   geom_point(
     data = obs_stations, 
     aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = cluster_1),
-    alpha = 0.7,
+    alpha = 0.8,
     shape = 21
   ) 
 cluster2 <- base_map +
   geom_point(
     data = obs_stations, 
     aes(x = lon, y = lat, size = n, shape = rkw_habitat, fill = cluster_2),
-    alpha = 0.7,
+    alpha = 0.8,
     shape = 21
   ) 
 
@@ -226,11 +191,6 @@ dev.off()
 png(here::here("figs", "strata_breakdown", "strata2.png"), 
     height = 3.5, width = 7, units = "in", res = 250)
 strata2
-dev.off()
-
-png(here::here("figs", "strata_breakdown", "strata3.png"), 
-    height = 3.5, width = 7, units = "in", res = 250)
-strata3
 dev.off()
 
 
