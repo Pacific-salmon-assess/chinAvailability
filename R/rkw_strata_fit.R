@@ -14,16 +14,7 @@ library(stockseasonr)
 source(here::here("R", "utils.R"))
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
-  janitor::clean_names() %>% 
-  rename(stock_region = region)
-
-
-# strata key generated in strata_assignment.R
-strata_key <- readRDS(
-  here::here(
-    "data", "rec", "strata_key.rds"
-  )
-)
+  janitor::clean_names() 
 
 
 rec_trim <- rec_raw %>% 
@@ -34,12 +25,8 @@ rec_trim <- rec_raw %>%
     #exclude samples collected outside areas in relatively close proximity to 
     # SRKW foraging areas
     # !rkw_habitat == "outside",
-    !strata == "saanich",
-    !subarea == "19-8"
+    !strata %in% c("saanich", "other")
   ) %>% 
-  # remove old strata id and replace
-  select(-strata) %>% 
-  left_join(., strata_key, by = c("fishing_site", "lat", "lon")) %>%
   mutate(
     sample_id = paste(strata, week_n, year, sep = "_"),
     # stock_group = ifelse(
@@ -50,10 +37,9 @@ rec_trim <- rec_raw %>%
       "east",
       "west"
     ) %>% 
-      factor()
-  ) %>% 
-  select(-c(strata, strata2)) %>% 
-  rename(strata = strata3)
+      factor(),
+    year = as.factor(year)
+  ) 
 
 comp_in <- rec_trim  %>% 
   group_by(sample_id) %>% 
@@ -97,7 +83,7 @@ comp_in %>%
   select(-c(stock_group2, prob)) %>% 
   distinct() %>% 
   ggplot(.) +
-  geom_jitter(aes(x = month_n, y = year, size = nn, colour = strata_region),
+  geom_jitter(aes(x = week_n, y = year, size = nn, colour = strata_region),
              alpha = 0.4
              ) +
   facet_wrap(~ strata)
@@ -106,7 +92,7 @@ comp_in_large %>%
   select(-c(stock_group2, prob)) %>% 
   distinct() %>% 
   ggplot(.) +
-  geom_jitter(aes(x = month_n, y = year, size = nn, colour = strata_region),
+  geom_jitter(aes(x = week_n, y = year, size = nn, colour = strata_region),
               alpha = 0.4
   ) +
   facet_wrap(~ strata)
@@ -140,7 +126,7 @@ dat_tbl <- tibble(
       data,
       ~ expand.grid(
         strata = unique(.x$strata),
-        month_n = seq(min(.x$month_n), max(.x$month_n), by = 0.1),
+        week_n = seq(min(.x$week_n), max(.x$week_n), by = 0.1),
         strata_region = unique(.x$strata_region)
       ) 
     )
@@ -152,7 +138,7 @@ dat_tbl <- tibble(
 # number of knots only has an impact when poorly sampled months (May) are included
 swift_fit <- fit_stockseasonr(
   comp_formula = stock_group2 ~ 1 + strata + 
-    s(month_n, bs = "tp", k = 3, m = 2) +
+    s(week_n, bs = "tp", k = 3, m = 2) +
     (1 | year),
   comp_dat = dat_tbl$data[[1]],
   pred_dat = dat_tbl$pred_dat[[1]],
@@ -165,7 +151,7 @@ swift_fit <- fit_stockseasonr(
 
 east_fit <- fit_stockseasonr(
   comp_formula = stock_group2 ~ 1 + strata +
-    s(month_n, bs = "cc", k = 4, m = 2) +
+    s(week_n, bs = "cc", k = 4, m = 2) +
     (1 | year),
   comp_dat = dat_tbl$data[[2]],
   pred_dat = dat_tbl$pred_dat[[2]],
@@ -200,6 +186,8 @@ swift_fit$ssdr[rownames(swift_fit$ssdr) == "B2_jk", ]
 # make predictions
 pred_swift <- clean_pred_foo(fit = swift_fit, preds = dat_tbl$pred_dat[[1]])
 pred_east <- clean_pred_foo(fit = east_fit, preds = dat_tbl$pred_dat[[2]])
+
+
 # pred_large <- clean_pred_foo(fit = large_fit, preds = dat_tbl$pred_dat[[3]])
 
 preds <- rbind(
@@ -264,18 +252,19 @@ obs <- rbind(
       "fr_spr_5.2" = "fraser_spring_5.2", "fr_sum_5.2" = "fraser_summer_5.2",
       "puget" = "psd", "fr_sum_4.1" = "fraser_summer_4.1",
       "fr_fall" = "fraser_fall"
-    )
+    ),
+    obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn)
   ) 
 
 colour_pal <- RColorBrewer::brewer.pal(
-  n = length(levels(comp_in$strata)),
+  n = length(unique(comp_in$strata)),
   "Paired"
 )#pals::polychrome(n = length(unique(comp_in$strata)))
 names(colour_pal) <- levels(comp_in$strata)
 
 
 p <- ggplot(data = preds %>% filter(!region == "large"), 
-                 aes(x = month_n, colour = strata)) +
+                 aes(x = week_n, colour = strata)) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(region~stock) +
   ggsidekick::theme_sleek() +
@@ -290,11 +279,11 @@ p_ribbon <- p +
 
 p_obs <- ggplot() +
   geom_jitter(data = obs %>% filter(!region == "large"),
-              aes(x = month_n, y = obs_ppn, colour = strata, 
+              aes(x = week_n, y = obs_ppn, colour = strata, 
                   size = samp_nn),
               alpha = 0.1) +
   geom_line(data = preds %>% filter(!region == "large"),
-            aes(x = month_n, colour = strata, y = pred_prob_est),
+            aes(x = week_n, colour = strata, y = pred_prob_est),
             linewidth = 1.25) +
   labs(y = "Predicted Stock Proportion", x = "Month") +
   facet_grid(region~stock) +
@@ -303,10 +292,33 @@ p_obs <- ggplot() +
   theme(legend.position = "top") +
   scale_colour_manual(values = colour_pal)
 
+p_obs_summer <- ggplot() +
+  geom_jitter(data = obs %>% 
+                filter(!region == "large",
+                      (week_n > 24 & week_n < 41)),
+              aes(x = week_n, y = obs_ppn, 
+                  size = samp_nn),
+              alpha = 0.1) +
+  geom_line(data = preds %>%
+              filter(!region == "large",
+                     (week_n > 24 & week_n < 41)),
+            aes(x = week_n, y = pred_prob_est),
+            linewidth = 1.25, colour = "blue") +
+  geom_ribbon(data = preds %>% 
+                filter(!region == "large",
+                       (week_n > 24 & week_n < 41)),
+              aes(x = week_n, ymin = pred_prob_low, ymax = pred_prob_up),
+              alpha = 0.6, fill = "blue") +
+  labs(y = "Predicted Stock Proportion", x = "Week") +
+  facet_grid(strata~stock) +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous() +
+  theme(legend.position = "top") 
+
 
 west_stacked <- ggplot(data = preds %>% 
          filter(region == "swift"), 
-       aes(x = month_n)) +
+       aes(x = week_n)) +
   geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
             stat = "identity") +
   scale_fill_brewer(name = "Stock", palette = "Spectral") +
@@ -317,12 +329,12 @@ west_stacked <- ggplot(data = preds %>%
         axis.text = element_text(size=9),
         plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
   ) +
-  coord_cartesian(expand = FALSE, ylim = c(0, NA), xlim = c(1, 12)) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA), xlim = c(1, 52)) +
   facet_wrap(~strata) 
 
 east_stacked <- ggplot(data = preds %>% 
                          filter(region == "east"), 
-                       aes(x = month_n)) +
+                       aes(x = week_n)) +
   geom_area(aes(y = pred_prob_est, colour = stock, fill = stock), 
             stat = "identity") +
   scale_fill_brewer(name = "Stock", palette = "Spectral") +
@@ -333,15 +345,16 @@ east_stacked <- ggplot(data = preds %>%
         axis.text = element_text(size=9),
         plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points")
   ) +
-  coord_cartesian(expand = FALSE, ylim = c(0, NA), xlim = c(1, 12)) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA), xlim = c(1, 52)) +
   facet_wrap(~strata)
 
 
 pdf(here::here("figs", "rkw_habitat", "all_size_preds.pdf"),
-    height = 7, width = 8.5)
+    height = 7.7, width = 9.5)
 p
 p_ribbon
 p_obs
+p_obs_summer
 west_stacked
 east_stacked
 dev.off()

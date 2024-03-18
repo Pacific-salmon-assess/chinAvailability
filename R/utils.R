@@ -53,7 +53,7 @@ clean_pred_foo <- function(fit, preds) {
                  values_to = "obs_count",
                  names_prefix = "stock-") %>%
     mutate(obs_ppn = obs_count / samp_nn) %>% 
-    filter(month_n %in% preds$month_n) 
+    filter(week_n %in% preds$week_n) 
   
   list(
     pars = par_dat,
