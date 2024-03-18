@@ -42,10 +42,10 @@ dat <- raw_dat %>%
   ) %>% 
   mutate(
     sample_id = paste(year, week, X, Y, sep = "_")
-  ) %>% 
+  ) %>%
   select(
-    id, era, year, month, week, strata, utm_y = Y, utm_x = X,
-    stock, stock_prob, stock_group
+    id, sample_id, era, year, month, week, strata, utm_y = Y, utm_x = X,
+    stock, stock_prob, stock_group, lat = latitude, lon = longitude
   )
 
 sample_key <- dat %>% 
@@ -60,8 +60,26 @@ colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D", "#A50F15",
 names(colour_pal) <- levels(dat$stock_group)
 
 
+coast <- readRDS(
+  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+  sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
+  sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.75, ymax = 48.8) %>%
+  sf::st_transform(., crs = sf::st_crs("+proj=utm +zone=10 +units=m"))
+
+  
+ggplot() +
+  geom_sf(data = coast) +
+  geom_point(data = dat %>% 
+               select(id, era, utm_y, utm_x) %>% 
+               distinct(),
+             aes(x = utm_x, y = utm_y, fill = era), 
+             alpha = 0.7, shape = 21, width = 0.1) +
+  ggsidekick::theme_sleek()
+
 
 ## RAW DATA FIGURES ##
+
+# 
 
 # sample coverage through time and among strata
 dat %>% 
@@ -69,7 +87,7 @@ dat %>%
   summarize(n = length(unique(id))) %>% 
   ggplot(.) +
   geom_point(aes(x = week, y = year, size = n, fill = era), 
-             alpha = 0.7, shape = 21) +
+             alpha = 0.6, shape = 21) +
   facet_wrap(~strata) +
   ggsidekick::theme_sleek()
 
@@ -90,7 +108,8 @@ ppn_dat <- dat %>%
   ) %>% 
   group_by(sample_id) %>% 
   mutate(n_samples = length(unique(id))) %>% 
-  group_by(sample_id, era, year, month, strata, stock_group, n_samples) %>% 
+  group_by(sample_id, era, year, month, strata, stock_group, n_samples,
+           utm_x, utm_y) %>% 
   summarize(
     agg_count = sum(stock_prob),
     .groups = "drop"
@@ -110,6 +129,11 @@ ggplot(ppn_dat) +
   geom_boxplot(aes(x = as.factor(month), y = agg_prob, fill = era), 
               alpha = 0.7) +
   facet_grid(stock_group~strata) +
+  ggsidekick::theme_sleek()
+
+ggplot(ppn_dat) +
+  geom_point(aes(x = utm_x, y = utm_y, size = n_samples, fill = era), 
+             alpha = 0.7, shape = 21, width = 0.1)+
   ggsidekick::theme_sleek()
 
 
@@ -141,8 +165,8 @@ agg_dat <- expand.grid(
 
 
 fit <- gam(
-  agg_prob ~ stock_group + s(month, by = stock_group, k = 4) + 
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds"), 
+  agg_prob ~ era*stock_group + s(month, by = stock_group, k = 4) + 
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 20), 
   data = agg_dat, family = "tw"
 )
 class(fit) = c( "mvtweedie", class(fit) )

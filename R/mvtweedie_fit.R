@@ -83,6 +83,11 @@ system.time(
 # ~850 seconds to converge
 class(fit) = c( "mvtweedie", class(fit) )
 
+saveRDS(
+  fit,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery.rds")
+)
+
 # system.time(
 #   fit2 <- gam(
 #     agg_prob ~ 0 + stock_group + 
