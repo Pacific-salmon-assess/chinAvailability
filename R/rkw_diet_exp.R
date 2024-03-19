@@ -84,7 +84,7 @@ names(colour_pal) <- levels(dat$stock_group)
 
 
 
-## RAW DATA FIGURES ##
+## RAW DATA FIGURES ------------------------------------------------------------
 
 # sample coverage through time and among strata
 diet_samp_cov <- dat %>% 
@@ -117,10 +117,14 @@ diet_samp_bar <- ggplot(dat) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
   )
 
 
-# bubble plots of raw observations
+# bubble plots of raw observations (replicated in smooths below)
 ggplot(ppn_dat) +
   geom_jitter(aes(x = week, y = agg_prob, size = n_samples, fill = era), 
              alpha = 0.7, shape = 21, width = 0.1) +
@@ -159,7 +163,31 @@ diet_samp_map <- ggplot() +
   )
 
 
-## INITIAL FIT
+## export 
+png(
+  here::here("figs", "rkw_diet", "temporal_sample_coverage.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+diet_samp_cov
+dev.off()
+
+png(
+  here::here("figs", "rkw_diet", "monthly_comp_bar.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+diet_samp_bar
+dev.off()
+
+png(
+  here::here("figs", "rkw_diet", "spatial_sample_coverage.png"),
+  height = 4, width = 8, units = "in", res = 250
+)
+diet_samp_map
+dev.off()
+
+
+
+## FIT MODEL -------------------------------------------------------------------
 
 # add zero observations
 agg_dat <- expand.grid(
@@ -217,7 +245,7 @@ loc_key <- agg_dat %>%
 
 newdata <- expand.grid(
   strata = unique(agg_dat$strata),
-  week = seq(25, 35, by = 0.25),
+  week = seq(25, 38, by = 0.25),
   stock_group = levels(agg_dat$stock_group),
   era = unique(agg_dat$era),
   year = levels(agg_dat$year)[1]
@@ -264,7 +292,7 @@ diet_pred_smooth <- ggplot(newdata %>%
   geom_line() +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
   facet_grid(stock_group ~ strata) +
-  coord_cartesian(ylim = c(0,1), xlim = c(25, 35)) +
+  coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
   labs(y="Predicted proportion") +
   ggsidekick::theme_sleek() +
   scale_x_continuous(
@@ -294,6 +322,21 @@ diet_pred_stacked <- ggplot(data = newdata,
     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
   )
 
+
+## export 
+png(
+  here::here("figs", "rkw_diet", "smooth_preds.png"),
+  height = 7.5, width = 7.5, units = "in", res = 250
+)
+diet_pred_smooth
+dev.off()
+
+png(
+  here::here("figs", "rkw_diet", "stacked_pred.png"),
+  height = 7.5, width = 7, units = "in", res = 250
+)
+diet_pred_stacked
+dev.off()
 
 
 
