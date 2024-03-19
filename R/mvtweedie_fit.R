@@ -71,9 +71,24 @@ agg_dat <- expand.grid(
   ) 
 
 
+## DATA FIGURES ----------------------------------------------------------------
+
+# sampling coverage 
+comp_in %>% 
+  select(-c(stock_group2, prob)) %>% 
+  distinct() %>% 
+  ggplot(.) +
+  geom_jitter(aes(x = week_n, y = year, size = nn, colour = strata_region),
+              alpha = 0.4
+  ) +
+  facet_wrap(~ strata)
+
+
+
 system.time(
   fit <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 5, bs = "cc") +
+    agg_prob ~ 0 + stock_group + 
+      s(week_n, by = stock_group, k = 5, bs = "cc") +
       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds") + 
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds"), 
     data = agg_dat, family = "tw",
