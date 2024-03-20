@@ -96,21 +96,20 @@ agg_dat <- expand.grid(
 
 
 fit <- readRDS(
-    here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery.rds")
-  )
+    here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery.rds"))
 
+## DATA FIGURES ----------------------------------------------------------------
 
-# system.time(
-#   fit2 <- gam(
-#     agg_prob ~ 0 + stock_group + 
-#       s(week_n, by = stock_group, k = 5, bs = "cc") +
-#       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds") + 
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds"), 
-#     data = agg_dat, family = "tw",
-#     knots = list(week_n = c(0, 52))
-#   )
-# )
-# class(fit2) = c( "mvtweedie", class(fit) )
+# sampling coverage 
+comp_in %>% 
+  select(-c(stock_group2, prob)) %>% 
+  distinct() %>% 
+  ggplot(.) +
+  geom_jitter(aes(x = week_n, y = year, size = nn, colour = strata_region),
+              alpha = 0.4
+  ) +
+  facet_wrap(~ strata)
+
 
 
 ## CHECK -----------------------------------------------------------------------
