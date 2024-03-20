@@ -71,22 +71,34 @@ agg_dat <- expand.grid(
   ) 
 
 
-system.time(
-  fit <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 5, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds") + 
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds"), 
-    data = agg_dat, family = "tw",
-    knots = list(week_n = c(0, 52))
-  )
-)
-# ~850 seconds to converge
-class(fit) = c( "mvtweedie", class(fit) )
+## FIT MODEL -------------------------------------------------------------------
 
-saveRDS(
-  fit,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery.rds")
-)
+# # system.time(
+#   fit <- gam(
+#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 5, bs = "cc") +
+#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds") +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds"),
+#     data = agg_dat, family = "tw",
+#     knots = list(week_n = c(0, 52))
+#   )
+# # )
+# # ~850 seconds to converge
+# saveRDS(
+#   fit,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds")
+# )
+# 
+# class(fit) = c( "mvtweedie", class(fit) )
+# saveRDS(
+#   fit,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
+# )
+
+
+fit <- readRDS(
+    here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery.rds")
+  )
+
 
 # system.time(
 #   fit2 <- gam(
@@ -100,6 +112,57 @@ saveRDS(
 # )
 # class(fit2) = c( "mvtweedie", class(fit) )
 
+
+## CHECK -----------------------------------------------------------------------
+
+
+ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
+
+
+## simulate based on:
+# https://gist.github.com/dantonnoriega/ad2081c39b26d0f523ba3464f4a90282
+
+# use fitted GAM for mean estimates
+phi.hat <- fit$deviance/sum(fit$prior.weights)
+mu.hat <- fitted(fit)
+p.hat <- fit$family$getTheta(TRUE)
+prob_zero <- exp(-mu.hat^(2-p.hat) / phi.hat / (2-p.hat))
+
+# single sim
+y.tw <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
+
+# plot generated y vs simulated y from fitted values
+y <- agg_dat$agg_prob
+brks = seq(0, ceiling(max(max(y), max(y.tw))), by = 0.5)
+hist(y, breaks = brks, col = scales::alpha('red', .9))
+par(new = TRUE)
+hist(y.tw, breaks = brks, col = scales::alpha('blue', .5), axes = FALSE, xlab = NULL, ylab = NULL, main = NULL)
+
+
+# full simulate
+nsims <- 50
+sim_mat <- matrix(NA, nrow = length(mu.hat), ncol = nsims)
+for (i in 1:ncol(sim_mat)) {
+  sim_mat[ , i] <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
+}
+
+mu_pred <- predict(fit, newdata = agg_dat) %>% 
+  fit$family$linkinv(.)
+
+dharma_res <- DHARMa::createDHARMa(
+  simulatedResponse = sim_mat,
+  observedResponse = agg_dat$agg_prob,
+  fittedPredictedResponse = mu_pred
+)
+plot(dharma_res)
+
+
+# ppn zeros
+sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
+sum(sim_mat == 0) / length(sim_mat)
+
+
+## PREDICT ---------------------------------------------------------------------
 
 # identify a single spatial location for each strata based on mean
 loc_key <- dat %>% 

@@ -79,8 +79,6 @@ ggplot() +
 
 ## RAW DATA FIGURES ##
 
-# 
-
 # sample coverage through time and among strata
 dat %>% 
   group_by(week, strata, year, era) %>% 
