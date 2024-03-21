@@ -45,6 +45,10 @@ sample_key <- dat %>%
   distinct()
 
 
+# subset to speed up fitting
+sub_id <- sample(sample_key$sample_id, 1000, replace = FALSE)
+
+
 # add zero observations
 agg_dat <- expand.grid(
   sample_id = unique(dat$sample_id),
@@ -68,20 +72,33 @@ agg_dat <- expand.grid(
     stock_group = as.factor(stock_group),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
-  ) 
+  ) %>% 
+  filter(
+    sample_id %in% sub_id
+  )
 
 
 ## FIT MODEL -------------------------------------------------------------------
 
-# # system.time(
-#   fit <- gam(
-#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 5, bs = "cc") +
-#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds") +
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds"),
-#     data = agg_dat, family = "tw",
-#     knots = list(week_n = c(0, 52))
-#   )
-# # )
+system.time(
+  fit <- gam(
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) ,
+    data = agg_dat, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+system.time(
+  fit2 <- gam(
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year, bs = "re"),
+    data = agg_dat, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
 # # ~850 seconds to converge
 # saveRDS(
 #   fit,
@@ -95,20 +112,23 @@ agg_dat <- expand.grid(
 # )
 
 
+fit_raw <- readRDS(
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
+
 fit <- readRDS(
-    here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery.rds"))
+    here::here(
+      "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
+    )
+
 
 ## DATA FIGURES ----------------------------------------------------------------
 
 # sampling coverage 
-comp_in %>% 
-  select(-c(stock_group2, prob)) %>% 
-  distinct() %>% 
-  ggplot(.) +
-  geom_jitter(aes(x = week_n, y = year, size = nn, colour = strata_region),
+ggplot(sample_key) +
+  geom_jitter(aes(x = week_n, y = year, size = sample_id_n, colour = strata),
               alpha = 0.4
   ) +
-  facet_wrap(~ strata)
+  facet_wrap(~strata)
 
 
 
@@ -121,10 +141,12 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 ## simulate based on:
 # https://gist.github.com/dantonnoriega/ad2081c39b26d0f523ba3464f4a90282
 
+fit_raw <- fit2
+
 # use fitted GAM for mean estimates
-phi.hat <- fit$deviance/sum(fit$prior.weights)
-mu.hat <- fitted(fit)
-p.hat <- fit$family$getTheta(TRUE)
+phi.hat <- fit_raw$deviance/sum(fit_raw$prior.weights)
+mu.hat <- fitted(fit_raw)
+p.hat <- fit_raw$family$getTheta(TRUE)
 prob_zero <- exp(-mu.hat^(2-p.hat) / phi.hat / (2-p.hat))
 
 # single sim
@@ -145,8 +167,8 @@ for (i in 1:ncol(sim_mat)) {
   sim_mat[ , i] <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
 }
 
-mu_pred <- predict(fit, newdata = agg_dat) %>% 
-  fit$family$linkinv(.)
+mu_pred <- predict(fit_raw, newdata = agg_dat) %>% 
+  fit_raw$family$linkinv(.)
 
 dharma_res <- DHARMa::createDHARMa(
   simulatedResponse = sim_mat,
