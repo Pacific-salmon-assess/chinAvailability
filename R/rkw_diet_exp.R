@@ -133,8 +133,11 @@ ggplot(ppn_dat) +
 
 
 # sample map
-coast <- readRDS(
-  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+coast <- rbind(rnaturalearth::ne_states( "United States of America", 
+                                         returnclass = "sf"), 
+               rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>% 
+  #readRDS(
+  # here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
   sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
   sf::st_transform(., crs = sf::st_crs("+proj=utm +zone=10 +units=m")) %>% 
   sf::st_crop(
@@ -146,7 +149,7 @@ coast <- readRDS(
   )
 
 diet_samp_map <- ggplot() +
-  geom_sf(data = coast, color = "black", fill = "white") +
+  geom_sf(data = coast, color = "black", fill = "grey") +
   geom_point(
     data = ppn_dat %>% 
       select(utm_x, utm_y, era, strata, n_samples) %>% 
@@ -157,7 +160,7 @@ diet_samp_map <- ggplot() +
   coord_sf(expand = FALSE) +
   ggsidekick::theme_sleek() +
   theme(
-    panel.background = element_rect(fill = "grey"),
+    panel.background = element_rect(fill = "white"),
     axis.title = element_blank(),
     legend.position = "top"
   )
