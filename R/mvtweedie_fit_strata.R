@@ -34,7 +34,14 @@ dat <- rec_raw %>%
     sample_id_n = sum(prob),
     # calculate average location within a sampling event
     utm_y = mean(utm_y),
-    utm_x = mean(utm_x)
+    utm_x = mean(utm_x),
+    strata = factor(
+        strata,
+        levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "vic",
+                   "haro", "saanich"),
+        labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke\n/Victoria",
+                   "S. Gulf\nIslands", "Saanich")
+      )
   ) %>% 
   ungroup()
 
@@ -67,6 +74,9 @@ agg_dat <- expand.grid(
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
   ) 
+saveRDS(
+  agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec.rds")
+)
 
 
 ## FIT MODEL -------------------------------------------------------------------

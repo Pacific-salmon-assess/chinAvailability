@@ -30,6 +30,13 @@ dat <- rec_raw %>%
       as.numeric() %>% 
       paste("site", ., sep = ""),
     sample_id = paste(spatial_loc, week_n, year, sep = "_"),
+    strata = factor(
+      strata,
+      levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "vic",
+                 "haro", "saanich"),
+      labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke/\nVictoria",
+                 "S. Gulf\nIslands", "Saanich")
+    )
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
@@ -72,10 +79,39 @@ agg_dat <- expand.grid(
     stock_group = as.factor(stock_group),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
-  ) %>% 
-  filter(
-    sample_id %in% sub_id
+  ) #%>% 
+  # filter(
+  #   sample_id %in% sub_id
+  # )
+saveRDS(
+  agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
+)
+
+
+## DATA FIGURES ----------------------------------------------------------------
+
+# sampling coverage 
+rec_samp_cov <- ggplot(sample_key) +
+  geom_jitter(aes(x = week_n, y = year, size = sample_id_n),
+              alpha = 0.4
+  ) +
+  facet_wrap(~strata) +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_x_continuous(
+    breaks = c(2, 20, 36, 50),
+    labels = c("Jan", "May", "Sep", "Dec")
+  ) + 
+  ggsidekick::theme_sleek() +
+  theme(
+    axis.title = element_blank()
   )
+
+png(
+  here::here("figs", "ms_figs", "rec_temporal_sample_coverage.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+rec_samp_cov
+dev.off()
 
 
 ## FIT MODEL -------------------------------------------------------------------
@@ -119,17 +155,6 @@ fit <- readRDS(
     here::here(
       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
     )
-
-
-## DATA FIGURES ----------------------------------------------------------------
-
-# sampling coverage 
-ggplot(sample_key) +
-  geom_jitter(aes(x = week_n, y = year, size = sample_id_n, colour = strata),
-              alpha = 0.4
-  ) +
-  facet_wrap(~strata)
-
 
 
 ## CHECK -----------------------------------------------------------------------

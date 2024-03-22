@@ -1,5 +1,13 @@
 ## Diet Explore
-# Look at sample size and coverage of diet data
+# Clean and begin analysis of SRKW diet data
+# 1) Raw data figs:
+# - map of sample collection locations
+# - temporal sampling coverage bar plots
+# - stock comp bar plots
+# 2) Model fitting and figs
+# - smooth predictions
+# - stacked ribbon plots
+
 
 
 library(tidyverse)
@@ -24,7 +32,7 @@ dat <- raw_dat %>%
       levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "cJDF",
                  "sooke", "vic"),
       labels = c("Swiftsure", "Nitinat", "Renfrew", "cJDF",
-                 "Sooke", "San Juan\nIslands")
+                 "Sooke/\nVictoria", "San Juan\nIslands")
     ),
     month = lubridate::month(date),
     stock_group = case_when(
@@ -42,7 +50,8 @@ dat <- raw_dat %>%
                  "FR_Spr_5.2", "FR_Sum_5.2", "FR_Sum_4.1",
                  "FR_Fall")
     ),
-    era = ifelse(year < 2015, "early", "current"),
+    era = ifelse(year < 2015, "early", "current") %>% 
+      fct_relevel(., "current", after = Inf),
     # sampling event = all samples collected in a given strata-year-week
     sample_id = paste(year, week, strata, sep = "_")
   ) %>% 
@@ -76,11 +85,18 @@ ppn_dat <- dat %>%
   mutate(
     agg_prob = agg_count / n_samples
   ) 
+saveRDS(
+  ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+)
 
 
-colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D", "#A50F15",
-                "#EF3B2C", "#FC9272", "#FCBBA1")
-names(colour_pal) <- levels(dat$stock_group)
+# SMU colour palette
+smu_colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D", 
+                    "#A50F15", "#EF3B2C", "#FC9272", "#FCBBA1")
+names(smu_colour_pal) <- levels(dat$stock_group)
+
+era_pal <- c(15, 16)
+names(era_pal) <- levels(ppn_dat)
 
 
 
@@ -91,9 +107,11 @@ diet_samp_cov <- dat %>%
   group_by(week, strata, year, era) %>% 
   summarize(n = length(unique(id))) %>% 
   ggplot(.) +
-  geom_point(aes(x = week, y = year, size = n, fill = era), 
-             alpha = 0.6, shape = 21) +
+  geom_point(aes(x = week, y = year, size = n, shape = era), 
+             alpha = 0.6) +
   facet_wrap(~strata) +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_shape_manual(values = era_pal, name = "Sample\nEra") +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37, 41),
     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
@@ -110,7 +128,7 @@ diet_samp_bar <- ggplot(dat) +
            stat = "identity") +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = colour_pal, name = "Stock\nGroup") +
+  scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
     y = "Prey Remains Composition"
   ) +
@@ -132,62 +150,20 @@ ggplot(ppn_dat) +
   ggsidekick::theme_sleek()
 
 
-# sample map
-coast <- rbind(rnaturalearth::ne_states( "United States of America", 
-                                         returnclass = "sf"), 
-               rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>% 
-  #readRDS(
-  # here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
-  sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
-  sf::st_transform(., crs = sf::st_crs("+proj=utm +zone=10 +units=m")) %>% 
-  sf::st_crop(
-    ., 
-    xmin = min(ppn_dat$utm_x) - 1500, 
-    ymin = min(ppn_dat$utm_y) - 2000,
-    xmax = max(ppn_dat$utm_x) + 1500, 
-    ymax = max(ppn_dat$utm_y) + 2000
-  )
-
-diet_samp_map <- ggplot() +
-  geom_sf(data = coast, color = "black", fill = "grey") +
-  geom_point(
-    data = ppn_dat %>% 
-      select(utm_x, utm_y, era, strata, n_samples) %>% 
-      distinct(),
-    aes(x = utm_x, y = utm_y, colour = strata, shape = era, size = n_samples), 
-    alpha = 0.7
-  ) +
-  coord_sf(expand = FALSE) +
-  ggsidekick::theme_sleek() +
-  theme(
-    panel.background = element_rect(fill = "white"),
-    axis.title = element_blank(),
-    legend.position = "top"
-  )
-
-
 ## export 
 png(
-  here::here("figs", "rkw_diet", "temporal_sample_coverage.png"),
+  here::here("figs", "ms_figs", "temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 diet_samp_cov
 dev.off()
 
 png(
-  here::here("figs", "rkw_diet", "monthly_comp_bar.png"),
+  here::here("figs", "ms_figs", "monthly_comp_bar.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 diet_samp_bar
 dev.off()
-
-png(
-  here::here("figs", "rkw_diet", "spatial_sample_coverage.png"),
-  height = 4, width = 8, units = "in", res = 250
-)
-diet_samp_map
-dev.off()
-
 
 
 ## FIT MODEL -------------------------------------------------------------------
@@ -308,8 +284,8 @@ diet_pred_stacked <- ggplot(data = newdata,
        aes(x = week)) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
             stat = "identity") +
-  scale_fill_manual(name = "Stock Group", values = colour_pal) +
-  scale_colour_manual(name = "Stock Group", values = colour_pal) +
+  scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
+  scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
   labs(y = "Predicted Composition", x = "Week") +
   ggsidekick::theme_sleek() +
   theme(
