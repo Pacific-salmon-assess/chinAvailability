@@ -338,7 +338,16 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2024.rds")) %>
       # region1name == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
       # region1name == "Fraser_Fall" ~ "Fraser Fall",
       TRUE ~ pst_agg
-    )
+    ) %>% 
+      factor(
+        .,
+        levels = c("other", "PSD", "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
+                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
+                   "Fraser_Fall"),
+        labels = c("other", "PSD", "WCVI", "ECVI_SOMN", "FR_Spr_4.2",
+                   "FR_Spr_5.2", "FR_Sum_5.2", "FR_Sum_4.1",
+                   "FR_Fall")
+    ) 
   )
 
 # trim for GSI purposes

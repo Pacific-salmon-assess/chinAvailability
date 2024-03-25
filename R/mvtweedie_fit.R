@@ -88,6 +88,13 @@ saveRDS(
 )
 
 
+# SMU colour palette
+smu_colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D", 
+                    "#A50F15", "#EF3B2C", "#FC9272", "#FCBBA1")
+names(smu_colour_pal) <- levels(dat$stock_group)
+
+
+
 ## DATA FIGURES ----------------------------------------------------------------
 
 # sampling coverage 
@@ -106,11 +113,67 @@ rec_samp_cov <- ggplot(sample_key) +
     axis.title = element_blank()
   )
 
+
+# stacked bar plot
+rec_samp_bar <- ggplot(dat) +
+  geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
+           stat = "identity") +
+  facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
+  labs(
+    y = "Prey Remains Composition"
+  ) +
+  scale_x_continuous(
+    breaks = c(1, 5, 9, 12),
+    labels = c("Jan", "May", "Sep", "Dec")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+# subset of monthly samples that matches RKW diet
+rec_samp_bar_summer <- dat %>% 
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  ggplot(.) +
+  geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
+           stat = "identity") +
+  facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
+  labs(
+    y = "Recreational Fishery\nComposition"
+  ) +
+  scale_x_continuous(
+    breaks = c(6, 7, 8, 9, 10),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+
 png(
   here::here("figs", "ms_figs", "rec_temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_cov
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "rec_monthly_comp_bar.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+rec_samp_bar
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "rec_monthly_comp_bar_summer.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+rec_samp_bar_summer
 dev.off()
 
 
