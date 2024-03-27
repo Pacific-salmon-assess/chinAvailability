@@ -199,13 +199,20 @@ fit <- gam(
   data = agg_dat, family = "tw"
 )
 class(fit) = c( "mvtweedie", class(fit) )
-fit2 <- gam(
-  agg_prob ~ stock_group + 
-    s(week, by = stock_group, k = 4) + 
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25), 
-  data = agg_dat, family = "tw"
+saveRDS(
+  fit,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
 )
-class(fit2) = c( "mvtweedie", class(fit2) )
+
+# fit2 <- gam(
+#   agg_prob ~ stock_group + 
+#     s(week, by = stock_group, k = 4) + 
+#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25), 
+#   data = agg_dat, family = "tw"
+# )
+# class(fit2) = c( "mvtweedie", class(fit2) )
+
+
 
 
 # loc_key <- data.frame(
@@ -257,14 +264,19 @@ newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)
 # newdata$upper2 = newdata$fit2 + (qnorm(0.975)*newdata$se.fit2)
 # newdata2 <- newdata %>% filter(era == "current")
 
-diet_pred_smooth <- ggplot(newdata %>% 
-         filter(
-          !(era == "current" & strata %in% c("cJDF", "Sooke", "San Juan\nIslands")) 
-         ),
+# remove datalimited strata
+newdata_trim <- newdata %>% 
+  filter(
+    !strata %in% c("Sooke/\nVictoria", "cJDF"),
+    !(era == "current" & strata %in% c("San Juan\nIslands")) 
+  )
+
+diet_pred_smooth <- ggplot(newdata_trim,
        aes(week, fit, colour = era, fill = era)) +
   geom_point(
     data = agg_dat %>%
-      filter(strata %in% newdata$strata),
+      filter(strata %in% newdata$strata,
+             !strata %in% c("Sooke/\nVictoria", "cJDF")),
     aes(x = week, y = agg_prob, size = n_samples),
     alpha = 0.3
   ) +
@@ -272,21 +284,27 @@ diet_pred_smooth <- ggplot(newdata %>%
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
   facet_grid(stock_group ~ strata) +
   coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
-  labs(y="Predicted proportion") +
+  labs(
+    y = "Predicted Proportion of Diet Sample",
+    fill = "Sampling\nEra",
+    colour = "Sampling\nEra",
+    size = "Sample\nSize"
+  ) +
   ggsidekick::theme_sleek() +
+  # scale_size_continuous(name = "Sample\nSize") +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37, 41),
     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-  )
+  ) 
 
 
-diet_pred_stacked <- ggplot(data = newdata, 
+diet_pred_stacked <- ggplot(data = newdata_trim, 
        aes(x = week)) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
             stat = "identity") +
   scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
   scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
-  labs(y = "Predicted Composition", x = "Week") +
+  labs(y = "Predicted Mean Composition of Diet Sample", x = "Week") +
   ggsidekick::theme_sleek() +
   theme(
     legend.position = "right",
@@ -304,15 +322,15 @@ diet_pred_stacked <- ggplot(data = newdata,
 
 ## export 
 png(
-  here::here("figs", "rkw_diet", "smooth_preds.png"),
-  height = 7.5, width = 7.5, units = "in", res = 250
+  here::here("figs", "ms_figs", "smooth_preds.png"),
+  height = 8, width = 6.5, units = "in", res = 250
 )
 diet_pred_smooth
 dev.off()
 
 png(
   here::here("figs", "rkw_diet", "stacked_pred.png"),
-  height = 7.5, width = 7, units = "in", res = 250
+  height = 8, width = 6.5, units = "in", res = 250
 )
 diet_pred_stacked
 dev.off()
