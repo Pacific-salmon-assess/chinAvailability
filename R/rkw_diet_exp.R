@@ -329,7 +329,7 @@ diet_pred_smooth
 dev.off()
 
 png(
-  here::here("figs", "rkw_diet", "stacked_pred.png"),
+  here::here("figs", "ms_figs", "stacked_pred.png"),
   height = 8, width = 6.5, units = "in", res = 250
 )
 diet_pred_stacked

@@ -1,12 +1,4 @@
-x = fit2
-se.fit = TRUE
-category_name = "stock_group"
-origdata = agg_dat
-newdata = newdata
-exclude = "s(year)"
-
-pred_dummy <-
-  function( x,
+pred_dummy <- function( x,
             #                  original_class = "glmmTMB",
             category_name = "group",
             newdata,
@@ -62,7 +54,7 @@ pred_dummy <-
                        newdata = data,
                        type="response",
                        se.fit = se.fit,
-                       exclude = NULL)
+                       exclude = exclude)
         # pred2 = predict(x,
         #                newdata = data,
         #                type="response",

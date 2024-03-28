@@ -9,6 +9,9 @@ library(mvtweedie)
 library(mgcv)
 library(glmmTMB)
 
+# modified prediction function
+source(here::here("R", "functions", "pred_mvtweedie2.R"))
+
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   janitor::clean_names() 
@@ -75,10 +78,13 @@ agg_dat <- expand.grid(
   mutate(
     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
     agg_ppn = agg_prob / sample_id_n,
+    year_n = as.numeric(year),
     year = as.factor(year),
     stock_group = as.factor(stock_group),
     utm_x_m = utm_x * 1000,
-    utm_y_m = utm_y * 1000
+    utm_y_m = utm_y * 1000,
+    sg_year = paste(stock_group, year, sep = "_") %>% 
+      as.factor()
   ) #%>% 
   # filter(
   #   sample_id %in% sub_id
@@ -179,15 +185,15 @@ dev.off()
 
 ## FIT MODEL -------------------------------------------------------------------
 
-system.time(
-  fit <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) ,
-    data = agg_dat, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
+# system.time(
+#   fit <- gam(
+#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) ,
+#     data = agg_dat, family = "tw", method = "REML",
+#     knots = list(week_n = c(0, 52))
+#   )
+# )
 # # ~850 seconds to converge
 # saveRDS(
 #   fit,
@@ -199,35 +205,62 @@ system.time(
 #   fit,
 #   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
 # )
-system.time(
-  fit2 <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(year, bs = "re"),
-    data = agg_dat, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
-class(fit2) = c( "mvtweedie", class(fit2) )
-saveRDS(
-  fit2,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
-)
+# system.time(
+#   fit2 <- gam(
+#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(sg_year, bs = "re"),
+#     data = agg_dat, family = "tw", method = "REML"#,
+#     # knots = list(week_n = c(0, 52))
+#   )
+# )
+# class(fit2) = c( "mvtweedie", class(fit2) )
+# saveRDS(
+#   fit2,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+# )
 
 
-fit_raw <- readRDS(
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
+# system.time(
+#   fit3 <- gam(
+#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(year_n, by = stock_group, k = 4, bs = "tp"),
+#     data = agg_dat, family = "tw", method = "REML",
+#     knots = list(week_n = c(0, 52))
+#   )
+# )
+# class(fit3) = c( "mvtweedie", class(fit3) )
+# saveRDS(
+#   fit3,
+#   here::here(
+#     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+#   )
+# )
 
-fit <- readRDS(
-    here::here(
-      "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
-    )
-fit2 <- readRDS(
+
+
+## favor third model since it generates year-specific estimates and appears
+# to converge well
+# fit_raw <- readRDS(
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
+# 
+# fit <- readRDS(
+#     here::here(
+#       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
+#     )
+# fit2 <- readRDS(
+#   here::here(
+#     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+# )
+fit3 <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+      "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+    )
 )
-
+  
 
 ## CHECK -----------------------------------------------------------------------
 
@@ -299,59 +332,94 @@ newdata <- expand.grid(
   strata = unique(dat$strata),
   week_n = unique(agg_dat$week_n),
   stock_group = levels(agg_dat$stock_group),
-  year = levels(agg_dat$year)[1]
+  year_n = unique(agg_dat$year_n)
 ) %>%
+  mutate(
+    year = as.factor(year_n),
+    sg_year = paste(stock_group, year, sep = "_") %>% 
+      as.factor()
+  ) %>% 
   left_join(., loc_key, by = 'strata') %>% 
   filter(
-    !strata == "saanich"
+    !strata == "Saanich"
   )
+# predictions used for "average" effects integrating out year
+newdata_b <- newdata %>% 
+  filter(year == agg_dat$year[1])
 
 # fit 1 
-pred = predict(
-  fit,
-  se.fit = TRUE,
+# pred = predict(
+#   fit,
+#   se.fit = TRUE,
+#   category_name = "stock_group",
+#   origdata = agg_dat,
+#   newdata = newdata
+# )
+
+# pred2 = predict(
+#   fit2,
+#   se.fit = TRUE,
+#   category_name = "stock_group",
+#   origdata = agg_dat,
+#   newdata = newdata
+# )
+
+# year-specific predictions
+pred3 = predict(
+  fit3,
+  # se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
   newdata = newdata
 )
 
-# # fit 1 
-pred2 = predict(
-  fit2,
+# average predictiosn
+excl <- grepl("year_n", gratia::smooths(fit3))
+yr_coefs <- gratia::smooths(fit3)[excl]
+pred3b = pred_dummy(
+  fit3,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
-  newdata = newdata
-)
-
-pred2b = pred_dummy(
-  fit2,
-  se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata,
-  exclude = NULL
-)
-pred2c = pred_dummy(
-  fit2,
-  se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata,
-  exclude = "s(year)"
+  newdata = newdata_b,
+  exclude = yr_coefs
 )
 
 
-newdata = cbind( newdata, fit=pred$fit, se.fit=pred$se.fit )
-newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
-newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)#+ newdata$se.fit
-# newdata$fit2 <- pred2$fit
-# newdata$se.fit2 <- pred2$se.fit
-# newdata$lower2 = newdata$fit2 - newdata$se.fit2
-# newdata$upper2 = newdata$fit2 + newdata$se.fit2
+
+# newdata = cbind( newdata, fit=pred$fit, se.fit=pred$se.fit )
+# newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
+# newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)#+ newdata$se.fit
+# 
+# newdata2 <- cbind( newdata, fit=pred2b$fit, se.fit=pred2b$se.fit ) %>% 
+#   mutate(
+#     lower = fit + (qnorm(0.025)*se.fit),
+#     upper = fit + (qnorm(0.975)*se.fit)
+#   )
+
+newdata3 <- cbind( newdata, fit=pred3) %>% 
+  filter(!strata == "Saanich")
+newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>% 
+  mutate(
+    lower = fit + (qnorm(0.025)*se.fit),
+    upper = fit + (qnorm(0.975)*se.fit)
+  ) %>% 
+  filter(!strata == "Saanich")
 
 
-summer_preds <- ggplot(newdata, aes(week_n, fit)) +
+## ribbon predictions
+# includes yearly variation
+summer_preds_yr <- ggplot(newdata3 , aes(week_n, fit)) +
+  geom_line(aes(colour = year)) +
+  facet_grid(stock_group~strata) +
+  scale_color_brewer(type = "qual", palette = "Paired", name = "") +
+  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  theme(legend.position = "top")
+
+# integrates out yearly variation
+summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
       filter(week_n %in% newdata$week_n,
@@ -360,39 +428,70 @@ summer_preds <- ggplot(newdata, aes(week_n, fit)) +
     alpha = 0.3
   ) +
   geom_line(colour = "red") +
-  geom_ribbon(aes(ymin = lower, ymax = upper, colour = "red"
-  ), alpha = 0.5) +
-  facet_grid(strata ~ stock_group) +
-  ylim(0, 1) +
-  xlim(24, 40) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "red"), alpha = 0.5) +
+  facet_grid(stock_group~strata) +
+  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top")
 
-pdf(
-  here::here("figs", "mvtweedie_preds", "summer_preds.pdf"),
-  height = 5.5, width = 8.5
+summer_preds_fully <- summer_preds +
+  coord_cartesian(ylim = c(0, 1)) 
+
+
+## stacked ribbon predictions
+summer_pred_stacked <- ggplot(
+  data = newdata3b %>% 
+    filter(week_n > 21 & week_n < 39), 
+  aes(x = week_n)
+) +
+  geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
+            stat = "identity") +
+  scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
+  scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
+  labs(y = "Predicted Mean Composition of Diet Sample", x = "Week") +
+  ggsidekick::theme_sleek() +
+  theme(
+    legend.position = "top",
+    axis.text = element_text(size=9),
+    plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points"),
+    axis.title.x = element_blank()
+  ) +
+  coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
+  facet_wrap(~strata) +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37),
+    labels = c("Jun", "Jul", "Aug", "Sep")
+  )
+
+
+png(
+  here::here("figs", "ms_figs", "smooth_preds_chinook_year.png"),
+  height = 8.5, width = 6.5, units = "in", res = 250
+)
+summer_preds_yr
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "smooth_preds_chinook.png"),
+  height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
+png(
+  here::here("figs", "ms_figs", "smooth_preds_chinook_yaxis.png"),
+  height = 8.5, width = 6.5, units = "in", res = 250
+)
+summer_preds_fully
+dev.off()
 
-# ggplot(newdata, aes(week_n, fit2#, colour = era
-# )) +
-#   geom_point(
-#     data = agg_dat %>% filter(week_n %in% newdata$week_n),
-#     aes(x = week_n, y = agg_ppn, size = sample_id_n),
-#     alpha = 0.3
-#   ) +
-#   geom_line(colour = "red") +
-#   geom_ribbon(aes(ymin = lower2, ymax = upper2, colour = "red"
-#   ), alpha = 0.5) +
-#   # facet_wrap(vars(stock_group)) +
-#   facet_grid(strata ~ stock_group) +
-#   ylim(0,1) +
-#   xlim(24, 40) +
-#   labs(y="Predicted proportion") +
-#   ggsidekick::theme_sleek() 
+png(
+  here::here("figs", "ms_figs", "smooth_preds_chinook_stacked.png"),
+  height = 6.5, width = 6.5, units = "in", res = 250
+)
+summer_pred_stacked
+dev.off()
 
 
 
@@ -444,76 +543,131 @@ new_dat_sp <- expand.grid(
   mutate(
     utm_y = Y / 1000,
     utm_x = X / 1000,
-    stock_group = factor(
-      stock_group, 
-      levels = c("other", "PSD", "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                 "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                 "Fraser_Fall"),
-      labels = c("other", "PSD", "WCVI", "ECVI_SOMN", "FR_Spr_4.2",
-                 "FR_Spr_5.2", "FR_Sum_5.2", "FR_Sum_4.1",
-                 "FR_Fall")
-    )
+    year_n = unique(agg_dat$year_n)[1]
   )
   
-pred_sp <- predict(
-  fit,
-  se.fit = FALSE,
+# key for month labels
+month_key <- data.frame(
+  week_n = unique(new_dat_sp$week_n)
+) %>% 
+  mutate(
+    month = c("May", "Jun", "Jul", "Aug", "Sep") %>% 
+      as.factor() %>% 
+      fct_reorder(., week_n)
+  )
+
+excl <- grepl("year_n", gratia::smooths(fit3))
+yr_coefs <- gratia::smooths(fit3)[excl]
+pred_sp <- pred_dummy(
+  fit3,
+  se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
-  newdata = new_dat_sp
+  newdata = new_dat_sp,
+  exclude = yr_coefs
 )
 
-new_dat_sp <- new_dat_sp %>% 
-  mutate(
-    fit = pred_sp$fit
-  ) %>% 
+coast <- rbind(rnaturalearth::ne_states( "United States of America", 
+                                         returnclass = "sf"), 
+               rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>% 
+  sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
+  sf::st_transform(., crs = sf::st_crs("+proj=utm +zone=10 +units=m")) %>% 
+  sf::st_crop(
+    ., 
+    xmin = min(new_dat_sp$X) - 1500, 
+    ymin = min(new_dat_sp$Y) - 2000,
+    xmax = max(new_dat_sp$X) + 1500, 
+    ymax = max(new_dat_sp$Y) + 2000
+  )
+  
+
+new_dat_sp_plot <- cbind(
+  new_dat_sp, fit=pred_sp$fit, se.fit=pred_sp$se.fit 
+) %>% 
   group_by(stock_group) %>% 
   mutate(
     scaled_fit = fit / max(fit)
   ) %>% 
-  ungroup()
+  ungroup() %>% 
+  left_join(
+    ., month_key, by = "week_n"
+  )
 
 spatial_pred <- ggplot() +
-  geom_raster(data = new_dat_sp, 
-              aes(x = utm_x, y = utm_y, fill = fit)) +
+  geom_raster(data = new_dat_sp_plot, 
+              aes(x = X, y = Y, fill = fit)) +
+  geom_sf(data = coast, color = "black", fill = "grey") +
   facet_grid(
-    stock_group ~ week_n
+    stock_group ~ month
   ) +
-  scale_fill_viridis_c() +
+  scale_fill_viridis_c(
+    name = "Predicted Proportion\nof Rec Catch"
+  ) +
   ggsidekick::theme_sleek() +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(), 
-    legend.position = "top"
+    legend.position = "top",
+    strip.text = element_text(size = 6)
   ) 
 
 
 spatial_pred_scaled <- ggplot() +
-  geom_raster(data = new_dat_sp, 
-              aes(x = utm_x, y = utm_y, fill = scaled_fit)) +
+  geom_raster(data = new_dat_sp_plot, 
+              aes(x = X, y = Y, fill = scaled_fit)) +
+  geom_sf(data = coast, color = "black", fill = "grey") +
   facet_grid(
-    stock_group ~ week_n
+    stock_group ~ month
   ) +
-  scale_fill_viridis_c(option = "A") +
+  scale_fill_viridis_c(
+    option = "A",
+    name = "Predicted Scaled Proportion\nof Rec Catch"
+  ) +
   ggsidekick::theme_sleek()  +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(), 
-    legend.position = "top"
+    legend.position = "top",
+    strip.text = element_text(size = 6)
   ) 
 
 
+spatial_pred_se <- ggplot() +
+  geom_raster(data = new_dat_sp_plot, 
+              aes(x = X, y = Y, fill = se.fit)) +
+  geom_sf(data = coast, color = "black", fill = "grey") +
+  facet_grid(
+    stock_group ~ month
+  ) +
+  scale_fill_gradient2(
+    name = "Predicted SE\nof Proportion\nEstimate"
+  ) +
+  ggsidekick::theme_sleek()  +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(), 
+    legend.position = "top",
+    strip.text = element_text(size = 6)
+  ) 
 
-pdf(
-  here::here("figs", "mvtweedie_preds", "spatial_preds.pdf"),
-  height = 7.5, width = 9.5
+
+png(
+  here::here("figs", "ms_figs", "spatial_preds.png"),
+  height = 7, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
-pdf(
-  here::here("figs", "mvtweedie_preds", "spatial_preds_scaled.pdf"),
-  height = 7.5, width = 9.5
+png(
+  here::here("figs", "ms_figs", "spatial_preds_scaled.png"),
+  height = 7, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "spatial_preds_se.png"),
+  height = 7, width = 6, units = "in", res = 250
+)
+spatial_pred_se
 dev.off()
