@@ -188,16 +188,6 @@ system.time(
     knots = list(week_n = c(0, 52))
   )
 )
-system.time(
-  fit2 <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(year, bs = "re"),
-    data = agg_dat, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
 # # ~850 seconds to converge
 # saveRDS(
 #   fit,
@@ -209,6 +199,21 @@ system.time(
 #   fit,
 #   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
 # )
+system.time(
+  fit2 <- gam(
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year, bs = "re"),
+    data = agg_dat, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit2) = c( "mvtweedie", class(fit2) )
+saveRDS(
+  fit2,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+)
 
 
 fit_raw <- readRDS(
@@ -218,6 +223,10 @@ fit <- readRDS(
     here::here(
       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
     )
+fit2 <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+)
 
 
 ## CHECK -----------------------------------------------------------------------
@@ -289,7 +298,8 @@ loc_key <- dat %>%
 newdata <- expand.grid(
   strata = unique(dat$strata),
   week_n = unique(agg_dat$week_n),
-  stock_group = levels(agg_dat$stock_group)
+  stock_group = levels(agg_dat$stock_group),
+  year = levels(agg_dat$year)[1]
 ) %>%
   left_join(., loc_key, by = 'strata') %>% 
   filter(
@@ -306,13 +316,31 @@ pred = predict(
 )
 
 # # fit 1 
-# pred2 = predict(
-#   fit2,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat,
-#   newdata = newdata
-# )
+pred2 = predict(
+  fit2,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat,
+  newdata = newdata
+)
+
+pred2b = pred_dummy(
+  fit2,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat,
+  newdata = newdata,
+  exclude = NULL
+)
+pred2c = pred_dummy(
+  fit2,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat,
+  newdata = newdata,
+  exclude = "s(year)"
+)
+
 
 newdata = cbind( newdata, fit=pred$fit, se.fit=pred$se.fit )
 newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
