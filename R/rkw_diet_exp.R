@@ -9,7 +9,6 @@
 # - stacked ribbon plots
 
 
-
 library(tidyverse)
 library(mgcv)
 library(mvtweedie)
@@ -52,18 +51,27 @@ dat <- raw_dat %>%
     ),
     era = ifelse(year < 2015, "early", "current") %>% 
       fct_relevel(., "current", after = Inf),
-    # sampling event = all samples collected in a given strata-year-week
-    sample_id = paste(year, week, strata, sep = "_")
+    # sampling event = all samples collected in a given strata-year-month
+    # week not feasible given sample sizes
+    sample_id = paste(year, week, strata, sep = "_"),
+    sample_id_pooled = paste(era, month, strata, sep = "_")
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("longitude", "latitude"), ll_crs = 4326, units = "m"
   ) %>% 
   select(
-    id, sample_id, era, year, month, week, strata, utm_y = Y, utm_x = X,
+    id, sample_id, sample_id_pooled,
+    era, year, month, week, strata, utm_y = Y, utm_x = X,
     stock, stock_prob, stock_group, lat = latitude, lon = longitude
   )
 
-# calculate mean location of each event
+
+## aggregate data (calculate mean location and sample size of each event) 
+# at two scales: 
+# 1) week-year-strata for modeling
+# 2) month-strata for simulation sampling
+
+# week-year scale
 sample_key <- dat %>% 
   select(sample_id, id, utm_y, utm_x) %>% 
   distinct() %>% 
@@ -87,6 +95,34 @@ ppn_dat <- dat %>%
   ) 
 saveRDS(
   ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+)
+
+
+# month scale
+sample_key_pooled <- dat %>% 
+  select(sample_id_pooled, id, utm_y, utm_x) %>% 
+  distinct() %>% 
+  group_by(sample_id_pooled) %>% 
+  summarize(
+    n_samples = length(unique(id)),
+    utm_y = mean(utm_y),
+    utm_x = mean(utm_x)
+  )
+
+ppn_dat_pooled <- dat %>% 
+  group_by(sample_id_pooled, era, month, strata, stock_group) %>% 
+  summarize(
+    week = mean(week),
+    agg_count = sum(stock_prob),
+    .groups = "drop"
+  ) %>% 
+  ungroup() %>% 
+  left_join(., sample_key_pooled, by = "sample_id_pooled") %>% 
+  mutate(
+    agg_prob = agg_count / n_samples
+  ) 
+saveRDS(
+  ppn_dat_pooled, here::here("data", "rkw_diet", "cleaned_ppn_dat_pooled.rds")
 )
 
 

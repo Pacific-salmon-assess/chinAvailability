@@ -5,10 +5,10 @@
 
 
 # Define parameters
-num_trials <- 15  # Sample size for each multinomial distribution
+num_trials <- 2  # Sample size for each multinomial distribution
 proportions1 <- c(0.25, 0.4, 0.3, 0.05)  # Proportions for first vector
 # proportions2 <- c(0.3, 0.4, 0.3)  # Proportions for first vector
-proportions2 <- c(0.5, 0, 0, 0.5)  # Proportions for second vector
+proportions2 <- c(0.9, 0.05, 0, 0.5)  # Proportions for second vector
 num_simulations <- 1000  # Number of simulations
 
 # Function to calculate test statistic (e.g., difference in proportions)
@@ -28,7 +28,8 @@ calculate_test_statistic <- function(sample1, sample2) {
 
 # Run simulations
 obs_statistics <- test_statistics <- numeric(num_simulations)
-diff_null <- diff_obs <- matrix(NA, nrow = num_simulations, ncol = length(proportions1))
+diff_null <- diff_obs <- diff_obs2 <- matrix(NA, nrow = num_simulations, 
+                                             ncol = length(proportions1))
 for (i in 1:num_simulations) {
   # Generate multinomial samples under null hypothesis (i.e. same distribution)
   sample1_null <- rmultinom(1, num_trials, proportions1)
@@ -44,6 +45,7 @@ for (i in 1:num_simulations) {
   
   diff_null[i, ] <- abs(sample2_null - sample1_null)
   diff_obs[i, ] <- abs(sample_obs - sample1_null)
+  diff_obs2[i, ] <- sample_obs > sample1_null
 }
 
 sum(test_statistics >= obs_statistics) / num_simulations
