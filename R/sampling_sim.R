@@ -2,76 +2,52 @@
 ## March 14, 2024
 ## Example simulation whereby recent sampling events are compared to background 
 ## predictions to evaluate evidence for selectivity
-## Specifically what is the probability that the most common stock in the diet
-## is the most common stock in the environment
-
-n_stocks <- 3
-obs_ppn <- c(0.6, 0.3, 0.1)
-true_ppn <- c(0.4, 0.5, 0.1)
-sample_size <- 10
-ntrials <- 500
 
 
-selectivity_foo <- function (
-    n_stocks = 3,
-    obs_ppn = c(0.6, 0.3, 0.1),
-    true_ppn = c(0.4, 0.5, 0.1),
-    sample_size = 10,
-    ntrials = 500
-) {
-  success1 <- rep(NA, ntrials)
-  success2 <- rep(NA, ntrials)
+# Define parameters
+num_trials <- 15  # Sample size for each multinomial distribution
+proportions1 <- c(0.25, 0.4, 0.3, 0.05)  # Proportions for first vector
+# proportions2 <- c(0.3, 0.4, 0.3)  # Proportions for first vector
+proportions2 <- c(0.5, 0, 0, 0.5)  # Proportions for second vector
+num_simulations <- 1000  # Number of simulations
+
+# Function to calculate test statistic (e.g., difference in proportions)
+calculate_test_statistic <- function(sample1, sample2) {
+  # Calculate proportions
+  prop1 <- sample1 / sum(sample1)
+  prop2 <- sample2 / sum(sample2)
   
-  if (length(obs_ppn) != length(true_ppn)) {
-    stop("Supply vectors of equal length")
-  }
+  # Calculate difference in proportions
+  diff_prop <- abs(prop1 - prop2)
   
-  for (i in 1:ntrials) {
-    true_count <- rmultinom(sample_size, 1, true_ppn)
-    sample_ppn_true <- apply(true_count, 1, sum) / sample_size
-    
-    # obs_count <- rmultinom(sample_size, 1, obs_ppn)
-    # sample_ppn_obs <- apply(obs_count, 1, sum) / sample_size
-    
-    # is ppn of dominant stock >/= to observed
-    success1[i] <- if (
-      sample_ppn_true[which.max(obs_ppn)] >= sample_ppn_obs[which.max(obs_ppn)]
-    ) {
-      1
-    } else {
-      0
-    }
-    
-    # is dominant stock the same 
-    success2[i] <- if (which.max(sample_ppn_true) == which.max(obs_ppn)) {
-      1
-    } else {
-      0
-    }
-  }
-  list(
-    prob_success1 = sum(success1) / ntrials, 
-    prob_success2 = sum(success2) / ntrials
-  )
+  # Sum of differences
+  sum_diff <- sum(diff_prop)
+  
+  return(sum_diff)
 }
 
-dd <- selectivity_foo(
-  n_stocks = 3,
-  obs_ppn = c(0.6, 0.3, 0.1),
-  true_ppn = c(0.6, 0.3, 0.1),
-  sample_size = 10,
-  ntrials = 500
-)
+# Run simulations
+obs_statistics <- test_statistics <- numeric(num_simulations)
+diff_null <- diff_obs <- matrix(NA, nrow = num_simulations, ncol = length(proportions1))
+for (i in 1:num_simulations) {
+  # Generate multinomial samples under null hypothesis (i.e. same distribution)
+  sample1_null <- rmultinom(1, num_trials, proportions1)
+  sample2_null <- rmultinom(1, num_trials, proportions1)
+  
+  # Calculate test statistic for null samples
+  test_statistics[i] <- calculate_test_statistic(sample1_null, sample2_null)
+  
+  
+  sample_obs <- rmultinom(1, num_trials, proportions2)
+  
+  obs_statistics[i] <- calculate_test_statistic(sample1_null, sample_obs)
+  
+  diff_null[i, ] <- abs(sample2_null - sample1_null)
+  diff_obs[i, ] <- abs(sample_obs - sample1_null)
+}
 
-samps_list <- purrr::map(
-  list(5, 10, 50),
-  ~ selectivity_foo(
-    n_stocks = 3,
-    obs_ppn = c(0.6, 0.3, 0.1),
-    true_ppn = c(0.5, 0.2, 0.1),
-    sample_size = .x
-  )
-)
+sum(test_statistics >= obs_statistics) / num_simulations
 
-purrr::map(samps_list, ~ .x$prob_success1)
-purrr::map(samps_list, ~ .x$prob_success2)
+diff_mat <- diff_null > diff_obs
+apply(diff_mat, 2, mean)
+apply(diff_mat, 2, sd)
