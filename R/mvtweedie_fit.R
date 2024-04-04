@@ -185,6 +185,8 @@ dev.off()
 
 ## FIT MODEL -------------------------------------------------------------------
 
+
+# Does not include year effects
 # system.time(
 #   fit <- gam(
 #     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
@@ -205,6 +207,9 @@ dev.off()
 #   fit,
 #   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
 # )
+
+
+# Includes year/stock as RE (doesn't produce changes)
 # system.time(
 #   fit2 <- gam(
 #     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
@@ -222,6 +227,7 @@ dev.off()
 # )
 
 
+# Includes smooth for year by stock group
 # system.time(
 #   fit3 <- gam(
 #     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
@@ -251,10 +257,10 @@ dev.off()
 #     here::here(
 #       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
 #     )
-# fit2 <- readRDS(
-#   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
-# )
+fit2 <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+)
 fit3 <- readRDS(
   here::here(
       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
@@ -356,13 +362,13 @@ newdata_b <- newdata %>%
 #   newdata = newdata
 # )
 
-# pred2 = predict(
-#   fit2,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat,
-#   newdata = newdata
-# )
+pred2 = predict(
+  fit2,
+  # se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat,
+  newdata = newdata
+)
 
 # year-specific predictions
 pred3 = predict(
@@ -391,11 +397,8 @@ pred3b = pred_dummy(
 # newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
 # newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)#+ newdata$se.fit
 # 
-# newdata2 <- cbind( newdata, fit=pred2b$fit, se.fit=pred2b$se.fit ) %>% 
-#   mutate(
-#     lower = fit + (qnorm(0.025)*se.fit),
-#     upper = fit + (qnorm(0.975)*se.fit)
-#   )
+newdata2 <- cbind( newdata, fit=pred2) %>% 
+  filter(!strata == "Saanich")
 
 newdata3 <- cbind( newdata, fit=pred3) %>% 
   filter(!strata == "Saanich")
@@ -423,20 +426,21 @@ summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
       filter(week_n %in% newdata$week_n,
-             !strata == "saanich"),
+             !strata == "Saanich"),
     aes(x = week_n, y = agg_ppn, size = sample_id_n),
     alpha = 0.3
   ) +
   geom_line(colour = "red") +
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "red"), alpha = 0.5) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
   facet_grid(stock_group~strata) +
   coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top")
 
-summer_preds_fully <- summer_preds +
-  coord_cartesian(ylim = c(0, 1)) 
+summer_preds_fullx <- summer_preds +
+  coord_cartesian(xlim = c(0, 52)) 
 
 
 ## stacked ribbon predictions
@@ -480,10 +484,10 @@ summer_preds
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_yaxis.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook_xaxis.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
-summer_preds_fully
+summer_preds_fullx
 dev.off()
 
 png(
@@ -607,8 +611,9 @@ spatial_pred <- ggplot() +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(), 
+    axis.ticks = element_blank(),
     legend.position = "top",
-    strip.text = element_text(size = 6)
+    strip.text = element_text(size = 5)
   ) 
 
 
@@ -621,14 +626,15 @@ spatial_pred_scaled <- ggplot() +
   ) +
   scale_fill_viridis_c(
     option = "A",
-    name = "Predicted Scaled Proportion\nof Rec Catch"
+    name = "Predicted Scaled\nProportion\nof Rec Catch"
   ) +
   ggsidekick::theme_sleek()  +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(), 
+    axis.ticks = element_blank(),
     legend.position = "top",
-    strip.text = element_text(size = 6)
+    strip.text = element_text(size = 5)
   ) 
 
 
@@ -646,28 +652,29 @@ spatial_pred_se <- ggplot() +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(), 
+    axis.ticks = element_blank(),
     legend.position = "top",
-    strip.text = element_text(size = 6)
+    strip.text = element_text(size = 5)
   ) 
 
 
 png(
   here::here("figs", "ms_figs", "spatial_preds.png"),
-  height = 7, width = 6, units = "in", res = 250
+  height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
   here::here("figs", "ms_figs", "spatial_preds_scaled.png"),
-  height = 7, width = 6, units = "in", res = 250
+  height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 png(
   here::here("figs", "ms_figs", "spatial_preds_se.png"),
-  height = 7, width = 6, units = "in", res = 250
+  height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_se
 dev.off()
