@@ -53,11 +53,15 @@ dat <- raw_dat %>%
       fct_relevel(., "current", after = Inf),
     # sampling event = all samples collected in a given strata-year-month
     # week not feasible given sample sizes
-    sample_id = paste(year, week, strata, sep = "_"),
-    sample_id_pooled = paste(era, month, strata, sep = "_")
+    sample_id = paste(year, week, strata, sep = "_")
   ) %>% 
+  # since weeks may span multiple months, calculate median month for each week
+  group_by(sample_id) %>% 
+  mutate(month = median(month)) %>% 
+  ungroup() %>% 
+  mutate(sample_id_pooled = paste(era, month, strata, sep = "_")) %>% 
   sdmTMB::add_utm_columns(
-    ., ll_names = c("longitude", "latitude"), ll_crs = 4326, units = "m"
+    ., ll_names = c("longitude", "latitude"), ll_crs = 4326, units = "km"
   ) %>% 
   select(
     id, sample_id, sample_id_pooled,
@@ -83,7 +87,7 @@ sample_key <- dat %>%
   )
 
 ppn_dat <- dat %>% 
-  group_by(sample_id, era, year, week, strata, stock_group) %>% 
+  group_by(sample_id, era, year, week, month, strata, stock_group) %>% 
   summarize(
     agg_count = sum(stock_prob),
     .groups = "drop"
@@ -100,19 +104,19 @@ saveRDS(
 
 # month scale
 sample_key_pooled <- dat %>% 
-  select(sample_id_pooled, id, utm_y, utm_x) %>% 
+  select(sample_id_pooled, id, utm_y, utm_x, week) %>% 
   distinct() %>% 
   group_by(sample_id_pooled) %>% 
   summarize(
     n_samples = length(unique(id)),
     utm_y = mean(utm_y),
-    utm_x = mean(utm_x)
+    utm_x = mean(utm_x),
+    week = mean(week)
   )
 
 ppn_dat_pooled <- dat %>% 
   group_by(sample_id_pooled, era, month, strata, stock_group) %>% 
   summarize(
-    week = mean(week),
     agg_count = sum(stock_prob),
     .groups = "drop"
   ) %>% 
@@ -220,6 +224,7 @@ agg_dat <- expand.grid(
               select(sample_id, stock_group, agg_prob), 
             by = c("sample_id", "stock_group")) %>%
   mutate(
+    month_f = as.factor(month),
     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
     era = ifelse(year < 2015, "early", "current"),
     year = as.factor(year),
@@ -241,41 +246,46 @@ saveRDS(
 )
 
 # fit2 <- gam(
-#   agg_prob ~ stock_group + 
-#     s(week, by = stock_group, k = 4) + 
-#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25), 
+#   agg_prob ~ era*stock_group +
+#     month_f*stock_group +
+#     # s(month, by = stock_group, k = 4) +
+#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25),
 #   data = agg_dat, family = "tw"
 # )
 # class(fit2) = c( "mvtweedie", class(fit2) )
+# saveRDS(
+#   fit2,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_month_diet_mvtw.rds")
+# )
 
 
 
+# import location key made in sampling_maps.R with representative locations
+# for each strata
+loc_key <- readRDS(
+  here::here("data", "spatial", "strata_key.rds")
+) %>% 
+  # match scale of fitted model
+  mutate(
+    utm_x = utm_x_m / 1000,
+    utm_y = utm_y_m / 1000
+  )
 
-# loc_key <- data.frame(
-#   loc = c("swift", "renfrew", "vic"),
-#   lon = c(-124.703, -124.481, -123.189),
-#   lat = c(48.541, 48.520, 48.438)
-# ) %>%
-#   sdmTMB::add_utm_columns(
-#     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "m",
-#     utm_names = c("utm_x", "utm_y")
-#   )
-loc_key <- agg_dat %>% 
-  group_by(strata) %>% 
-  summarize(utm_x = mean(utm_x),
-            utm_y = mean(utm_y))
 
 newdata <- expand.grid(
-  strata = unique(agg_dat$strata),
+  strata = levels(agg_dat$strata),
   week = seq(25, 38, by = 0.25),
   stock_group = levels(agg_dat$stock_group),
   era = unique(agg_dat$era),
   year = levels(agg_dat$year)[1]
 ) %>%
   left_join(., loc_key, by = 'strata') %>% 
+  mutate(
+    strata = factor(strata, levels = levels(agg_dat$strata))
+  ) %>% 
   filter(
     !strata == "sooke"
-  )
+  ) 
 
 pred = predict(
   fit,
@@ -303,16 +313,15 @@ newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)
 # remove datalimited strata
 newdata_trim <- newdata %>% 
   filter(
-    !strata %in% c("Sooke/\nVictoria", "cJDF"),
-    !(era == "current" & strata %in% c("San Juan\nIslands")) 
+    # remove strata that are sparsely sampled
+    !strata %in% c("Sooke/\nVictoria", "cJDF", "San Juan\nIslands")
   )
 
 diet_pred_smooth <- ggplot(newdata_trim,
        aes(week, fit, colour = era, fill = era)) +
   geom_point(
     data = agg_dat %>%
-      filter(strata %in% newdata$strata,
-             !strata %in% c("Sooke/\nVictoria", "cJDF")),
+      filter(strata %in% newdata_trim$strata),
     aes(x = week, y = agg_prob, size = n_samples),
     alpha = 0.3
   ) +
@@ -372,16 +381,3 @@ diet_pred_stacked
 dev.off()
 
 
-
-ggplot() +
-  geom_raster(data = newdata, 
-              aes(x = utm_x, y = utm_y, fill = fit)) +
-  facet_grid(
-    month ~ stock_group
-  ) +
-  scale_fill_viridis_c() +
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.title = element_blank(),
-    axis.text = element_blank()
-  ) 
