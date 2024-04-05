@@ -54,9 +54,17 @@ sample_key <- dat %>%
   select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>% 
   distinct()
 
+# trim data to exclude swiftsure samples west of Nitinat
+# NOTE: doesn't strongly impact preds
+w_border <- dat %>% 
+  filter(strata == "Nitinat") %>% 
+  pull(utm_x) %>% 
+  min()
+dat <- dat %>% 
+  filter(!utm_x < w_border - 1)
 
 # subset to speed up fitting
-sub_id <- sample(sample_key$sample_id, 1000, replace = FALSE)
+# sub_id <- sample(sample_key$sample_id, 1000, replace = FALSE)
 
 
 # add zero observations
@@ -322,17 +330,15 @@ sum(sim_mat == 0) / length(sim_mat)
 ## PREDICT ---------------------------------------------------------------------
 
 # identify a single spatial location for each strata based on mean
-loc_key <- dat %>% 
-  group_by(strata) %>% 
-  summarize(
-    lat = mean(lat),
-    lon = mean(lon)
-  ) %>%
-  sdmTMB::add_utm_columns(
-    ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
-    utm_names = c("utm_x", "utm_y")
-  ) %>% 
-  ungroup()
+loc_key <- readRDS(
+  here::here("data", "spatial", "strata_key.rds")
+) %>% 
+  # match scale of fitted model
+  mutate(
+    utm_x = utm_x_m / 1000,
+    utm_y = utm_y_m / 1000
+  )
+
 
 newdata <- expand.grid(
   strata = unique(dat$strata),
@@ -340,15 +346,17 @@ newdata <- expand.grid(
   stock_group = levels(agg_dat$stock_group),
   year_n = unique(agg_dat$year_n)
 ) %>%
+  left_join(., loc_key, by = 'strata') %>% 
   mutate(
     year = as.factor(year_n),
     sg_year = paste(stock_group, year, sep = "_") %>% 
-      as.factor()
+      as.factor(),
+    strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
-  left_join(., loc_key, by = 'strata') %>% 
   filter(
     !strata == "Saanich"
   )
+
 # predictions used for "average" effects integrating out year
 newdata_b <- newdata %>% 
   filter(year == agg_dat$year[1])
@@ -362,13 +370,13 @@ newdata_b <- newdata %>%
 #   newdata = newdata
 # )
 
-pred2 = predict(
-  fit2,
-  # se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata
-)
+# pred2 = predict(
+#   fit2,
+#   # se.fit = TRUE,
+#   category_name = "stock_group",
+#   origdata = agg_dat,
+#   newdata = newdata
+# )
 
 # year-specific predictions
 pred3 = predict(
@@ -397,16 +405,16 @@ pred3b = pred_dummy(
 # newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
 # newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)#+ newdata$se.fit
 # 
-newdata2 <- cbind( newdata, fit=pred2) %>% 
+# newdata2 <- cbind( newdata, fit=pred2) %>% 
+#   filter(!strata == "Saanich")
+# 
+newdata3 <- cbind( newdata, fit=pred3) %>%
   filter(!strata == "Saanich")
-
-newdata3 <- cbind( newdata, fit=pred3) %>% 
-  filter(!strata == "Saanich")
-newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>% 
+newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
   mutate(
     lower = fit + (qnorm(0.025)*se.fit),
     upper = fit + (qnorm(0.975)*se.fit)
-  ) %>% 
+  ) %>%
   filter(!strata == "Saanich")
 
 
@@ -470,14 +478,14 @@ summer_pred_stacked <- ggplot(
 
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_year.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook_year_no_west.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds_yr
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook_no_west.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
@@ -491,7 +499,7 @@ summer_preds_fullx
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_stacked.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook_stacked_no_west.png"),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_pred_stacked
