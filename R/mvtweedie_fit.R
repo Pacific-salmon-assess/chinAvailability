@@ -478,14 +478,14 @@ summer_pred_stacked <- ggplot(
 
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_year_no_west.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook_year.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds_yr
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_no_west.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
@@ -499,7 +499,7 @@ summer_preds_fullx
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_stacked_no_west.png"),
+  here::here("figs", "ms_figs", "smooth_preds_chinook_stacked.png"),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_pred_stacked

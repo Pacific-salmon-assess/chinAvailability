@@ -20,9 +20,6 @@ rec_dat_in <- readRDS(
   here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
 ) 
 rec_dat <- rec_dat_in %>% 
-  # filter(
-  #   !(strata == "Nitinat" & utm_x_m < 35000)
-  # ) %>% 
   mutate(
     era = "current",
     dataset = "fishery",
@@ -33,6 +30,25 @@ rec_dat <- rec_dat_in %>%
 
 # combine and trim for mapping
 dat <- rbind(diet_dat, rec_dat) 
+
+
+# make a strata key that defines "representative" location within each
+# strata so that predictions can be made for both datasets
+strata_key <- data.frame(
+  strata = levels(dat$strata),
+  lon = c(-124.92151, -124.85158, -124.52353, -124.12741, -123.56583, 
+          -123.06742, -123.35288, -123.50943),
+  lat = c(48.55033, 48.65752, 48.53876, 48.38, 48.29965,
+          48.45791, 48.70844, 48.67728)
+) %>% 
+  sdmTMB::add_utm_columns(
+    ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "m",
+    utm_names = c("utm_x_m", "utm_y_m")
+  )
+saveRDS(
+  strata_key,
+  here::here("data", "spatial", "strata_key.rds")
+)
 
 
 strata_colour_pal <- RColorBrewer::brewer.pal(
@@ -64,6 +80,10 @@ diet_samp_map <- ggplot() +
     aes(x = utm_x_m, y = utm_y_m, colour = strata, shape = era, 
         size = n_samples), 
     alpha = 0.4
+  ) +
+  geom_point(
+    data = strata_key, aes(x = utm_x_m, y = utm_y_m), 
+    shape = 4
   ) +
   coord_sf(expand = FALSE) +
   scale_colour_manual(values = strata_colour_pal, name = element_blank()) +

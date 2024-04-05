@@ -7,6 +7,9 @@
 library(tidyverse)
 library(mvtweedie)
 
+# modified tweedie prediction that allows for exclude = list()
+source(here::here("R", "functions", "pred_mvtweedie2.R"))
+
 
 # import SRKW prey data
 rkw_dat <- readRDS(
@@ -38,7 +41,8 @@ rkw_dat_pooled <- readRDS(
   ) %>% 
   filter(
     era == "current"
-  ) 
+  ) %>% 
+  arrange(-n_samples)
 
 
 # import original fishery data used to fit model
@@ -54,56 +58,131 @@ model_fit <- readRDS(
   )
 )
 
-# identify unique stock groups within model (since some may be absent from
-# prey dataset)
-stks <- levels(model_fit$model$stock_group)
 
+# split diet data by sample ID and simulate
+rkw_dat_tbl <- rkw_dat_pooled %>% 
+  group_by(sample_id_pooled) %>% 
+  group_nest() 
 
-dum <- rkw_dat %>% 
-  filter(sample_id == rkw_dat$sample_id[1])
-
-
-# preds 
 
 # make new data frame consistent with SRKW diet to generate predictions from
-newdata <- expand.grid(
-  week_n = unique(dum$week_n),
-  stock_group = stks,
-  year_n = unique(dum$year_n)
-) %>% 
-  left_join(
-    ., 
-    dum %>% 
-      select(week_n, year_n, utm_x, utm_y) %>% 
-      distinct(),
-    by = c("week_n", "year_n")
-  ) 
-
-preds <- predict(
-  model_fit,
-  se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata#,
-  # exclude = yr_coefs
+new_dat_list <- purrr::map(
+  rkw_dat_tbl$data,
+  function (x) {
+    newdata <- expand.grid(
+      sample_size = unique(x$n_samples),
+      week_n = unique(x$week_n),
+      stock_group = levels(model_fit$model$stock_group),
+      utm_x = unique(x$utm_x),
+      utm_y = unique(x$utm_y),
+      year_n = "2020" # dummy year so value doesn't matter
+    ) %>% 
+      left_join(
+        ., 
+        x %>% 
+          select(stock_group, obs_prob = agg_prob) %>% 
+          distinct(),
+        by = c("stock_group")
+      ) %>% 
+      mutate(
+        obs_prob = ifelse(is.na(obs_prob), 0, obs_prob)
+      )
+    
+    # exclude year smoother and generate predictions based on fishery model
+    excl <- grepl("year_n", gratia::smooths(model_fit))
+    yr_coefs <- gratia::smooths(model_fit)[excl]
+    preds <- pred_dummy(
+      model_fit,
+      se.fit = TRUE,
+      category_name = "stock_group",
+      origdata = agg_dat,
+      newdata = newdata,
+      exclude = yr_coefs
+    )
+    
+    cbind(
+      newdata, pred_prob = preds$fit, se_pred = preds$se.fit 
+    ) %>% 
+      distinct() 
+  }
 )
 
-new_dat <- cbind(
-  newdata, fit = preds$fit, se.fit = preds$se.fit 
-) %>% 
+
+# Function to calculate test statistic (e.g., difference in proportions)
+calculate_test_statistic <- function (sample1, sample2) {
+  # Calculate proportions
+  prop1 <- sample1 / sum(sample1)
+  prop2 <- sample2 / sum(sample2)
+  
+  # Calculate difference in proportions
+  diff_prop <- abs(prop1 - prop2)
+  
+  # Sum of differences
+  sum_diff <- sum(diff_prop)
+  
+  return(sum_diff)
+}
+
+
+# simulate based on each observation dataset 
+sim_list <- purrr::map(
+  new_dat_list,
+  function (x, num_simulations = 1000) {
+    num_trials <- x$sample_size  # Sample size for each multinomial draw
+    proportions1 <- x$pred_prob  # Proportions for first vector
+    proportions2 <- x$obs_prob  # Proportions for second vector
+    
+    # vector to store results of simulation
+    obs_statistics <- test_statistics <- numeric(num_simulations)
+    # diff_null <- diff_obs <- diff_obs2 <- matrix(NA, nrow = num_simulations, 
+    #                                              ncol = length(proportions1))
+    for (i in 1:num_simulations) {
+      # Generate multinomial samples under null hypothesis 
+      # (i.e. same distribution)
+      sample1_null <- rmultinom(1, num_trials, proportions1)
+      sample2_null <- rmultinom(1, num_trials, proportions1)
+      
+      # Calculate test statistic for null samples
+      test_statistics[i] <- calculate_test_statistic(sample1_null, sample2_null)
+      
+      # Generate multinomial samples from observations and calc test statistic
+      sample_obs <- rmultinom(1, num_trials, proportions2)
+      obs_statistics[i] <- calculate_test_statistic(sample1_null, sample_obs)
+      # diff_null[i, ] <- abs(sample2_null - sample1_null)
+      # diff_obs[i, ] <- abs(sample_obs - sample1_null)
+    }
+    
+    # calculate p-value (i.e. proportion of sims where null differnece greater 
+    # than or equal to observed difference)
+    sum(test_statistics >= obs_statistics) / num_simulations
+  }
+)
+
+
+p_dat <- rkw_dat_tbl %>%
+  mutate(
+    p_value = sim_list %>% unlist()
+  ) %>% 
+  unnest(cols = data) %>%
+  select(sample_id_pooled, month, strata, n_samples, p_value) %>% 
   distinct()
 
-# simulate from multinomial 
-set.seed(123)
-dd <- rmultinom(n = 1000, size = 1, prob = new_dat$fit) %>% 
-  as.matrix() 
-apply(dd, 1, sum)
+p_plot <- ggplot(p_dat) +
+  geom_point(
+    aes(x = n_samples, y = p_value, fill = strata), shape = 21
+  ) +
+  geom_hline(
+    aes(yintercept = 0.05), lty = 2 
+  ) +
+  labs(
+    y = "Selectivity p-value",
+    x = "Number of Prey Samples"
+  ) +
+  ggsidekick::theme_sleek()
 
-set.seed(123)
-dd <- rmultinom(n = 1, size = 1000, prob = new_dat$fit) %>% 
-  as.matrix() 
-apply(dd, 1, sum)
-
-
-
-true_ppn <- c(0.3, 0.2, 0.5)
+png(
+  here::here("figs", "ms_figs", "selectivity_pvalue.png"),
+  height = 4.5, width = 5.5, units = "in", res = 250
+)
+p_plot
+dev.off()
