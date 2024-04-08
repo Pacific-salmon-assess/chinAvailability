@@ -233,15 +233,18 @@ agg_dat <- expand.grid(
   droplevels()
 
 
-fit <- gam(
-  agg_prob ~ era*stock_group + 
-    s(week, by = stock_group, k = 4) + 
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25), 
-  data = agg_dat, family = "tw"
-)
-class(fit) = c( "mvtweedie", class(fit) )
-saveRDS(
-  fit,
+# fit <- gam(
+#   agg_prob ~ 0 + stock_group*era + 
+#     s(week, by = stock_group, k = 4) + 
+#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25), 
+#   data = agg_dat, family = "tw"
+# )
+# class(fit) = c( "mvtweedie", class(fit) )
+# saveRDS(
+#   fit,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
+# )
+fit <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
 )
 
@@ -259,6 +262,40 @@ saveRDS(
 # )
 
 
+## parameter estimates plot
+
+era_pars <- broom::tidy(fit, parametric = TRUE, conf.int = TRUE) %>% 
+  filter(grepl("era", term)) %>% 
+  mutate(
+    stock_group = levels(agg_dat$stock_group) %>% 
+      factor(., levels = levels(agg_dat$stock_group))
+  ) 
+
+era_plot <- ggplot(era_pars) +
+  geom_pointrange(
+    aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high, 
+        fill = stock_group), 
+    shape = 21) +
+  scale_fill_manual(values = smu_colour_pal) +
+  geom_hline(aes(yintercept = 0), lty = 2) +
+  ggsidekick::theme_sleek() +
+  labs(y = "Sampling Period Effect Size") +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+  
+  
+png(
+  here::here("figs", "ms_figs", "sampling_period_effect.png"),
+  height = 3.5, width = 5, units = "in", res = 250
+)
+era_plot
+dev.off()
+
+
+## PREDICT ---------------------------------------------------------------------
 
 # import location key made in sampling_maps.R with representative locations
 # for each strata

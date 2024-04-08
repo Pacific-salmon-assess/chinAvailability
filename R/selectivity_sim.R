@@ -12,21 +12,21 @@ source(here::here("R", "functions", "pred_mvtweedie2.R"))
 
 
 # import SRKW prey data
-rkw_dat <- readRDS(
-  here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
-) %>% 
-  # downscale utm coordinates to match model
-  mutate(
-    utm_y = utm_y / 1000,
-    utm_x = utm_x / 1000
-    ) %>% 
-  rename(
-    week_n = week,
-    year_n = year
-  ) %>% 
-  filter(
-    era == "current"
-  ) 
+# rkw_dat <- readRDS(
+#   here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+# ) %>% 
+#   # downscale utm coordinates to match model
+#   mutate(
+#     utm_y = utm_y / 1000,
+#     utm_x = utm_x / 1000
+#     ) %>% 
+#   rename(
+#     week_n = week,
+#     year_n = year
+#   ) %>% 
+#   filter(
+#     era == "current"
+#   ) 
 
 rkw_dat_pooled <- readRDS(
   here::here("data", "rkw_diet", "cleaned_ppn_dat_pooled.rds")
@@ -127,7 +127,7 @@ calculate_test_statistic <- function (sample1, sample2) {
 # simulate based on each observation dataset 
 sim_list <- purrr::map(
   new_dat_list,
-  function (x, num_simulations = 1000) {
+  function (x, num_simulations = 2000) {
     num_trials <- x$sample_size  # Sample size for each multinomial draw
     proportions1 <- x$pred_prob  # Proportions for first vector
     proportions2 <- x$obs_prob  # Proportions for second vector
@@ -167,6 +167,13 @@ p_dat <- rkw_dat_tbl %>%
   select(sample_id_pooled, month, strata, n_samples, p_value) %>% 
   distinct()
 
+# color pal used in sampling maps
+strata_colour_pal <- RColorBrewer::brewer.pal(
+  length(levels(agg_dat$strata)),
+  "Paired"
+)
+names(strata_colour_pal) <- levels(agg_dat$strata) 
+
 p_plot <- ggplot(p_dat) +
   geom_point(
     aes(x = n_samples, y = p_value, fill = strata), shape = 21
@@ -175,9 +182,9 @@ p_plot <- ggplot(p_dat) +
     aes(yintercept = 0.05), lty = 2 
   ) +
   labs(
-    y = "Selectivity p-value",
-    x = "Number of Prey Samples"
+    y = "Selectivity p-value", x = "Number of Prey Samples"
   ) +
+  scale_fill_manual(values = strata_colour_pal) +
   ggsidekick::theme_sleek()
 
 png(
