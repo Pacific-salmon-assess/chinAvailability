@@ -65,6 +65,7 @@ dat <- raw_dat %>%
   ) %>% 
   select(
     id, sample_id, sample_id_pooled,
+    fw_year, sw_year, total_year, gr_age,
     era, year, month, week, strata, utm_y = Y, utm_x = X,
     stock, stock_prob, stock_group, lat = latitude, lon = longitude
   )
@@ -97,9 +98,9 @@ ppn_dat <- dat %>%
   mutate(
     agg_prob = agg_count / n_samples
   ) 
-saveRDS(
-  ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
-)
+# saveRDS(
+#   ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+# )
 
 
 # month scale
@@ -125,9 +126,9 @@ ppn_dat_pooled <- dat %>%
   mutate(
     agg_prob = agg_count / n_samples
   ) 
-saveRDS(
-  ppn_dat_pooled, here::here("data", "rkw_diet", "cleaned_ppn_dat_pooled.rds")
-)
+# saveRDS(
+#   ppn_dat_pooled, here::here("data", "rkw_diet", "cleaned_ppn_dat_pooled.rds")
+# )
 
 
 # SMU colour palette
@@ -182,6 +183,39 @@ diet_samp_bar <- ggplot(dat) +
   )
 
 
+dd <- dat %>% 
+  select(id, strata, era, month,
+         #stock_group, stock_prob, 
+         fw_year, sw_year, total_year, gr_age) %>% 
+  distinct() %>% 
+  mutate(
+    sw_year = as.factor(sw_year)
+  )
+
+# counts of age varibles (several FW ages missing)
+dd[!(is.na(dd$sw_year)), ] %>% nrow()
+dd[!(is.na(dd$fw_year)), ] %>% nrow()
+dd[!(is.na(dd$gr_age)), ] %>% nrow()
+
+
+age_samp_bar <- ggplot(dd %>% filter(!is.na(sw_year))) +
+  geom_bar(aes(x = month, fill = sw_year)) +
+  facet_grid(era~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_brewer(name = "Marine\nAge", type = "qual", palette = "Dark2") +
+  labs(
+    y = "Prey Remains Composition"
+  ) +
+  scale_x_continuous(
+    breaks = c(6, 7, 8, 9, 10),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+
 # bubble plots of raw observations (replicated in smooths below)
 ggplot(ppn_dat) +
   geom_jitter(aes(x = week, y = agg_prob, size = n_samples, fill = era), 
@@ -203,6 +237,13 @@ png(
   height = 5, width = 8, units = "in", res = 250
 )
 diet_samp_bar
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "comp_bar_prey_age.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+age_samp_bar
 dev.off()
 
 

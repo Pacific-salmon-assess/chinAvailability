@@ -16,7 +16,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     mm = ifelse(year %in% c("2019", "2020", "2021", "2022"), "yes", "no")
   ) %>% 
   group_by(
-    id, stock_group, week_n, month_n, cap_region, mm, fl, age, year
+    id, stock_group, week_n, month_n,  mm, fl, age, year
   ) %>% 
   summarize(
     sum_prob = sum(prob), .groups = "drop"
@@ -26,7 +26,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   # remove uncertain assignments
   filter(
     sum_prob < 0.75,
-    !cap_region == "outside",
+    # !cap_region == "outside",
     month_n > 4 & month_n < 11,
     stock_group %in% c(
       "CR-upper_sp", "CR-lower_sp", "CR-upper_su/fa",
