@@ -126,9 +126,20 @@ wide_rec <- rec_raw_new %>%
     # convert lat/lon to numeric
     lat = as.numeric(lat),
     lon = as.numeric(long) %>%
-      ifelse(. > 0, -1 * ., .)
+      ifelse(. > 0, -1 * ., .),
+    pbt_brood_year_n = case_when(
+      pbt_brood_year %in% c("GSI 0000", "Not Loaded", "0") | 
+        is.na(pbt_brood_year) ~  NaN,
+      TRUE ~ as.numeric(pbt_brood_year)
+      ),
+    # in some cases resolved age deviates from cwt/pbt brood year; replace w/
+    # corrected version
+    age = case_when(
+      !is.na(cwt_brood_year) ~ year - cwt_brood_year,
+      !is.na(pbt_brood_year_n) ~ year - pbt_brood_year_n,
+      TRUE ~ resolved_age
+    )
   ) 
-
 
 # check to see if true duplicates by grouping by biokey then checking to see if 
 # fork lengths and resolved stock id match
@@ -177,8 +188,31 @@ write.csv(weird_sizes %>%
           here::here("data", "rec", "southcoast_size_errors.csv"),
           row.names = FALSE)
 
+# define marine age based on total age readings
+# estimates seem suspicious (e.g. lots of 4_1s for for Spring 4_2s and fall run 
+# stocks); DONT USE
+# sw_age_key <- wide_rec %>% 
+#   select(temp_key, age_gr)  %>% 
+#   filter(!is.na(age_gr)) %>% 
+#   mutate(
+#     total_age = purrr::map(
+#       age_gr, ~ strsplit(.x, "")[[1]][1]
+#     ) %>% 
+#       as.numeric(),
+#     fw_age = purrr::map(
+#       age_gr, ~ strsplit(.x, "")[[1]][2] 
+#     ) %>% 
+#       as.numeric(),
+#     sw_age = case_when(
+#       grepl("M", age_gr) ~ total_age,
+#       is.numeric(total_age) & is.numeric(fw_age) ~ (total_age - fw_age),
+#       TRUE ~ NaN
+#     )
+#   ) %>% 
+#   select(temp_key, sw_age)
 
 wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
+  # left_join(., sw_age_key, by = "temp_key") %>% 
   mutate(
     fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) %>% 
       as.numeric(),
@@ -197,12 +231,12 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
       resolved_stock_source == "CWT" ~ 1.0,
       resolved_stock_source == "Otolith Stock" ~ 1.0
     )
-  ) %>% 
+    ) %>% 
   # trim
   select(
     id = biokey, date, week_n, month_n, year, area, fishing_site = new_location,
     subarea = new_creel_subarea, lat, lon, fl, ad = adipose_fin_clipped,
-    age = resolved_age, resolved_stock_source, 
+    age, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob")
