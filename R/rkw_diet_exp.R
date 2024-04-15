@@ -49,6 +49,17 @@ dat <- raw_dat %>%
                  "FR_Spr_5.2", "FR_Sum_5.2", "FR_Sum_4.1",
                  "FR_Fall")
     ),
+    age_stock_group = case_when(
+      grepl("Fraser", smu) ~ smu,
+      agg == "SOG" ~ "ECVI_SOMN",
+      TRUE ~ agg
+    ),
+    # in-fill missing ages based on dominant life history strategy
+    total_year = case_when(
+      grepl("M", gr_age) & grepl(".2", smu) ~ sw_year + 2,
+      grepl("M", gr_age) & !grepl(".2", smu) ~ sw_year + 1,
+      TRUE ~ total_year
+    ),
     era = ifelse(year < 2015, "early", "current") %>% 
       fct_relevel(., "current", after = Inf),
     # sampling event = all samples collected in a given strata-year-month

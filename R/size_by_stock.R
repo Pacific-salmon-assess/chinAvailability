@@ -46,18 +46,22 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
         "Fraser_Summer_4.1", "Fraser_Fall",  "NBC_SEAK"
       )
     ),
-    year_f = as.factor(year)
+    year_f = as.factor(year),
+    age_f = as.factor(age)
+  ) %>% 
+  filter(
+    !is.na(age_f)
   )
   
 
 ## AGE COMPOSITION -------------------------------------------------------------
 
 age_comp <- gsi %>%
-  filter(!is.na(age_gr)) %>% 
+  # filter(!is.na(age)) %>% 
   group_by(stock_group) %>%
   mutate(age_n = n()) %>%
   ungroup() %>%
-  group_by(stock_group, age_gr, age_n) %>%
+  group_by(stock_group, age, age_n) %>%
   tally() %>% 
   mutate(prop = n / age_n)
 
@@ -68,7 +72,7 @@ labs_age_comp <- age_comp %>%
 
 age_comp_stacked <- ggplot() +
   geom_bar(data = age_comp,
-           aes(fill = as.factor(age_gr), y = prop, x = stock_group),
+           aes(fill = as.factor(age), y = prop, x = stock_group),
            position="stack", stat="identity") +
   geom_text(data = labs_age_comp, 
             aes(x = stock_group, y = 0.05, label = age_n)) +
@@ -82,7 +86,7 @@ age_comp_stacked <- ggplot() +
   )
 
 png(
-  here::here("figs", "ms_figs", "comp_bar_fishery_age.png"),
+  here::here("figs", "stock_size_age", "comp_bar_fishery_age.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 age_comp_stacked
@@ -91,10 +95,8 @@ dev.off()
 
 ## BODY SIZE -------------------------------------------------------------------
 
+# add fill color by SMU
 size_at_age_box <- gsi %>%
-  filter(!is.na(age)#,
-         # !age %in% c("2", "6")
-         ) %>% 
   ggplot(.) +
   geom_boxplot(aes(x = stock_group, y = fl)) +
   labs(y = "Fork Length", x = "Stock") +
@@ -104,24 +106,25 @@ size_at_age_box <- gsi %>%
   ) +
   facet_wrap(~age)
 
-ggplot(gsi %>% filter(fl > 550)) +
-  geom_boxplot(aes(x = stock_group, y = fl, fill = mm))  +
-  labs(y = "Fork Length", x = "Stock") +
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust=1)
-  )
+png(
+  here::here("figs", "stock_size_age", "box_fishery_age.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+size_at_age_box
+dev.off()
 
 
-
+# fit GAM to size at age data
 library(mgcv)
 
-fit2 <- gam(
-  fl ~ 0 + age + s(week_n, bs = "tp", k = 4, m = 2) +
+fit <- gam(
+  fl ~ 0 + age_f + s(week_n, bs = "tp", k = 4, m = 2) +
+    s(week_n, bs = "tp", by = age_f, k = 4, m = 1) +
     s(week_n, bs = "tp", by = stock_group, k = 4, m = 1) +
     mm:stock_group + s(year_f, bs = "re"),
   data = gsi
 )
+saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
 
 
 # make predictions, constraining to weeks where stocks present
@@ -150,7 +153,7 @@ week_month <- data.frame(
 new_dat <- expand.grid(
   week_n = unique(week_month$week_n),
   stock_group = unique(gsi$stock_group),
-  age = levels(gsi$age)
+  age_f = levels(gsi$age_f)
 ) %>% 
   left_join(., week_month, by = "week_n") %>% 
   left_join(., obs_weeks, by = "stock_group") %>% 
@@ -163,7 +166,7 @@ new_dat <- expand.grid(
          mm = "no",
          month = fct_reorder(month, week_n))
 
-preds <- predict(fit2, newdata = new_dat,  se.fit = TRUE, 
+preds <- predict(fit, newdata = new_dat,  se.fit = TRUE, 
                  exclude = "s(year_f)")
 
 new_dat2 <- new_dat %>% 
@@ -176,26 +179,22 @@ new_dat2 <- new_dat %>%
 size_month2 <- ggplot(new_dat2) +
   geom_pointrange(
     aes(x = month, y = pred_fl, ymin = lo_fl, ymax = up_fl, 
-        fill = age),
+        fill = age_f),
     shape = 21
   ) +
   facet_wrap(~stock_group) +
   ggsidekick::theme_sleek() +
   theme(
-    axis.title.x = element_blank()
+    axis.title.x = element_blank(),
+    legend.position = "top"
   )
 
 
 png(
-  here::here("figs", "ms_figs", "temporal_sample_coverage.png"),
-  height = 5, width = 7.5, units = "in", res = 250
+  here::here("figs", "stock_size_age", "mean_pred_fishery.png"),
+  height = 6.5, width = 8, units = "in", res = 250
 )
-
-
-
-pdf(here::here("figs", "stock_size_age", "summary_figs.pdf"))
-age_comp_stacked
-size_at_age_box
-size_month1
 size_month2
 dev.off()
+
+
