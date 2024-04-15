@@ -17,7 +17,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     )
   ) %>%
   group_by(
-    id, strata, stock_group, week_n, month_n,  mm, fl, age, year
+    id, strata, stock_group, week_n, month_n, mm, fl, age, sw_age, year
   ) %>% 
   summarize(
     sum_prob = sum(prob), .groups = "drop"
@@ -46,22 +46,28 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
         "Fraser_Summer_4.1", "Fraser_Fall",  "NBC_SEAK"
       )
     ),
+    age_stock_group = stock_group,
     year_f = as.factor(year),
-    age_f = as.factor(age)
+    age_f = as.factor(age),
+    sw_age = as.factor(sw_age)
   ) %>% 
   filter(
-    !is.na(age_f)
+    !is.na(sw_age)
   )
   
 
 ## AGE COMPOSITION -------------------------------------------------------------
 
+age_pal <- c(
+  "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c"
+)
+names(age_pal) <- levels(gsi$sw_age)
+
 age_comp <- gsi %>%
-  # filter(!is.na(age)) %>% 
   group_by(stock_group) %>%
   mutate(age_n = n()) %>%
   ungroup() %>%
-  group_by(stock_group, age, age_n) %>%
+  group_by(stock_group, sw_age, age_n) %>%
   tally() %>% 
   mutate(prop = n / age_n)
 
@@ -72,13 +78,12 @@ labs_age_comp <- age_comp %>%
 
 age_comp_stacked <- ggplot() +
   geom_bar(data = age_comp,
-           aes(fill = as.factor(age), y = prop, x = stock_group),
+           aes(fill = sw_age, y = prop, x = stock_group),
            position="stack", stat="identity") +
   geom_text(data = labs_age_comp, 
             aes(x = stock_group, y = 0.05, label = age_n)) +
-  scale_fill_brewer(name = "Age", palette = "Paired", na.value = "grey60" ) +
-  
-  # scale_fill_viridis_d(name = "Age", na.value = "grey60" ) +
+  # scale_fill_brewer(name = "Marine\nAge", palette = "Paired", na.value = "grey60" ) +
+  scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
   labs(y = "Proportion Age Composition", x = "Stock") +
   ggsidekick::theme_sleek() +
   theme(
@@ -86,7 +91,7 @@ age_comp_stacked <- ggplot() +
   )
 
 png(
-  here::here("figs", "stock_size_age", "comp_bar_fishery_age.png"),
+  here::here("figs", "stock_size_age", "comp_bar_fishery_age_gr.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 age_comp_stacked
@@ -102,13 +107,14 @@ size_at_age_box <- gsi %>%
   labs(y = "Fork Length", x = "Stock") +
   ggsidekick::theme_sleek() +
   theme(
-    axis.text.x = element_text(angle = 45, hjust=1)
+    axis.text.x = element_text(angle = 45, hjust=1),
+    axis.title.x = element_blank()
   ) +
-  facet_wrap(~age)
+  facet_wrap(~sw_age, ncol = 2)
 
 png(
   here::here("figs", "stock_size_age", "box_fishery_age.png"),
-  height = 5, width = 8, units = "in", res = 250
+  height = 6, width = 8, units = "in", res = 250
 )
 size_at_age_box
 dev.off()
@@ -118,10 +124,10 @@ dev.off()
 library(mgcv)
 
 fit <- gam(
-  fl ~ 0 + age_f + s(week_n, bs = "tp", k = 4, m = 2) +
-    s(week_n, bs = "tp", by = age_f, k = 4, m = 1) +
-    s(week_n, bs = "tp", by = stock_group, k = 4, m = 1) +
-    mm:stock_group + s(year_f, bs = "re"),
+  fl ~ 0 + sw_age + s(week_n, bs = "tp", k = 4, m = 2) +
+    s(week_n, bs = "tp", by = sw_age, k = 4, m = 1) +
+    s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) +
+    mm:age_stock_group + s(year_f, bs = "re"),
   data = gsi
 )
 saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
@@ -152,8 +158,8 @@ week_month <- data.frame(
 )
 new_dat <- expand.grid(
   week_n = unique(week_month$week_n),
-  stock_group = unique(gsi$stock_group),
-  age_f = levels(gsi$age_f)
+  stock_group = unique(gsi_trim$stock_group),
+  sw_age = unique(gsi_trim$sw_age) %>% as.factor()
 ) %>% 
   left_join(., week_month, by = "week_n") %>% 
   left_join(., obs_weeks, by = "stock_group") %>% 
@@ -179,7 +185,7 @@ new_dat2 <- new_dat %>%
 size_month2 <- ggplot(new_dat2) +
   geom_pointrange(
     aes(x = month, y = pred_fl, ymin = lo_fl, ymax = up_fl, 
-        fill = age_f),
+        fill = sw_age),
     shape = 21
   ) +
   facet_wrap(~stock_group) +

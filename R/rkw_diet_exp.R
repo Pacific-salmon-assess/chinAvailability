@@ -37,7 +37,8 @@ dat <- raw_dat %>%
     stock_group = case_when(
       agg %in% c("CA_ORCST", "CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa",
                      "WACST", "Russia", "CR-upper_sp", "NBC_SEAK") ~ "other",
-      stock == "CAPILANO" | smu %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
+      smu %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
+      stock == "CAPILANO" ~ "Fraser_Fall",
       grepl("Fraser", smu) ~ smu,
       TRUE ~ agg
     ) %>%  factor(
@@ -51,20 +52,24 @@ dat <- raw_dat %>%
     ),
     age_stock_group = case_when(
       grepl("Fraser", smu) ~ smu,
+      stock == "CAPILANO" ~ "Fraser_Fall",
       agg == "SOG" ~ "ECVI_SOMN",
       TRUE ~ agg
-    ),
+    ) %>% 
+      as.factor(),
     # in-fill missing ages based on dominant life history strategy
     total_year = case_when(
       grepl("M", gr_age) & grepl(".2", smu) ~ sw_year + 2,
       grepl("M", gr_age) & !grepl(".2", smu) ~ sw_year + 1,
       TRUE ~ total_year
-    ),
+    ) %>% 
+      as.factor(),
     era = ifelse(year < 2015, "early", "current") %>% 
       fct_relevel(., "current", after = Inf),
     # sampling event = all samples collected in a given strata-year-month
     # week not feasible given sample sizes
-    sample_id = paste(year, week, strata, sep = "_")
+    sample_id = paste(year, week, strata, sep = "_"),
+    sw_age = as.factor(sw_year)
   ) %>% 
   # since weeks may span multiple months, calculate median month for each week
   group_by(sample_id) %>% 
@@ -76,9 +81,10 @@ dat <- raw_dat %>%
   ) %>% 
   select(
     id, sample_id, sample_id_pooled,
-    fw_year, sw_year, total_year, gr_age,
-    era, year, month, week, strata, utm_y = Y, utm_x = X,
-    stock, stock_prob, stock_group, lat = latitude, lon = longitude
+    fw_year, sw_age, total_year, age_f = total_year,
+    era, year, month, week_n = week, strata, utm_y = Y, utm_x = X,
+    stock, stock_prob, stock_group, age_stock_group,
+    lat = latitude, lon = longitude
   )
 
 
@@ -151,12 +157,41 @@ era_pal <- c(15, 16)
 names(era_pal) <- levels(ppn_dat)
 
 
+## CALCULATE MEAN SIZE ---------------------------------------------------------
+
+## use model fit in size_by_stock.R 
+size_fit <- readRDS(here::here("data", "rec", "size_at_age_fit.rds"))
+
+size_pred_dat <- dat %>% 
+  filter(!is.na(sw_age)) %>% 
+  mutate(
+    mm = ifelse(year < 2019, "no", "yes"),
+    year_f = size_fit$model$year_f[[1]]
+  ) 
+
+pp <- predict(fit, size_pred_dat, exclude = "s(year_f)")
+
+# since each sample includes multiple stock IDs calculate mean size 
+size_pred_dat2 <- size_pred_dat %>% 
+  mutate(pred_fl = pp) %>% 
+  group_by(id) %>% 
+  summarize(
+    pred_fl = mean(pred_fl)
+  ) %>% 
+  ungroup
+
+dat2 <- left_join(
+  dat, 
+  size_pred_dat2 %>% 
+    select(id, pred_fl),
+  by = "id"
+)
 
 ## RAW DATA FIGURES ------------------------------------------------------------
 
 # sample coverage through time and among strata
 diet_samp_cov <- dat %>% 
-  group_by(week, strata, year, era) %>% 
+  group_by(week_n, strata, year, era) %>% 
   summarize(n = length(unique(id))) %>% 
   ggplot(.) +
   geom_point(aes(x = week, y = year, size = n, shape = era), 
@@ -194,26 +229,29 @@ diet_samp_bar <- ggplot(dat) +
   )
 
 
-dd <- dat %>% 
+dd <- dat2 %>% 
   select(id, strata, era, month,
          #stock_group, stock_prob, 
-         fw_year, sw_year, total_year, gr_age) %>% 
+         fw_year, sw_age, age_f, pred_fl) %>% 
   distinct() %>% 
   mutate(
-    sw_year = as.factor(sw_year)
+    size_bin = cut(
+      pred_fl, 
+      breaks = c(-Inf, 700, 750, 800, 850, Inf), 
+      labels = c("<70", "70-75", "75-80", "80-85", ">85")
+    )
   )
 
-# counts of age varibles (several FW ages missing)
-dd[!(is.na(dd$sw_year)), ] %>% nrow()
-dd[!(is.na(dd$fw_year)), ] %>% nrow()
-dd[!(is.na(dd$gr_age)), ] %>% nrow()
+age_pal <- c(
+  "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c"
+)
+names(age_pal) <- levels(size_fit$model$sw_age)
 
-
-age_samp_bar <- ggplot(dd %>% filter(!is.na(sw_year))) +
-  geom_bar(aes(x = month, fill = sw_year)) +
+age_samp_bar <- ggplot(dd) +
+  geom_bar(aes(x = month, fill = sw_age)) +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_brewer(name = "Marine\nAge", type = "qual", palette = "Dark2") +
+  scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
   labs(
     y = "Prey Remains Composition"
   ) +
@@ -227,12 +265,23 @@ age_samp_bar <- ggplot(dd %>% filter(!is.na(sw_year))) +
   )
 
 
-# bubble plots of raw observations (replicated in smooths below)
-ggplot(ppn_dat) +
-  geom_jitter(aes(x = week, y = agg_prob, size = n_samples, fill = era), 
-             alpha = 0.7, shape = 21, width = 0.1) +
-  facet_grid(stock_group~strata) +
-  ggsidekick::theme_sleek()
+# box plots of size
+age_samp_bar <- ggplot(dd) +
+  geom_bar(aes(x = month, fill = size_bin)) +
+  facet_grid(era~strata) +
+  ggsidekick::theme_sleek() +
+  # scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
+  labs(
+    y = "Prey Remains Composition"
+  ) +
+  scale_x_continuous(
+    breaks = c(6, 7, 8, 9, 10),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
 
 
 ## export 

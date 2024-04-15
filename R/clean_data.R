@@ -168,9 +168,9 @@ wide_rec <- rec_raw_new %>%
 
 
 ## correct some size entries
-weird_sizes <- wide_rec %>%
-  filter(length_mm < 150 | length_mm > 1500) %>%
-  select(temp_key, length_mm, new_disposition, contains("size"))
+# weird_sizes <- wide_rec %>%
+#   filter(length_mm < 150 | length_mm > 1500) %>%
+#   select(temp_key, length_mm, new_disposition, contains("size"))
 
 corrected_sizes <- read.csv(
   here::here("data", "rec", "southcoast_size_errors_corrected.csv"),
@@ -182,11 +182,11 @@ corrected_sizes <- read.csv(
   select(temp_key, new_length_mm)
 
 # export then paste/add corrections into southcoast_size_errors_corrected.csv
-write.csv(weird_sizes %>%
-            filter(!temp_key %in% corrected_sizes$temp_key)
-          ,
-          here::here("data", "rec", "southcoast_size_errors.csv"),
-          row.names = FALSE)
+# write.csv(weird_sizes %>%
+#             filter(!temp_key %in% corrected_sizes$temp_key)
+#           ,
+#           here::here("data", "rec", "southcoast_size_errors.csv"),
+#           row.names = FALSE)
 
 # define marine age based on total age readings
 # estimates seem suspicious (e.g. lots of 4_1s for for Spring 4_2s and fall run 
@@ -236,7 +236,7 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   select(
     id = biokey, date, week_n, month_n, year, area, fishing_site = new_location,
     subarea = new_creel_subarea, lat, lon, fl, ad = adipose_fin_clipped,
-    age, resolved_stock_source, 
+    age, age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob")
@@ -246,7 +246,8 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
 # import mark selective fisheries data and join
 wide_msf <- readRDS(here::here("data", "rec", "clean_msf_gsi.rds")) %>% 
   mutate(
-    age = NA
+    age = NA,
+    age_gr = NA
   )
 
 
@@ -425,7 +426,6 @@ long_rec <- wide_rec4_trim %>%
                names_pattern = "stock_(.+)",
                values_to = "stock") %>% 
   left_join(., probs, by = c("id", "rank")) %>% 
-  # left_join(., regions, by = c("id", "rank")) %>% 
   arrange(desc(date), id, desc(prob)) %>% 
   mutate(
     stock = toupper(stock),
@@ -433,10 +433,27 @@ long_rec <- wide_rec4_trim %>%
   ) %>% 
   filter(!is.na(stock),
          !is.na(prob)) %>% 
-  left_join(., stock_key, by = "stock") #%>%
-  # # add distance from juan de fuca mouth from creel subarea spatial file
-  # left_join(., creel_spatial %>% select(creelsub, dist_123i),
-  #           by = "creelsub")
+  left_join(., stock_key, by = "stock") %>% 
+  mutate(
+    # define saltwater age based on total age relative dominant life history
+    sw_age = case_when(
+      grepl("M", age_gr) ~ stringr::str_split(age_gr, "(?<=\\d)(?=\\D)") %>% 
+        unlist() %>% 
+        .[[1]] %>% 
+        as.numeric(),
+      # young 2.1s likely 1.2s
+      (stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
+        pst_agg %in% c("NBC_SEAK")) & age_gr == "21" ~ 1,
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
+        pst_agg %in% c("NBC_SEAK") ~ age - 2,
+      # if stock group has variable life history use identified yearlings
+      (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", "CA_ORCST", "WACST", 
+                      "CR-lower_fa", "PSD") | 
+        stock_group %in% c("Fraser_Summer_4.1")) & 
+        age_gr %in% c("32", "42", "52") ~ age - 2,
+      TRUE ~ age - 1
+    )
+  )
 
 
 # check for missing regional assignments
