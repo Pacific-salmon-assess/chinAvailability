@@ -105,7 +105,7 @@ sample_key <- dat %>%
   )
 
 ppn_dat <- dat %>% 
-  group_by(sample_id, era, year, week, month, strata, stock_group) %>% 
+  group_by(sample_id, era, year, week_n, month, strata, stock_group) %>% 
   summarize(
     agg_count = sum(stock_prob),
     .groups = "drop"
@@ -122,14 +122,14 @@ ppn_dat <- dat %>%
 
 # month scale
 sample_key_pooled <- dat %>% 
-  select(sample_id_pooled, id, utm_y, utm_x, week) %>% 
+  select(sample_id_pooled, id, utm_y, utm_x, week_n) %>% 
   distinct() %>% 
   group_by(sample_id_pooled) %>% 
   summarize(
     n_samples = length(unique(id)),
     utm_y = mean(utm_y),
     utm_x = mean(utm_x),
-    week = mean(week)
+    week_n = mean(week_n)
   )
 
 ppn_dat_pooled <- dat %>% 
@@ -169,7 +169,7 @@ size_pred_dat <- dat %>%
     year_f = size_fit$model$year_f[[1]]
   ) 
 
-pp <- predict(fit, size_pred_dat, exclude = "s(year_f)")
+pp <- predict(size_fit, size_pred_dat, exclude = "s(year_f)")
 
 # since each sample includes multiple stock IDs calculate mean size 
 size_pred_dat2 <- size_pred_dat %>% 
@@ -194,7 +194,7 @@ diet_samp_cov <- dat %>%
   group_by(week_n, strata, year, era) %>% 
   summarize(n = length(unique(id))) %>% 
   ggplot(.) +
-  geom_point(aes(x = week, y = year, size = n, shape = era), 
+  geom_point(aes(x = week_n, y = year, size = n, shape = era), 
              alpha = 0.6) +
   facet_wrap(~strata) +
   scale_size_continuous(name = "Sample\nSize") +
@@ -230,9 +230,7 @@ diet_samp_bar <- ggplot(dat) +
 
 
 dd <- dat2 %>% 
-  select(id, strata, era, month,
-         #stock_group, stock_prob, 
-         fw_year, sw_age, age_f, pred_fl) %>% 
+  select(id, strata, era, month, fw_year, sw_age, age_f, pred_fl) %>% 
   distinct() %>% 
   mutate(
     size_bin = cut(
@@ -266,11 +264,11 @@ age_samp_bar <- ggplot(dd) +
 
 
 # box plots of size
-age_samp_bar <- ggplot(dd) +
+size_samp_bar <- ggplot(dd) +
   geom_bar(aes(x = month, fill = size_bin)) +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  # scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
+  scale_fill_brewer(name = "Size\nClass", palette = "Dark2", na.value = "grey60" ) +
   labs(
     y = "Prey Remains Composition"
   ) +
@@ -305,6 +303,14 @@ png(
 )
 age_samp_bar
 dev.off()
+
+png(
+  here::here("figs", "ms_figs", "comp_bar_prey_size.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+size_samp_bar
+dev.off()
+
 
 
 ## FIT MODEL -------------------------------------------------------------------

@@ -82,7 +82,6 @@ age_comp_stacked <- ggplot() +
            position="stack", stat="identity") +
   geom_text(data = labs_age_comp, 
             aes(x = stock_group, y = 0.05, label = age_n)) +
-  # scale_fill_brewer(name = "Marine\nAge", palette = "Paired", na.value = "grey60" ) +
   scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
   labs(y = "Proportion Age Composition", x = "Stock") +
   ggsidekick::theme_sleek() +
@@ -91,7 +90,7 @@ age_comp_stacked <- ggplot() +
   )
 
 png(
-  here::here("figs", "stock_size_age", "comp_bar_fishery_age_gr.png"),
+  here::here("figs", "stock_size_age", "comp_bar_fishery_age_sw.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 age_comp_stacked
