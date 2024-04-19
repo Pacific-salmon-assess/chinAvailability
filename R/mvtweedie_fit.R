@@ -258,9 +258,9 @@ dev.off()
 
 ## favor third model since it generates year-specific estimates and appears
 # to converge well
-# fit_raw <- readRDS(
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
-# 
+fit_raw <- readRDS(
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
+
 # fit <- readRDS(
 #     here::here(
 #       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
@@ -278,53 +278,93 @@ fit3 <- readRDS(
 
 ## CHECK -----------------------------------------------------------------------
 
-
 ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
+
+
+# simulate by fitting sdmTMB equivalent of univariate Tweedie
+library(sdmTMB)
+fit_sdmTMB <- sdmTMB(
+  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(year_n, by = stock_group, k = 4, bs = "tp"),
+  data = agg_dat,
+  spatial = "off",
+  spatiotemporal = "off",
+  family = tweedie(link = "log"),
+  knots = list(week_n = c(0, 52))
+)
+saveRDS(
+  fit_sdmTMB,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_sdmTMB.rds")
+)
+
+# ppn zeros
+sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
+s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
+sum(s_sdmTMB == 0) / length(s_sdmTMB)
+
+sdmTMBextra::dharma_residuals(s_sdmTMB, fit_sdmTMB)
+
+
+# look at average stock comp 
+avg_sim_comp <- s_sdmTMB %>% 
+  as.data.frame() %>% 
+  mutate(stock_group = agg_dat$stock_group,
+         obs_prob = agg_dat$agg_prob) %>% 
+  pivot_longer(
+    cols = starts_with("V"),
+    names_to = "sim_number",
+    values_to = "prob"
+  ) %>% 
+  group_by(stock_group, sim_number) %>% 
+  summarize(
+    mean_sim_prob = mean(prob),
+    mean_obs_prob = mean(obs_prob)
+  )
+
+ggplot(data = avg_sim_comp) +
+  geom_boxplot(aes(x = stock_group, y = mean_sim_prob)) +
+  geom_point(aes(x = stock_group, y = mean_obs_prob), col = "red") +
+  ggsidekick::theme_sleek()
 
 
 ## simulate based on:
 # https://gist.github.com/dantonnoriega/ad2081c39b26d0f523ba3464f4a90282
-
-fit_raw <- fit2
-
-# use fitted GAM for mean estimates
-phi.hat <- fit_raw$deviance/sum(fit_raw$prior.weights)
-mu.hat <- fitted(fit_raw)
-p.hat <- fit_raw$family$getTheta(TRUE)
-prob_zero <- exp(-mu.hat^(2-p.hat) / phi.hat / (2-p.hat))
-
-# single sim
-y.tw <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
-
-# plot generated y vs simulated y from fitted values
-y <- agg_dat$agg_prob
-brks = seq(0, ceiling(max(max(y), max(y.tw))), by = 0.5)
-hist(y, breaks = brks, col = scales::alpha('red', .9))
-par(new = TRUE)
-hist(y.tw, breaks = brks, col = scales::alpha('blue', .5), axes = FALSE, xlab = NULL, ylab = NULL, main = NULL)
-
-
-# full simulate
-nsims <- 50
-sim_mat <- matrix(NA, nrow = length(mu.hat), ncol = nsims)
-for (i in 1:ncol(sim_mat)) {
-  sim_mat[ , i] <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
-}
-
-mu_pred <- predict(fit_raw, newdata = agg_dat) %>% 
-  fit_raw$family$linkinv(.)
-
-dharma_res <- DHARMa::createDHARMa(
-  simulatedResponse = sim_mat,
-  observedResponse = agg_dat$agg_prob,
-  fittedPredictedResponse = mu_pred
-)
-plot(dharma_res)
-
-
-# ppn zeros
-sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
-sum(sim_mat == 0) / length(sim_mat)
+# 
+# # use fitted GAM for mean estimates
+# phi.hat <- fit_raw$deviance/sum(fit_raw$prior.weights)
+# mu.hat <- fitted(fit_raw)
+# p.hat <- fit_raw$family$getTheta(TRUE)
+# prob_zero <- exp(-mu.hat^(2-p.hat) / phi.hat / (2-p.hat))
+# 
+# # single sim
+# y.tw <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
+# 
+# # plot generated y vs simulated y from fitted values
+# y <- agg_dat$agg_prob
+# brks = seq(0, ceiling(max(max(y), max(y.tw))), by = 0.5)
+# hist(y, breaks = brks, col = scales::alpha('red', .9))
+# par(new = TRUE)
+# hist(y.tw, breaks = brks, col = scales::alpha('blue', .5), axes = FALSE, xlab = NULL, ylab = NULL, main = NULL)
+# 
+# 
+# # full simulate
+# nsims <- 50
+# sim_mat <- matrix(NA, nrow = length(mu.hat), ncol = nsims)
+# for (i in 1:ncol(sim_mat)) {
+#   sim_mat[ , i] <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
+# }
+# 
+# mu_pred <- predict(fit_raw, newdata = agg_dat) %>% 
+#   fit_raw$family$linkinv(.)
+# 
+# dharma_res <- DHARMa::createDHARMa(
+#   simulatedResponse = sim_mat,
+#   observedResponse = agg_dat$agg_prob,
+#   fittedPredictedResponse = mu_pred
+# )
+# plot(dharma_res)
 
 
 ## PREDICT ---------------------------------------------------------------------
