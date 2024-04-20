@@ -10,10 +10,12 @@ diet_dat_in <- readRDS(
   here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
 ) 
 diet_dat <- diet_dat_in %>% 
-  select(utm_x_m = utm_x, utm_y_m = utm_y, era, strata, n_samples) %>% 
   mutate(
-    dataset = "diet"
+    dataset = "diet",
+    utm_x_m = utm_x * 1000,  
+    utm_y_m = utm_y * 1000 
   ) %>% 
+  select(utm_x_m, utm_y_m, era, strata, n_samples, dataset) %>% 
   distinct()
 
 rec_dat_in <- readRDS(
@@ -38,7 +40,7 @@ strata_key <- data.frame(
   strata = levels(dat$strata),
   lon = c(-124.92151, -124.85158, -124.52353, -124.12741, -123.56583, 
           -123.06742, -123.35288, -123.50943),
-  lat = c(48.55033, 48.65752, 48.53876, 48.38, 48.29965,
+  lat = c(48.55033, 48.65752, 48.53, 48.38, 48.29965,
           48.45791, 48.70844, 48.67728)
 ) %>% 
   sdmTMB::add_utm_columns(
