@@ -335,38 +335,26 @@ agg_dat <- expand.grid(
     agg_count = ifelse(is.na(agg_prob), 0, agg_count),
     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
     era = ifelse(year < 2015, "early", "current"),
+    year_n = year,
     year = as.factor(year),
     stock_group = as.factor(stock_group)
   ) %>% 
   droplevels()
 
-fit <- gam(
-  agg_count ~ 0 + stock_group*era +
-    s(week_n, by = stock_group, k = 6) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-  data = agg_dat, family = "tw"
-)
-class(fit) = c( "mvtweedie", class(fit) )
-saveRDS(
-  fit,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
-)
+# fit <- gam(
+#   agg_count ~ 0 + stock_group*era +
+#     s(week_n, by = stock_group, k = 6) +
+#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
+#   data = agg_dat, family = "tw"
+# )
+# class(fit) = c( "mvtweedie", class(fit) )
+# saveRDS(
+#   fit,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
+# )
 fit <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
 )
-
-# fit2 <- gam(
-#   agg_prob ~ era*stock_group +
-#     month_f*stock_group +
-#     # s(month, by = stock_group, k = 4) +
-#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25),
-#   data = agg_dat, family = "tw"
-# )
-# class(fit2) = c( "mvtweedie", class(fit2) )
-# saveRDS(
-#   fit2,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_month_diet_mvtw.rds")
-# )
 
 
 ## parameter estimates plot
@@ -486,9 +474,9 @@ diet_pred_smooth <- ggplot(newdata_trim,
     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
   ) 
 
-
+## NOTE RENFREW ECVI/SOMN ESTIAMTES UNRELIABLE
 diet_pred_stacked <- ggplot(data = newdata_trim, 
-       aes(x = week)) +
+       aes(x = week_n)) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
             stat = "identity") +
   scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
@@ -545,53 +533,92 @@ agg_dat %>%
 # generate monthly predictions using both models to compare expected comp
 # Given high uncertainty for era-specific model, use simplified version then
 # check again when more samples added
-fit3 <- gam(
+fit2 <- gam(
   agg_count ~ 0 + strata + s(week_n, by = stock_group, k = 6) +
   s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
   data = agg_dat, family = "tw"
 )
-class(fit3) = c( "mvtweedie", class(fit3) )
+class(fit2) = c( "mvtweedie", class(fit2) )
 
 
-newdata_both <- expand.grid(
+newdata_both1 <- expand.grid(
   strata = levels(agg_dat$strata),
   week_n = c(25, 29, 33, 37, 40),
   stock_group = levels(agg_dat$stock_group),
   era = unique(agg_dat$era),
-  year = levels(agg_dat$year)[1]
+  year_n = max(agg_dat$year_n)
 ) %>%
   left_join(., loc_key, by = 'strata') %>%
   mutate(
     strata = factor(strata, levels = levels(agg_dat$strata)),
     month = factor(week_n, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
-  )# %>% 
-  # filter(
-  #   # strata %in% c("Swiftsure", "Nitinat", "Renfrew")
-  # ) 
+  ) %>% 
+  filter(
+    strata %in% c("Swiftsure", "Nitinat", "Renfrew"),
+    era == "current"
+  )
 
 pred_rkw = predict(
-  fit3,
+  fit2,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
-  newdata = newdata_both
+  newdata = newdata_both1
 )
-newdata_both = cbind( newdata_both, fit=pred_rkw$fit, se.fit=pred_rkw$se.fit )
-newdata_both$lower = newdata_both$fit + (qnorm(0.025)*newdata_both$se.fit)
-newdata_both$upper = newdata_both$fit + (qnorm(0.975)*newdata_both$se.fit)
+newdata1 = cbind( newdata_both1, fit=pred_rkw$fit, se.fit=pred_rkw$se.fit )
+newdata1$lower = newdata1$fit + (qnorm(0.025)*newdata1$se.fit)
+newdata1$upper = newdata1$fit + (qnorm(0.975)*newdata1$se.fit)
+newdata1$model <- "srkw"
 
-ggplot(newdata_both %>% filter(strata == "Renfrew"),
-       aes(x = month, fit, fill = era)) +
+
+# import fishery model fit in mvtweedie_fit.R
+rec_fit <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+  )
+)
+
+# modified prediction function that allows for exclude 
+source(here::here("R", "functions", "pred_mvtweedie2.R"))
+
+# integrate out year smooths
+excl <- grepl("year_n", gratia::smooths(rec_fit))
+yr_coefs <- gratia::smooths(rec_fit)[excl]
+pred_rec = pred_dummy(
+  rec_fit,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  # original dataset used to fit fishery model
+  origdata = rec_fit$model,
+  newdata = newdata_both1,
+  exclude = yr_coefs
+)
+
+newdata2 = cbind( newdata_both1, fit=pred_rec$fit, se.fit=pred_rec$se.fit )
+newdata2$lower = newdata2$fit + (qnorm(0.025)*newdata2$se.fit)
+newdata2$upper = newdata2$fit + (qnorm(0.975)*newdata2$se.fit)
+newdata2$model <- "rec"
+
+newdata_both <- rbind(newdata1, newdata2)
+
+png(
+  here::here("figs", "ms_figs", "paired_predictions.png"),
+  height = 8, width = 6.5, units = "in", res = 250
+)
+ggplot(newdata_both) +
   geom_pointrange(
-    aes(y = fit, ymin = lower, ymax = upper),
-    alpha = 0.3
+    aes(x = month, y = fit, ymin = lower, ymax = upper, fill = model),
+    shape = 21,
+    position = position_dodge(width = 0.5)
   ) +
-  facet_grid(stock_group ~ strata) +
+  facet_grid(stock_group ~ strata, scales =  "free_y") +
   coord_cartesian(ylim = c(0,1)) +
-  # labs(
-  #   y = "Predicted Proportion of Diet Sample",
-  #   fill = "Sampling\nEra",
-  #   colour = "Sampling\nEra",
-  #   size = "Sample\nSize"
-  # ) +
-  ggsidekick::theme_sleek()
+  labs(
+    y = "Predicted Proportion of Sample",
+    fill = "Data Source"
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    axis.title.x = element_blank()
+  )
+dev.off()
