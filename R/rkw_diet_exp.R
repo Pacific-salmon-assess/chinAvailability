@@ -328,10 +328,11 @@ agg_dat <- expand.grid(
             by = "sample_id") %>%
   left_join(., 
             ppn_dat %>% 
-              select(sample_id, stock_group, agg_prob), 
+              select(sample_id, stock_group, agg_count, agg_prob), 
             by = c("sample_id", "stock_group")) %>%
   mutate(
     month_f = as.factor(month),
+    agg_count = ifelse(is.na(agg_prob), 0, agg_count),
     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
     era = ifelse(year < 2015, "early", "current"),
     year = as.factor(year),
@@ -339,11 +340,10 @@ agg_dat <- expand.grid(
   ) %>% 
   droplevels()
 
-
 fit <- gam(
-  agg_prob ~ 0 + stock_group*era +
+  agg_count ~ 0 + stock_group*era +
     s(week_n, by = stock_group, k = 6) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25),
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
   data = agg_dat, family = "tw"
 )
 class(fit) = c( "mvtweedie", class(fit) )
@@ -418,7 +418,7 @@ loc_key <- readRDS(
 
 newdata <- expand.grid(
   strata = levels(agg_dat$strata),
-  week = seq(25, 38, by = 0.25),
+  week_n = seq(25, 38, by = 0.25),
   stock_group = levels(agg_dat$stock_group),
   era = unique(agg_dat$era),
   year = levels(agg_dat$year)[1]
@@ -462,11 +462,11 @@ newdata_trim <- newdata %>%
   )
 
 diet_pred_smooth <- ggplot(newdata_trim,
-       aes(week, fit, colour = era, fill = era)) +
+       aes(week_n, fit, colour = era, fill = era)) +
   geom_point(
     data = agg_dat %>%
       filter(strata %in% newdata_trim$strata),
-    aes(x = week, y = agg_prob, size = n_samples),
+    aes(x = week_n, y = agg_prob, size = n_samples),
     alpha = 0.3
   ) +
   geom_line() +
@@ -527,35 +527,50 @@ dev.off()
 
 ## SIDE BY SIDE ---------------------------------------------------------------
 
+ggplot(agg_dat,
+       aes(x = week_n, y = agg_prob, size = n_samples)) +
+  geom_point(
+    alpha = 0.3
+  ) +
+  facet_grid(stock_group ~ strata) +
+  coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
+  ggsidekick::theme_sleek()
+
+agg_dat %>%
+  filter(strata== "Renfrew", stock_group == "ECVI_SOMN") %>% 
+  group_by(month) %>% 
+  summarize(mean(agg_prob), median(agg_prob))
+
+
 # generate monthly predictions using both models to compare expected comp
-fit2 <- gam(
-  agg_prob ~ 0 + stock_group*era +
-    s(week_n, by = stock_group, k = 6), #+
-    # s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25),
-  data = agg_dat %>% filter(strata == "Renfrew"), family = "tw"
+# Given high uncertainty for era-specific model, use simplified version then
+# check again when more samples added
+fit3 <- gam(
+  agg_count ~ 0 + strata + s(week_n, by = stock_group, k = 6) +
+  s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
+  data = agg_dat, family = "tw"
 )
-class(fit2) = c( "mvtweedie", class(fit2) )
+class(fit3) = c( "mvtweedie", class(fit3) )
 
 
 newdata_both <- expand.grid(
-  strata = "Renfrew", #levels(agg_dat$strata),
+  strata = levels(agg_dat$strata),
   week_n = c(25, 29, 33, 37, 40),
   stock_group = levels(agg_dat$stock_group),
   era = unique(agg_dat$era),
   year = levels(agg_dat$year)[1]
 ) %>%
-  left_join(., loc_key, by = 'strata') %>% 
+  left_join(., loc_key, by = 'strata') %>%
   mutate(
     strata = factor(strata, levels = levels(agg_dat$strata)),
     month = factor(week_n, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
-  ) #%>% 
-  filter(
-    # strata %in% c("Swiftsure", "Nitinat", "Renfrew"),
-    era == "current"
-  ) 
+  )# %>% 
+  # filter(
+  #   # strata %in% c("Swiftsure", "Nitinat", "Renfrew")
+  # ) 
 
 pred_rkw = predict(
-  fit2,
+  fit3,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
@@ -565,7 +580,7 @@ newdata_both = cbind( newdata_both, fit=pred_rkw$fit, se.fit=pred_rkw$se.fit )
 newdata_both$lower = newdata_both$fit + (qnorm(0.025)*newdata_both$se.fit)
 newdata_both$upper = newdata_both$fit + (qnorm(0.975)*newdata_both$se.fit)
 
-ggplot(newdata_both,
+ggplot(newdata_both %>% filter(strata == "Renfrew"),
        aes(x = month, fit, fill = era)) +
   geom_pointrange(
     aes(y = fit, ymin = lower, ymax = upper),
