@@ -89,7 +89,7 @@ rec_raw_new <- read_csv(
 ) %>% 
   janitor::clean_names(.) %>% 
   # remove blanks
-  filter(!is.na(biokey))
+  filter(!is.na(biokey)) 
 
 
 # remove duplicates, id numbers w/ multiple in columns, check unique vals are
@@ -138,6 +138,11 @@ wide_rec <- rec_raw_new %>%
       !is.na(cwt_brood_year) ~ year - cwt_brood_year,
       !is.na(pbt_brood_year_n) ~ year - pbt_brood_year_n,
       TRUE ~ resolved_age
+    ), 
+    pbt = ifelse(
+      is.na(pbt_brood_year_n),
+      FALSE,
+      TRUE
     )
   ) 
 
@@ -235,7 +240,8 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   # trim
   select(
     id = biokey, date, week_n, month_n, year, area, fishing_site = new_location,
-    subarea = new_creel_subarea, lat, lon, fl, ad = adipose_fin_clipped,
+    subarea = new_creel_subarea, lat, lon, fl, ad = adipose_fin_clipped, 
+    pbt, pbt_brood_year_n,
     age, age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
@@ -244,11 +250,7 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
 
 
 # import mark selective fisheries data and join
-wide_msf <- readRDS(here::here("data", "rec", "clean_msf_gsi.rds")) %>% 
-  mutate(
-    age = NA,
-    age_gr = NA
-  )
+wide_msf <- readRDS(here::here("data", "rec", "clean_msf_gsi.rds")) 
 
 
 wide_all <- rbind(wide_rec3, wide_msf) %>% 
@@ -275,10 +277,10 @@ rec_sf <- wide_all %>%
   ) 
 
 ## identify whether samples caught inside/outside critical habitat
-hab_sf <- readRDS(
-  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
-)
-rec_sf_sub <- st_intersection(rec_sf, hab_sf)
+# hab_sf <- readRDS(
+#   here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+# )
+# rec_sf_sub <- st_intersection(rec_sf, hab_sf)
 
 # assign areas with creel names
 pfma_areas <- readRDS(
@@ -358,7 +360,42 @@ saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
 
 # GSI CLEAN --------------------------------------------------------------------
 
-wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
+# import PBT estimates to estimate coverage 
+pbt_rate <- readRDS(
+  here::here("data", "mean_pbt_rate.rds")
+) %>% 
+  mutate(
+    pbt_stock = ifelse(
+      collection_extract == "SHUSWAP_RIVER-LOWER (includes Kingfisher)",
+      "SHUSWAP_RIVER_LOWER",
+      gsub("-", "_", collection_extract) %>% 
+        toupper()
+    )
+  ) %>% 
+  select(
+    pbt_stock, pbt_brood_year_n = year, tag_rate
+  )
+
+
+wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>% 
+  mutate(
+    pbt_stock = gsub("-", "_", stock_1) %>% 
+      gsub(" H", "", .) %>% 
+      gsub(" ", "_", .) %>% 
+      toupper(),
+    pbt_stock = case_when(
+        pbt_stock == "CHILLIWACK_RIVER" ~ "CHILLIWACK_RIVER_FALL",
+        pbt_stock == "SHUSWAP_RIVER,_MIDDLE," ~ "SHUSWAP_RIVER_MIDDLE",
+        pbt_stock == "CHEHALIS_RIVER" ~ "CHEHALIS_RIVER_SUMMER",
+        pbt_stock == "BIG_QUALICUM_RIVER" ~ "QUALICUM_RIVER",
+        pbt_stock == "ATNARKO_RIVER_UPPER" ~ "ATNARKO_RIVER",
+        TRUE ~ pbt_stock
+      )
+  ) %>% 
+  left_join(
+    ., pbt_rate, by = c("pbt_brood_year_n", "pbt_stock")
+  )
+
 
 # stock key
 stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2024.rds")) %>%
@@ -390,15 +427,6 @@ wide_rec4_trim <- wide_rec4 %>%
   filter(
     !is.na(stock_1)
   )
-
-# # replace 0 probabilities with v. small values (just to be safe); then recalc
-# # ppns
-# prbs <- wide_rec4_trim %>% 
-#   select(starts_with("prob")) %>% 
-#   as.matrix()
-# prbs[prbs == 0] <- .00001
-# row_sums <- apply(prbs, 1, sum, na.rm = T)
-# new_prbs <- prbs / row_sums
 
 
 #pivot to long (probs and stock IDs separately) and join 
@@ -449,9 +477,30 @@ long_rec <- wide_rec4_trim %>%
       # if stock group has variable life history use identified yearlings
       (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", "CA_ORCST", "WACST", 
                       "CR-lower_fa", "PSD") | 
-        stock_group %in% c("Fraser_Summer_4.1")) & 
+        stock_group %in% c("Fraser_Sum_4.1")) & 
         age_gr %in% c("32", "42", "52") ~ age - 2,
       TRUE ~ age - 1
+    ),
+    #define hatchery status
+    origin = case_when(
+      pbt == TRUE | resolved_stock_source == "CWT" ~ "hatchery",
+      ad == "Y" ~ "hatchery",
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") & 
+        resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") & 
+        resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
+        "wild",
+      grepl("HANFORD", stock) ~ "unknown",
+      pst_agg %in% c("PSD", "WACST") | grepl("CR", pst_agg) & ad == "N" ~
+        "wild",
+      TRUE ~ "unknown"
+    ),
+    # add factor accounting for slot limits that went into place in different
+    # years depending on whether west of 20-4/-5 line
+    slot_limit = ifelse(
+      lon < -124 & year < 2018, "no", "yes" 
     )
   )
 

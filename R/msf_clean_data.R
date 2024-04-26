@@ -9,9 +9,7 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2024.rds")) %>
   janitor::clean_names()
 
 rec_raw <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
-  janitor::clean_names() %>% 
-  rename(stock_region = region)
-
+  janitor::clean_names() 
 
 site_ll <- rec_raw %>% 
   select(fishing_location = fishing_site, lat, lon) %>% 
@@ -34,13 +32,29 @@ msf_wide <- read_csv(
   mutate(
     date = as.POSIXct(collection_date, format="%d-%b-%Y"),
     month_n = lubridate::month(date),
-    week_n = lubridate::week(date)
+    week_n = lubridate::week(date),
+    pbt_brood_year_n = case_when(
+      pbt_brood_year %in% c("GSI 0000", "Not Loaded", "0") | 
+        is.na(pbt_brood_year) ~  NaN,
+      TRUE ~ as.numeric(pbt_brood_year)
+    ),
+    # in some cases resolved age deviates from cwt/pbt brood year; replace w/
+    # corrected version
+    age = case_when(
+      !is.na(cwt_brood_year) ~ year - cwt_brood_year,
+      !is.na(pbt_brood_year_n) ~ year - pbt_brood_year_n,
+      TRUE ~ resolved_age
+    ), 
+    pbt = ifelse(
+      is.na(pbt_brood_year_n),
+      FALSE,
+      TRUE
+    )
   )
 
 
 # trim for GSI purposes (all DNA so no need to combine with CWT/otolith)
 msf_wide_trim <- msf_wide %>% 
-  # focus on taggable size (> 60 cm)
   filter(
     !is.na(resolved_stock_source)
   ) %>%
@@ -48,7 +62,7 @@ msf_wide_trim <- msf_wide %>%
     id = biokey, date, week_n, month_n, year, area, 
     fishing_site = fishing_location, subarea, lat, lon, 
     fl = length_mm, ad = adipose_fin_clipped,
-    resolved_stock_source, 
+    pbt, pbt_brood_year_n, age, age_gr, resolved_stock_source, 
     stock_1 = dna_results_stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob")
