@@ -515,20 +515,6 @@ dev.off()
 
 ## SIDE BY SIDE ---------------------------------------------------------------
 
-ggplot(agg_dat,
-       aes(x = week_n, y = agg_prob, size = n_samples)) +
-  geom_point(
-    alpha = 0.3
-  ) +
-  facet_grid(stock_group ~ strata) +
-  coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
-  ggsidekick::theme_sleek()
-
-agg_dat %>%
-  filter(strata== "Renfrew", stock_group == "ECVI_SOMN") %>% 
-  group_by(month) %>% 
-  summarize(mean(agg_prob), median(agg_prob))
-
 
 # generate monthly predictions using both models to compare expected comp
 # Given high uncertainty for era-specific model, use simplified version then
@@ -543,7 +529,8 @@ class(fit2) = c( "mvtweedie", class(fit2) )
 
 newdata_both1 <- expand.grid(
   strata = levels(agg_dat$strata),
-  week_n = c(25, 29, 33, 37, 40),
+  # exclude Sep/Oct samples due to small sample size
+  week_n = c(25, 29, 33),
   stock_group = levels(agg_dat$stock_group),
   era = unique(agg_dat$era),
   year_n = max(agg_dat$year_n)
@@ -551,7 +538,7 @@ newdata_both1 <- expand.grid(
   left_join(., loc_key, by = 'strata') %>%
   mutate(
     strata = factor(strata, levels = levels(agg_dat$strata)),
-    month = factor(week_n, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
+    month = factor(week_n, labels = c("Jun", "Jul", "Aug"))
   ) %>% 
   filter(
     strata %in% c("Swiftsure", "Nitinat", "Renfrew"),
