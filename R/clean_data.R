@@ -548,11 +548,16 @@ wide_size <- wide_rec4 %>%
   mutate(
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 551, 701, 851, Inf), 
-      labels = c("<55", "55-70", "70-85", ">85")
+      breaks = c(-Inf, 551, 751, 851, Inf), 
+      labels = c("<55", "55-75", "75-85", ">85")
     ),
     size_bin2 = factor(
       size_bin, labels = c("sublegal", "small", "medium", "large")
+    ),
+    # add factor accounting for slot limits that went into place in different
+    # years depending on whether west of 20-4/-5 line
+    slot_limit = ifelse(
+      lon < -124 & year < 2018, "no", "yes" 
     )
   ) 
 
@@ -575,6 +580,18 @@ wide_size %>%
   geom_bar(position="stack", stat="identity") +
   ggsidekick::theme_sleek() +
   facet_wrap(~strata)
+
+wide_size %>%
+  filter(strata %in% c("renfrew", "swiftsure", "swiftsure_nearshore")) %>% 
+  group_by(size_bin, month_n, strata, slot_limit) %>%
+  summarize(n = length(unique(id))) %>%
+  group_by(month_n, strata, slot_limit) %>% 
+  mutate(total_n = sum(n),
+         ppn_obs = n / total_n) %>% 
+  ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
+  geom_bar(position="stack", stat="identity") +
+  ggsidekick::theme_sleek() +
+  facet_wrap(slot_limit~strata)
 
 saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
