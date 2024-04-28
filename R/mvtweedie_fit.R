@@ -51,20 +51,19 @@ dat <- rec_raw %>%
   ungroup()
 
 sample_key <- dat %>% 
-  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>% 
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, 
+         slot_limit) %>% 
   distinct()
+
 
 # trim data to exclude swiftsure samples west of Nitinat
 # NOTE: doesn't strongly impact preds
-w_border <- dat %>% 
-  filter(strata == "Nitinat") %>% 
-  pull(utm_x) %>% 
-  min()
-dat <- dat %>% 
-  filter(!utm_x < w_border - 1)
-
-# subset to speed up fitting
-# sub_id <- sample(sample_key$sample_id, 1000, replace = FALSE)
+# w_border <- dat %>% 
+#   filter(strata == "Nitinat") %>% 
+#   pull(utm_x) %>% 
+#   min()
+# dat <- dat %>% 
+#   filter(!utm_x < w_border - 1)
 
 
 # add zero observations
@@ -93,10 +92,7 @@ agg_dat <- expand.grid(
     utm_y_m = utm_y * 1000,
     sg_year = paste(stock_group, year, sep = "_") %>% 
       as.factor()
-  ) #%>% 
-  # filter(
-  #   sample_id %in% sub_id
-  # )
+  ) 
 saveRDS(
   agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
 )
@@ -136,7 +132,7 @@ rec_samp_bar <- ggplot(dat) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
-    y = "Prey Remains Composition"
+    y = "Recreational Fishery\nComposition"
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -169,6 +165,47 @@ rec_samp_bar_summer <- dat %>%
   )
 
 
+# as above but for hatchery origin
+rec_samp_bar_h <- ggplot(dat) +
+  geom_bar(aes(x = month_n, y = prob, fill = origin), 
+           stat = "identity") +
+  facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
+  labs(
+    y = "Recreational Fishery\nComposition"
+  ) +
+  scale_x_continuous(
+    breaks = c(1, 5, 9, 12),
+    labels = c("Jan", "May", "Sep", "Dec")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+# subset of monthly samples that matches RKW diet
+rec_samp_bar_summer_h <- dat %>% 
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  ggplot(.) +
+  geom_bar(aes(x = month_n, y = prob, fill = origin), 
+           stat = "identity") +
+  facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
+  labs(
+    y = "Recreational Fishery\nComposition"
+  ) +
+  scale_x_continuous(
+    breaks = c(6, 7, 8, 9, 10),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+
 png(
   here::here("figs", "ms_figs", "rec_temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
@@ -188,6 +225,20 @@ png(
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_summer
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "rec_monthly_hatchery_comp_bar.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+rec_samp_bar_h
+dev.off()
+
+png(
+  here::here("figs", "ms_figs", "rec_monthly_hatchery_comp_bar_summer.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+rec_samp_bar_summer_h
 dev.off()
 
 
