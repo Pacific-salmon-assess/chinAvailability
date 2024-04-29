@@ -9,7 +9,6 @@
 library(tidyverse)
 library(mvtweedie)
 library(mgcv)
-library(glmmTMB)
 
 # modified prediction function
 source(here::here("R", "functions", "pred_mvtweedie2.R"))
@@ -983,10 +982,122 @@ system.time(
     knots = list(week_n = c(0, 52))
   )
 )
-class(fit3) = c( "mvtweedie", class(fit3) )
+class(fit_large) = c( "mvtweedie", class(fit_large) )
 saveRDS(
-  fit3,
+  fit_large,
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_large.rds"
+  )
+)
+
+
+excl <- grepl("year_n", gratia::smooths(fit_large))
+yr_coefs <- gratia::smooths(fit_large)[excl]
+pred_large = pred_dummy(
+  fit_large,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat_large,
+  newdata = newdata_b,
+  exclude = yr_coefs
+)
+
+
+newdata_large <- cbind( newdata_b, fit=pred_large$fit, se.fit=pred_large$se.fit ) %>%
+  mutate(
+    lower = fit + (qnorm(0.025)*se.fit),
+    upper = fit + (qnorm(0.975)*se.fit)
+  ) %>%
+  filter(!strata == "Saanich")
+
+
+large_pred_smooth <- ggplot(newdata_large, aes(week_n, fit)) +
+  geom_point(
+    data = agg_dat_large %>% 
+      filter(week_n %in% newdata_large$week_n,
+             !strata == "Saanich"),
+    aes(x = week_n, y = agg_ppn, size = sample_id_n),
+    alpha = 0.3
+  ) +
+  geom_line(colour = "red") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
+  facet_grid(stock_group~strata) +
+  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  theme(legend.position = "top")
+
+png(
+  here::here("figs", "ms_figs", "smooth_preds_large.png"),
+  height = 5, width = 5, units = "in", res = 250
+)
+large_pred_smooth
+dev.off()
+
+
+## compare predictions from all 3 models
+fit <- readRDS(
   here::here(
     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
   )
 )
+fit_slot <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_slot.rds"
+  )
+)
+fit_large <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_large.rds"
+  )
+)
+fit_list <- list(fit, fit_slot, fit_large)
+model_names <- c("full", "slot", "large")
+
+excl <- grepl("year_n", gratia::smooths(fit))
+yr_coefs <- gratia::smooths(fit)[excl]
+
+pred_list <- purrr::map(
+  fit_list, 
+  ~ pred_dummy(
+    .x,
+    se.fit = TRUE,
+    category_name = "stock_group",
+    origdata = .x$model,
+    newdata = newdata_slot,
+    exclude = yr_coefs
+    )
+)
+
+new_dat <- purrr::map2(
+  pred_list, model_names,
+  ~ cbind(newdata_slot, fit = .x$fit, se.fit = .x$se.fit) %>% 
+    mutate(
+      model = .y,
+      lower = fit + (qnorm(0.025)*se.fit),
+      upper = fit + (qnorm(0.975)*se.fit)
+    ) %>%
+    filter(!strata == "Saanich",
+           slot_limit == "no")
+) %>% 
+  bind_rows()
+
+
+model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.5) +
+  facet_grid(stock_group~strata) +
+  coord_cartesian(xlim = c(25, 38), ylim = c(0, 0.8)) +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme(legend.position = "top")
+
+png(
+  here::here("figs", "ms_figs", "model_comp.png"),
+  height = 5, width = 5, units = "in", res = 250
+)
+model_comp_smooth
+dev.off()
