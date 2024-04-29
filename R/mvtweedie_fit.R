@@ -2,6 +2,8 @@
 # Fit data to estimate seasonal changes in stock composition 
 # Adaptation of rkw_strata_fit to fit a spatially explicit model using mvtweedie
 # and mgcv or glmmtmb packages
+# Includes sensitivity analyses to evaluate effects of a) slot limits and b)
+# excluding fish < 75 cm
 
 
 library(tidyverse)
@@ -54,6 +56,17 @@ sample_key <- dat %>%
   select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, 
          slot_limit) %>% 
   distinct()
+
+
+# identify a single spatial location for each strata based on mean
+loc_key <- readRDS(
+  here::here("data", "spatial", "strata_key.rds")
+) %>% 
+  # match scale of fitted model
+  mutate(
+    utm_x = utm_x_m / 1000,
+    utm_y = utm_y_m / 1000
+  )
 
 
 # trim data to exclude swiftsure samples west of Nitinat
@@ -420,17 +433,6 @@ ggplot(data = avg_sim_comp) +
 
 ## PREDICT ---------------------------------------------------------------------
 
-# identify a single spatial location for each strata based on mean
-loc_key <- readRDS(
-  here::here("data", "spatial", "strata_key.rds")
-) %>% 
-  # match scale of fitted model
-  mutate(
-    utm_x = utm_x_m / 1000,
-    utm_y = utm_y_m / 1000
-  )
-
-
 newdata <- expand.grid(
   strata = unique(dat$strata),
   week_n = unique(agg_dat$week_n),
@@ -777,3 +779,214 @@ png(
 )
 spatial_pred_se
 dev.off()
+
+
+## SENSITIVITY ANALYSES --------------------------------------------------------
+
+# 1) Evaluate impact of slot limit by fitting model only to data west of Sooke
+# and pre-2019
+# 2) Evaluate impact of size preference of SRKW by fitting model only to samples
+# greater than 750 mm fl
+
+
+## Slot limit analysis
+agg_dat_slot <- expand.grid(
+  sample_id = unique(dat$sample_id),
+  stock_group = unique(dat$stock_group)#,
+  # slot_limit = unique(dat$slot_limit)
+) %>% 
+  left_join(., sample_key, by = "sample_id") %>% 
+  left_join(
+    ., 
+    dat %>% 
+      group_by(sample_id, stock_group) %>% 
+      summarize(
+        agg_prob = sum(prob)
+      ) %>% 
+      ungroup(),
+    by = c("sample_id", "stock_group")
+  ) %>% 
+  mutate(
+    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
+    agg_ppn = agg_prob / sample_id_n,
+    year_n = as.numeric(year),
+    year = as.factor(year),
+    stock_group = as.factor(stock_group),
+    utm_x_m = utm_x * 1000,
+    utm_y_m = utm_y * 1000
+  ) 
+
+system.time(
+  fit_slot <- gam(
+    agg_prob ~ 0 + stock_group*slot_limit + 
+      s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year_n, by = stock_group, k = 4, bs = "tp"),
+    data = agg_dat_slot, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit_slot) = c( "mvtweedie", class(fit_slot) )
+saveRDS(
+  fit_slot,
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_slot.rds"
+  )
+)
+
+
+## estimate slot limit period effects
+slot_pars <- broom::tidy(fit_slot, parametric = TRUE, conf.int = TRUE) %>% 
+  filter(grepl("slot", term)) %>% 
+  mutate(
+    stock_group = levels(agg_dat$stock_group) %>% 
+      factor(., levels = levels(agg_dat$stock_group))
+  ) 
+
+slot_plot <- ggplot(slot_pars) +
+  geom_pointrange(
+    aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high, 
+        fill = stock_group), 
+    shape = 21) +
+  scale_fill_manual(values = smu_colour_pal) +
+  geom_hline(aes(yintercept = 0), lty = 2) +
+  ggsidekick::theme_sleek() +
+  labs(y = "Effect of Slot Limit") +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+png(
+  here::here("figs", "ms_figs", "slot_limit_effect.png"),
+  height = 3.5, width = 5, units = "in", res = 250
+)
+slot_plot
+dev.off()
+
+
+
+newdata_slot <- expand.grid(
+  strata = levels(agg_dat_slot$strata),
+  week_n = seq(25, 38, by = 0.25),
+  stock_group = levels(agg_dat_slot$stock_group),
+  slot_limit = unique(agg_dat_slot$slot_limit),
+  year_n = unique(agg_dat_slot$year)[1]
+) %>%
+  left_join(., loc_key, by = 'strata') %>% 
+  mutate(
+    strata = factor(strata, levels = levels(agg_dat_slot$strata))
+  ) 
+
+excl <- grepl("year_n", gratia::smooths(fit_slot))
+yr_coefs <- gratia::smooths(fit_slot)[excl]
+pred_slot = pred_dummy(
+  fit_slot,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat,
+  newdata = newdata_slot,
+  exclude = yr_coefs
+)
+newdata_slot = cbind(newdata_slot, fit=pred_slot$fit, se.fit=pred_slot$se.fit )
+newdata_slot$lower = newdata_slot$fit + (qnorm(0.025)*newdata_slot$se.fit)
+newdata_slot$upper = newdata_slot$fit + (qnorm(0.975)*newdata_slot$se.fit)
+
+
+# focus on strata that introduced slot limits during sampling period
+newdata_slot2 <- newdata_slot %>% 
+  filter(
+    strata %in% c("Swiftsure", "Nitinat", "Renfrew")
+  )
+
+slot_pred_smooth <- ggplot(
+  newdata_slot2,
+  aes(week_n, fit, colour = slot_limit, fill = slot_limit)
+) +
+  geom_point(
+    data = agg_dat_slot %>%
+      filter(strata %in% newdata_slot2$strata),
+    aes(x = week_n, y = agg_ppn, size = sample_id_n, colour = slot_limit),
+    alpha = 0.3, position = position_dodge(width = 0.5) 
+  ) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
+  facet_grid(stock_group ~ strata) +
+  coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
+  labs(
+    y = "Predicted Proportion of Fishery Sample",
+    fill = "Slot\nLimit",
+    colour = "Slot\nLimit",
+    size = "Sample\nSize"
+  ) +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37, 41),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) 
+
+png(
+  here::here("figs", "ms_figs", "smooth_preds_slot_limit.png"),
+  height = 5, width = 5, units = "in", res = 250
+)
+slot_pred_smooth
+dev.off()
+
+
+## Slot limit analysis
+large_dat <- dat %>%
+  filter(fl >= 750) %>%
+  group_by(sample_id) %>%
+  mutate(sample_id_n = sum(prob)) %>%
+  ungroup()
+sample_key_large <- large_dat %>%
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>%
+  distinct()
+
+agg_dat_large <- expand.grid(
+  sample_id = unique(large_dat$sample_id),
+  stock_group = unique(large_dat$stock_group)
+) %>% 
+  left_join(., sample_key_large, by = "sample_id") %>% 
+  left_join(
+    ., 
+    large_dat %>% 
+      group_by(sample_id, stock_group) %>% 
+      summarize(
+        agg_prob = sum(prob)
+      ) %>% 
+      ungroup(),
+    by = c("sample_id", "stock_group")
+  ) %>% 
+  mutate(
+    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
+    agg_ppn = agg_prob / sample_id_n,
+    year_n = as.numeric(year),
+    year = as.factor(year),
+    stock_group = as.factor(stock_group),
+    utm_x_m = utm_x * 1000,
+    utm_y_m = utm_y * 1000
+  ) 
+
+# Includes smooth for year by stock group
+system.time(
+  fit_large <- gam(
+    agg_prob ~ 0 + stock_group + 
+      s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year_n, by = stock_group, k = 4, bs = "tp"),
+    data = agg_dat_large, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit3) = c( "mvtweedie", class(fit3) )
+saveRDS(
+  fit3,
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+  )
+)
