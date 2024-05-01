@@ -321,17 +321,16 @@ dev.off()
 
 ## favor third model since it generates year-specific estimates and appears
 # to converge well
-fit_raw <- readRDS(
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
-
+# fit_raw <- readRDS(
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
 # fit <- readRDS(
 #     here::here(
 #       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
 #     )
-fit2 <- readRDS(
-  here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
-)
+# fit2 <- readRDS(
+#   here::here(
+#     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
+# )
 fit3 <- readRDS(
   here::here(
       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"

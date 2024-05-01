@@ -548,12 +548,12 @@ wide_size <- wide_rec4 %>%
   mutate(
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 551, 751, 851, Inf), 
-      labels = c("<55", "55-75", "75-85", ">85")
+      breaks = c(-Inf, 651, 701, 751, 801, 851, Inf), 
+      labels = c("<65", "65-70", "70-75", "75-80", "80-85", ">85")
     ),
-    size_bin2 = factor(
-      size_bin, labels = c("sublegal", "small", "medium", "large")
-    ),
+    # size_bin2 = factor(
+    #   size_bin, labels = c("sublegal", "small", "medium", "large")
+    # ),
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
