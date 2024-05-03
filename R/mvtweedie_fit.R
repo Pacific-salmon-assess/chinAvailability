@@ -105,9 +105,9 @@ agg_dat <- expand.grid(
     sg_year = paste(stock_group, year, sep = "_") %>% 
       as.factor()
   ) 
-saveRDS(
-  agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
-)
+# saveRDS(
+#   agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
+# )
 
 
 # SMU colour palette
@@ -349,7 +349,8 @@ fit_sdmTMB <- sdmTMB(
   agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
     s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-    s(year_n, by = stock_group, k = 4, bs = "tp"),
+    (1 | year)
+  ,
   data = agg_dat,
   spatial = "off",
   spatiotemporal = "off",
@@ -552,7 +553,7 @@ summer_pred_stacked <- ggplot(
             stat = "identity") +
   scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
   scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
-  labs(y = "Predicted Mean Composition of Diet Sample", x = "Week") +
+  labs(y = "Predicted Mean Composition of Fishery Sample", x = "Week") +
   ggsidekick::theme_sleek() +
   theme(
     legend.position = "top",
