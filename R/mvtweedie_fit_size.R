@@ -102,7 +102,6 @@ size_colour_pal <- c("grey30", "#8c510a", "#d8b365", "#f6e8c3", "#c7eae5",
 names(size_colour_pal) <- c(NA, levels(agg_dat$size_bin))
 
 
-
 ## DATA FIGURES ----------------------------------------------------------------
 
 # sampling coverage 
@@ -177,21 +176,75 @@ dev.off()
 
 ## FIT MODEL -------------------------------------------------------------------
 
-
 system.time(
   fit <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+    agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "cc") +
       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(year_n, by = stock_group, k = 4, bs = "tp"),
+      s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year_n, by = size_bin, k = 4, bs = "tp"),
     data = agg_dat, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
   )
 )
-class(fit3) = c( "mvtweedie", class(fit3) )
+class(fit) = c( "mvtweedie", class(fit) )
 saveRDS(
-  fit3,
+  fit,
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+    "data", "model_fits", "mvtweedie", "fit_size_yr_s_mvtw.rds"
   )
 )
+
+
+## DIAGNOSTICS -----------------------------------------------------------------
+
+## CHECK -----------------------------------------------------------------------
+
+ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
+
+
+# simulate by fitting sdmTMB equivalent of univariate Tweedie
+library(sdmTMB)
+fit_sdmTMB <- sdmTMB(
+  agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "cc") +
+    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(year_n, by = size_bin, k = 4, bs = "tp"),
+  data = agg_dat,
+  spatial = "off",
+  spatiotemporal = "off",
+  family = tweedie(link = "log"),
+  knots = list(week_n = c(0, 52))
+)
+saveRDS(
+  fit_sdmTMB,
+  here::here("data", "model_fits", "mvtweedie", "fit_size_yr_s_sdmTMB.rds")
+)
+
+# ppn zeros
+sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
+s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
+sum(s_sdmTMB == 0) / length(s_sdmTMB)
+
+sdmTMBextra::dharma_residuals(s_sdmTMB, fit_sdmTMB)
+
+
+# look at average stock comp 
+avg_sim_comp <- s_sdmTMB %>% 
+  as.data.frame() %>% 
+  mutate(stock_group = agg_dat$stock_group,
+         obs_prob = agg_dat$agg_prob) %>% 
+  pivot_longer(
+    cols = starts_with("V"),
+    names_to = "sim_number",
+    values_to = "prob"
+  ) %>% 
+  group_by(stock_group, sim_number) %>% 
+  summarize(
+    mean_sim_prob = mean(prob),
+    mean_obs_prob = mean(obs_prob)
+  )
+
+ggplot(data = avg_sim_comp) +
+  geom_boxplot(aes(x = stock_group, y = mean_sim_prob)) +
+  geom_point(aes(x = stock_group, y = mean_obs_prob), col = "red") +
+  ggsidekick::theme_sleek()
