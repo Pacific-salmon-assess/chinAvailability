@@ -500,7 +500,7 @@ long_rec <- wide_rec4_trim %>%
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
-      lon < -124 & year < 2018, "no", "yes" 
+      (lon < -124 | strata == "saanich") & year < 2018, "no", "yes" 
     )
   )
 
@@ -566,32 +566,32 @@ size_n <- wide_size %>%
   group_by(month_n, year, strata) %>% 
   tally() 
 
-ggplot(size_n) +
-  geom_raster(aes(x = month_n, y = year, fill = n)) +
-  facet_wrap(~strata)
-
-wide_size %>%
-  group_by(size_bin, month_n, strata) %>%
-  summarize(n = length(unique(id))) %>%
-  group_by(month_n, strata) %>% 
-  mutate(total_n = sum(n),
-         ppn_obs = n / total_n) %>% 
-  ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
-  geom_bar(position="stack", stat="identity") +
-  ggsidekick::theme_sleek() +
-  facet_wrap(~strata)
-
-wide_size %>%
-  filter(strata %in% c("renfrew", "swiftsure", "swiftsure_nearshore")) %>% 
-  group_by(size_bin, month_n, strata, slot_limit) %>%
-  summarize(n = length(unique(id))) %>%
-  group_by(month_n, strata, slot_limit) %>% 
-  mutate(total_n = sum(n),
-         ppn_obs = n / total_n) %>% 
-  ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
-  geom_bar(position="stack", stat="identity") +
-  ggsidekick::theme_sleek() +
-  facet_wrap(slot_limit~strata)
+# ggplot(size_n) +
+#   geom_raster(aes(x = month_n, y = year, fill = n)) +
+#   facet_wrap(~strata)
+# 
+# wide_size %>%
+#   group_by(size_bin, month_n, strata) %>%
+#   summarize(n = length(unique(id))) %>%
+#   group_by(month_n, strata) %>% 
+#   mutate(total_n = sum(n),
+#          ppn_obs = n / total_n) %>% 
+#   ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
+#   geom_bar(position="stack", stat="identity") +
+#   ggsidekick::theme_sleek() +
+#   facet_wrap(~strata)
+# 
+# wide_size %>%
+#   filter(strata %in% c("renfrew", "swiftsure", "swiftsure_nearshore")) %>% 
+#   group_by(size_bin, month_n, strata, slot_limit) %>%
+#   summarize(n = length(unique(id))) %>%
+#   group_by(month_n, strata, slot_limit) %>% 
+#   mutate(total_n = sum(n),
+#          ppn_obs = n / total_n) %>% 
+#   ggplot(., aes(x = as.factor(month_n), y = ppn_obs, fill = size_bin)) +
+#   geom_bar(position="stack", stat="identity") +
+#   ggsidekick::theme_sleek() +
+#   facet_wrap(slot_limit~strata)
 
 saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
