@@ -102,8 +102,10 @@ agg_dat <- expand.grid(
 
 
 # SMU colour palette
-size_colour_pal <- c("grey30", "#8c510a", "#d8b365", "#f6e8c3", "#c7eae5"#, 
-                    # "#5ab4ac", "#01665e"
+size_colour_pal <- c("grey30", "#8c510a", #"#d8b365", 
+                     "#f6e8c3", "#c7eae5", 
+                    # "#5ab4ac",
+                    "#01665e"
                     )
 names(size_colour_pal) <- c(NA, levels(agg_dat$size_bin))
 
@@ -166,14 +168,14 @@ rec_size_bar_summer <- dat %>%
   )
 
 png(
-  here::here("figs", "ms_figs", "rec_monthly_size_bar.png"),
+  here::here("figs", "size_comp_fishery", "rec_monthly_size_bar.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_size_bar
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "rec_monthly_size_bar_summer.png"),
+  here::here("figs", "size_comp_fishery", "rec_monthly_size_bar_summer.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_size_bar_summer
@@ -340,21 +342,21 @@ summer_pred_stacked <- ggplot(
 
 
 png(
-  here::here("figs", "ms_figs", "size_smooth_preds_chinook.png"),
+  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "size_smooth_preds_chinook_xaxis.png"),
+  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_xaxis.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds_fullx
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "size_smooth_preds_chinook_stacked.png"),
+  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_stacked.png"),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_pred_stacked
@@ -362,7 +364,6 @@ dev.off()
 
 
 ## spatial predictions
-
 
 # pfma sf dataframe to subset pred grid
 pfma_sf <- readRDS(
@@ -518,22 +519,165 @@ spatial_pred_se <- ggplot() +
 
 
 png(
-  here::here("figs", "ms_figs", "spatial_size_preds.png"),
+  here::here("figs", "size_comp_fishery", "spatial_size_preds.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds_size_scaled.png"),
+  here::here("figs", "size_comp_fishery", "spatial_preds_size_scaled.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds_size_se.png"),
+  here::here("figs", "size_comp_fishery", "spatial_preds_size_se.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_se
+dev.off()
+
+
+## SENSITIVITY ANALYSES --------------------------------------------------------
+
+# 1) Evaluate impact of slot limit by fitting model only to data west of Sooke
+# and pre-2019
+
+## Slot limit analysis
+agg_dat_slot <- expand.grid(
+  sample_id = unique(dat$sample_id),
+  size_bin = unique(dat$size_bin)
+  ) %>% 
+  left_join(., sample_key, by = "sample_id") %>% 
+  left_join(
+    ., 
+    dat %>% 
+      group_by(sample_id, size_bin) %>% 
+      summarize(
+        agg_prob = sum(length(unique(id)))
+      ) %>% 
+      ungroup(),
+    by = c("sample_id", "size_bin")
+  ) %>% 
+  mutate(
+    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
+    agg_ppn = agg_prob / sample_id_n,
+    size_bin = as.factor(size_bin),
+    utm_x_m = utm_x * 1000,
+    utm_y_m = utm_y * 1000
+  ) 
+
+system.time(
+  fit_slot <- gam(
+    agg_prob ~ 0 + size_bin*slot_limit + 
+      s(week_n, by = size_bin, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25),
+    data = agg_dat_slot, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit_slot) = c( "mvtweedie", class(fit_slot) )
+saveRDS(
+  fit_slot,
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_size_slot.rds"
+  )
+)
+
+
+## estimate slot limit period effects
+slot_pars <- broom::tidy(fit_slot, parametric = TRUE, conf.int = TRUE) %>% 
+  filter(grepl("slot", term)) %>% 
+  mutate(
+    size_bin = levels(agg_dat$size_bin) %>% 
+      factor(., levels = levels(agg_dat$size_bin))
+  ) 
+
+slot_plot <- ggplot(slot_pars) +
+  geom_pointrange(
+    aes(x = size_bin, y = estimate,  ymin = conf.low, ymax = conf.high, 
+        fill = size_bin), 
+    shape = 21) +
+  scale_fill_manual(values = size_colour_pal) +
+  geom_hline(aes(yintercept = 0), lty = 2) +
+  ggsidekick::theme_sleek() +
+  labs(y = "Effect of Slot Limit") +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+png(
+  here::here("figs", "size_comp_fishery", "slot_limit_effect_size.png"),
+  height = 3.5, width = 5, units = "in", res = 250
+)
+slot_plot
+dev.off()
+
+
+newdata_slot <- expand.grid(
+  strata = levels(agg_dat_slot$strata),
+  week_n = seq(25, 38, by = 0.25),
+  size_bin = levels(agg_dat_slot$size_bin),
+  slot_limit = unique(agg_dat_slot$slot_limit)
+) %>%
+  left_join(., loc_key, by = 'strata') %>% 
+  mutate(
+    strata = factor(strata, levels = levels(agg_dat_slot$strata))
+  ) 
+
+pred_slot = predict(
+  fit_slot,
+  se.fit = TRUE,
+  category_name = "size_bin",
+  origdata = agg_dat,
+  newdata = newdata_slot
+)
+newdata_slot = cbind(newdata_slot, fit=pred_slot$fit, se.fit=pred_slot$se.fit )
+newdata_slot$lower = newdata_slot$fit + (qnorm(0.025)*newdata_slot$se.fit)
+newdata_slot$upper = newdata_slot$fit + (qnorm(0.975)*newdata_slot$se.fit)
+
+
+# focus on strata that introduced slot limits during sampling period
+newdata_slot2 <- newdata_slot %>% 
+  filter(
+    strata %in% c("Swiftsure", "Nitinat", "Renfrew")
+  )
+
+slot_pred_smooth <- ggplot(
+  newdata_slot2,
+  aes(week_n, fit, colour = slot_limit, fill = slot_limit)
+) +
+  geom_point(
+    data = agg_dat_slot %>%
+      filter(strata %in% newdata_slot2$strata),
+    aes(x = week_n, y = agg_ppn, size = sample_id_n, colour = slot_limit),
+    alpha = 0.3, position = position_dodge(width = 0.5) 
+  ) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
+  facet_grid(size_bin ~ strata) +
+  coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
+  labs(
+    y = "Predicted Proportion of Fishery Sample",
+    fill = "Slot\nLimit",
+    colour = "Slot\nLimit",
+    size = "Sample\nSize"
+  ) +
+  ggsidekick::theme_sleek() +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37, 41),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) 
+
+png(
+  here::here("figs", "size_comp_fishery", "smooth_preds_slot_limit_size.png"),
+  height = 5, width = 5, units = "in", res = 250
+)
+slot_pred_smooth
 dev.off()
