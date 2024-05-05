@@ -518,21 +518,21 @@ spatial_pred_se <- ggplot() +
 
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds.png"),
+  here::here("figs", "ms_figs", "spatial_size_preds.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds_scaled.png"),
+  here::here("figs", "ms_figs", "spatial_preds_size_scaled.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds_se.png"),
+  here::here("figs", "ms_figs", "spatial_preds_size_se.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_se
