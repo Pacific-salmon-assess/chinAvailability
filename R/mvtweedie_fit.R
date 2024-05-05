@@ -219,35 +219,35 @@ rec_samp_bar_summer_h <- dat %>%
 
 
 png(
-  here::here("figs", "ms_figs", "rec_temporal_sample_coverage.png"),
+  here::here("figs", "stock_comp_fishery", "rec_temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_cov
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "rec_monthly_comp_bar.png"),
+  here::here("figs", "stock_comp_fishery", "rec_monthly_comp_bar.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "rec_monthly_comp_bar_summer.png"),
+  here::here("figs", "stock_comp_fishery", "rec_monthly_comp_bar_summer.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_summer
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "rec_monthly_hatchery_comp_bar.png"),
+  here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_h
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "rec_monthly_hatchery_comp_bar_summer.png"),
+  here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar_summer.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_summer_h
@@ -281,21 +281,21 @@ dev.off()
 
 
 # Includes year/stock as RE (doesn't produce changes)
-# system.time(
-#   fit2 <- gam(
-#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(sg_year, bs = "re"),
-#     data = agg_dat, family = "tw", method = "REML"#,
-#     # knots = list(week_n = c(0, 52))
-#   )
-# )
-# class(fit2) = c( "mvtweedie", class(fit2) )
-# saveRDS(
-#   fit2,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
-# )
+system.time(
+  fit2 <- gam(
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year, bs = "re"),
+    data = agg_dat, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit2) = c( "mvtweedie", class(fit2) )
+saveRDS(
+  fit2,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
+)
 
 
 # Includes smooth for year by stock group
@@ -320,22 +320,22 @@ dev.off()
 
 
 ## favor third model since it generates year-specific estimates and appears
-# to converge well
+# to converge well; UPDATE -- does not converge with sdmTMB switch to RIs
 # fit_raw <- readRDS(
 #   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
 # fit <- readRDS(
 #     here::here(
 #       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
 #     )
-# fit2 <- readRDS(
-#   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_mvtw.rds")
-# )
-fit3 <- readRDS(
+fit2 <- readRDS(
   here::here(
-      "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
-    )
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
 )
+# fit3 <- readRDS(
+#   here::here(
+#       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+#     )
+# )
   
 
 ## CHECK -----------------------------------------------------------------------
@@ -349,6 +349,7 @@ fit_sdmTMB <- sdmTMB(
   agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
     s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+    # s(year_n, by = stock_group, bs = "tp", k = 7)
     (1 | year)
   ,
   data = agg_dat,
