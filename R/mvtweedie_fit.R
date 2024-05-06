@@ -350,8 +350,8 @@ fit_sdmTMB <- sdmTMB(
     s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
     # s(year_n, by = stock_group, bs = "tp", k = 7)
-    # (1 | year)
-    (1 | sg_year)
+    (1 | year)
+    # (1 | sg_year)
   ,
   data = agg_dat,
   spatial = "off",
@@ -361,7 +361,7 @@ fit_sdmTMB <- sdmTMB(
 )
 saveRDS(
   fit_sdmTMB,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_sdmTMB.rds")
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
 
 # ppn zeros
@@ -378,8 +378,7 @@ sim_comp <- s_sdmTMB %>%
   cbind(
     ., 
     agg_dat %>% 
-      select(sample_id, stock_group, strata, obs_prob = agg_prob, 
-             obs_ppn = agg_ppn)
+      select(sample_id, stock_group, strata, week_n      )
     ) %>% 
   # mutate(stock_group = agg_dat$stock_group,
   #        obs_prob = agg_dat$agg_prob) %>% 
@@ -396,17 +395,36 @@ avg_sim_comp <- sim_comp %>%
     sim_sample_conc = sum(conc),
     sim_ppn = conc / sim_sample_conc
   ) %>% 
+  filter(!is.na(sim_ppn),
+         week_n > 24 & week_n < 40) %>% 
   group_by(strata, stock_group, sim_number) %>% 
   summarize(
-    mean_sim_ppn = mean(sim_ppn),
-    mean_obs_ppn = mean(obs_ppn)
+    mean_sim_ppn = mean(sim_ppn)
+  )
+avg_obs_comp <- agg_dat %>% 
+  filter(week_n > 24 & week_n < 40) %>% 
+  group_by(strata, stock_group) %>% 
+  summarize(
+    mean_obs_ppn = mean(agg_ppn)
   )
 
-ggplot(data = avg_sim_comp) +
-  geom_boxplot(aes(x = stock_group, y = mean_sim_ppn)) +
-  geom_point(aes(x = stock_group, y = mean_obs_ppn), col = "red") +
+post_sim <- ggplot() +
+  geom_boxplot(data = avg_sim_comp ,
+               aes(x = stock_group, y = mean_sim_ppn)) +
+  geom_point(data = avg_obs_comp %>% 
+               filter(week_n > 24 & week_n < 40),
+             aes(x = stock_group, y = mean_obs_ppn), col = "red") +
   ggsidekick::theme_sleek() +
   facet_wrap(~strata)
+
+
+png(
+  here::here("figs", "stock_comp_fishery", "posterior_sims.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+post_sim
+dev.off()
+
 
 
 ## simulate based on:

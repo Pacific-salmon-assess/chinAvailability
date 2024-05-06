@@ -8,16 +8,15 @@ library(tidyverse)
 
 gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   mutate(
-    #add management measure effect accounting for slot limits
-    mm = ifelse(year %in% c("2019", "2020", "2021", "2022"), "yes", "no"),
-    stock_group = case_when(
+    age_stock_group = case_when(
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
       grepl("Fraser", region1name) ~ region1name,
       TRUE ~ pst_agg
     )
   ) %>%
   group_by(
-    id, strata, stock_group, week_n, month_n, mm, fl, age, sw_age, year
+    id, strata, stock_group, age_stock_group, week_n, month_n, slot_limit, fl,
+    age, sw_age, origin, year
   ) %>% 
   summarize(
     sum_prob = sum(prob), .groups = "drop"
@@ -37,8 +36,8 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke/\nVictoria",
                  "S. Gulf\nIslands", "Saanich")
     ),
-    stock_group = factor(
-      stock_group,
+    age_stock_group = factor(
+      age_stock_group,
       levels = c(
         "CA_ORCST", "CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp",
         "CR-lower_fa", "WACST", "PSD", "WCVI", "ECVI_SOMN",
@@ -46,24 +45,35 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
         "Fraser_Summer_4.1", "Fraser_Fall",  "NBC_SEAK"
       )
     ),
-    age_stock_group = stock_group,
     year_f = as.factor(year),
     age_f = as.factor(age),
-    sw_age = as.factor(sw_age)
-  ) %>% 
-  filter(
-    !is.na(sw_age)
-  )
+    sw_age = as.factor(sw_age),
+    size_bin = cut(
+      fl, 
+      breaks = c(-Inf, 651, 751, 851, Inf), 
+      labels = c("<65", "65-75", "75-85", ">85")
+    ),
+    origin = factor(
+      origin, levels = c("wild", "hatchery", "unknown")
+    )
+  ) 
+
+
+# colour palettes
+size_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
+names(size_pal) <- c(NA, levels(gsi$size_bin))
+  
+age_pal <- c("grey30", "#1f78b4", "#a6cee3", "#b2df8a", "#33a02c")
+names(age_pal) <- levels(NA, gsi$sw_age)
+
+origin_pal <- c("#ef8a62", "#ffffff", "#999999")
+names(origin_pal) <- levels(gsi$origin)
   
 
 ## AGE COMPOSITION -------------------------------------------------------------
 
-age_pal <- c(
-  "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c"
-)
-names(age_pal) <- levels(gsi$sw_age)
-
 age_comp <- gsi %>%
+  filter(!is.na(sw_age)) %>% 
   group_by(stock_group) %>%
   mutate(age_n = n()) %>%
   ungroup() %>%
@@ -97,6 +107,43 @@ age_comp_stacked
 dev.off()
 
 
+## HATCHERY COMPOSITION --------------------------------------------------------
+
+origin_comp <- gsi %>%
+  group_by(stock_group) %>%
+  mutate(origin_n = n()) %>%
+  ungroup() %>%
+  group_by(stock_group, origin, origin_n) %>%
+  tally() %>% 
+  mutate(prop = n / origin_n)
+
+labs_origin_comp <- origin_comp %>%
+  ungroup() %>% 
+  select(stock_group, origin_n) %>% 
+  distinct()
+
+origin_comp_stacked <- ggplot() +
+  geom_bar(data = origin_comp,
+           aes(fill = origin, y = prop, x = stock_group),
+           position="stack", stat="identity", colour = "black") +
+  geom_text(data = labs_origin_comp, 
+            aes(x = stock_group, y = 0.05, label = origin_n)) +
+  scale_fill_manual(name = "Marine\nAge", values = origin_pal, 
+                    na.value = "grey60" ) +
+  labs(y = "Proportion Age Composition", x = "Stock") +
+  ggsidekick::theme_sleek() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust=1)
+  )
+
+png(
+  here::here("figs", "stock_size_age", "comp_bar_fishery_origin.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+origin_comp_stacked
+dev.off()
+
+
 ## BODY SIZE -------------------------------------------------------------------
 
 # add fill color by SMU
@@ -126,7 +173,7 @@ fit <- gam(
   fl ~ 0 + sw_age + s(week_n, bs = "tp", k = 4, m = 2) +
     s(week_n, bs = "tp", by = sw_age, k = 4, m = 1) +
     s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) +
-    mm:age_stock_group + s(year_f, bs = "re"),
+    slot_limit:age_stock_group + s(year_f, bs = "re"),
   data = gsi
 )
 saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
@@ -135,20 +182,25 @@ saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
 # make predictions, constraining to weeks where stocks present
 stock_week <- gsi %>% 
   filter(month_n > 4 & month_n < 11) %>% 
-  group_by(week_n, stock_group) %>% 
+  group_by(week_n, age_stock_group) %>% 
   tally() 
 
 ggplot(stock_week,
-       aes(x = week_n, y = stock_group, size = n, fill = stock_group)) +
+       aes(x = week_n, y = age_stock_group, size = n, fill = age_stock_group)) +
   geom_point(shape = 21) +
   scale_size_continuous(trans = "log") +
   ggsidekick::theme_sleek()
 
 obs_weeks <- stock_week %>% 
-  group_by(stock_group) %>% 
+  group_by(age_stock_group) %>% 
   summarize(max_obs_week = max(week_n),
             min_obs_week = min(week_n))
 
+stock_age <- gsi %>% 
+  group_by(sw_age, age_stock_group) %>% 
+  summarize(
+    age_n = length(unique(id))
+  ) 
 
 # restrict to weeks where at least two individuals sampled
 week_month <- data.frame(
@@ -157,18 +209,20 @@ week_month <- data.frame(
 )
 new_dat <- expand.grid(
   week_n = unique(week_month$week_n),
-  stock_group = unique(gsi_trim$stock_group),
-  sw_age = unique(gsi_trim$sw_age) %>% as.factor()
+  age_stock_group = unique(gsi$age_stock_group),
+  sw_age = unique(gsi$sw_age) %>% as.factor()
 ) %>% 
   left_join(., week_month, by = "week_n") %>% 
-  left_join(., obs_weeks, by = "stock_group") %>% 
-  # remove weeks where stock not observed
+  left_join(., obs_weeks, by = "age_stock_group") %>% 
+  left_join(., stock_age, by = c("age_stock_group", "sw_age")) %>% 
+  # remove weeks where stock not observed & rare age classes
   filter(
     !week_n > max_obs_week,
-    !week_n < min_obs_week
+    !week_n < min_obs_week,
+    !age_n < 5
   ) %>% 
   mutate(year_f = "2020",
-         mm = "no",
+         slot_limit = "yes",
          month = fct_reorder(month, week_n))
 
 preds <- predict(fit, newdata = new_dat,  se.fit = TRUE, 
@@ -187,13 +241,17 @@ size_month2 <- ggplot(new_dat2) +
         fill = sw_age),
     shape = 21
   ) +
-  facet_wrap(~stock_group) +
+  scale_fill_manual(name = "Marine\nAge", values = age_pal, 
+                    na.value = "grey60" ) +
+  facet_wrap(~age_stock_group) +
   ggsidekick::theme_sleek() +
   theme(
     axis.title.x = element_blank(),
     legend.position = "top"
+  ) +
+  labs(
+    y = "Predicted Fork Length"
   )
-
 
 png(
   here::here("figs", "stock_size_age", "mean_pred_fishery.png"),
