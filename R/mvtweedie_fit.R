@@ -178,44 +178,44 @@ rec_samp_bar_summer <- dat %>%
 
 
 # as above but for hatchery origin
-rec_samp_bar_h <- ggplot(dat) +
-  geom_bar(aes(x = month_n, y = prob, fill = origin), 
-           stat = "identity") +
-  facet_wrap(~strata) +
-  ggsidekick::theme_sleek() +
-  scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
-  labs(
-    y = "Recreational Fishery\nComposition"
-  ) +
-  scale_x_continuous(
-    breaks = c(1, 5, 9, 12),
-    labels = c("Jan", "May", "Sep", "Dec")
-  ) +
-  theme(
-    legend.position = "top",
-    axis.title.x = element_blank()
-  )
-
-# subset of monthly samples that matches RKW diet
-rec_samp_bar_summer_h <- dat %>% 
-  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
-  ggplot(.) +
-  geom_bar(aes(x = month_n, y = prob, fill = origin), 
-           stat = "identity") +
-  facet_wrap(~strata) +
-  ggsidekick::theme_sleek() +
-  scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
-  labs(
-    y = "Recreational Fishery\nComposition"
-  ) +
-  scale_x_continuous(
-    breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-  ) +
-  theme(
-    legend.position = "top",
-    axis.title.x = element_blank()
-  )
+# rec_samp_bar_h <- ggplot(dat) +
+#   geom_bar(aes(x = month_n, y = prob, fill = origin), 
+#            stat = "identity") +
+#   facet_wrap(~strata) +
+#   ggsidekick::theme_sleek() +
+#   scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
+#   labs(
+#     y = "Recreational Fishery\nComposition"
+#   ) +
+#   scale_x_continuous(
+#     breaks = c(1, 5, 9, 12),
+#     labels = c("Jan", "May", "Sep", "Dec")
+#   ) +
+#   theme(
+#     legend.position = "top",
+#     axis.title.x = element_blank()
+#   )
+# 
+# # subset of monthly samples that matches RKW diet
+# rec_samp_bar_summer_h <- dat %>% 
+#   filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+#   ggplot(.) +
+#   geom_bar(aes(x = month_n, y = prob, fill = origin), 
+#            stat = "identity") +
+#   facet_wrap(~strata) +
+#   ggsidekick::theme_sleek() +
+#   scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
+#   labs(
+#     y = "Recreational Fishery\nComposition"
+#   ) +
+#   scale_x_continuous(
+#     breaks = c(6, 7, 8, 9, 10),
+#     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+#   ) +
+#   theme(
+#     legend.position = "top",
+#     axis.title.x = element_blank()
+#   )
 
 
 png(
@@ -239,19 +239,19 @@ png(
 rec_samp_bar_summer
 dev.off()
 
-png(
-  here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar.png"),
-  height = 5, width = 7.5, units = "in", res = 250
-)
-rec_samp_bar_h
-dev.off()
-
-png(
-  here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar_summer.png"),
-  height = 5, width = 7.5, units = "in", res = 250
-)
-rec_samp_bar_summer_h
-dev.off()
+# png(
+#   here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar.png"),
+#   height = 5, width = 7.5, units = "in", res = 250
+# )
+# rec_samp_bar_h
+# dev.off()
+# 
+# png(
+#   here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar_summer.png"),
+#   height = 5, width = 7.5, units = "in", res = 250
+# )
+# rec_samp_bar_summer_h
+# dev.off()
 
 
 ## FIT MODEL -------------------------------------------------------------------
@@ -473,7 +473,7 @@ newdata_b <- newdata %>%
 
 # year-specific predictions
 pred3 = predict(
-  fit3,
+  fit2,
   # se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
@@ -481,10 +481,10 @@ pred3 = predict(
 )
 
 # average predictiosn
-excl <- grepl("year_n", gratia::smooths(fit3))
-yr_coefs <- gratia::smooths(fit3)[excl]
+excl <- grepl("year", gratia::smooths(fit2))
+yr_coefs <- gratia::smooths(fit2)[excl]
 pred3b = pred_dummy(
-  fit3,
+  fit2,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
