@@ -7,6 +7,9 @@ library(tidyverse)
 
 
 gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
+  filter(
+    !legal == "sublegal"
+  ) %>% 
   mutate(
     age_stock_group = case_when(
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
@@ -64,7 +67,7 @@ size_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
 names(size_pal) <- c(NA, levels(gsi$size_bin))
   
 age_pal <- c("grey30", "#1f78b4", "#a6cee3", "#b2df8a", "#33a02c")
-names(age_pal) <- levels(NA, gsi$sw_age)
+names(age_pal) <- c(NA, levels(gsi$sw_age))
 
 origin_pal <- c("#ef8a62", "#ffffff", "#999999")
 names(origin_pal) <- levels(gsi$origin)
@@ -89,7 +92,7 @@ labs_age_comp <- age_comp %>%
 age_comp_stacked <- ggplot() +
   geom_bar(data = age_comp,
            aes(fill = sw_age, y = prop, x = stock_group),
-           position="stack", stat="identity") +
+           position="stack", stat="identity", colour = "black") +
   geom_text(data = labs_age_comp, 
             aes(x = stock_group, y = 0.05, label = age_n)) +
   scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
@@ -128,9 +131,9 @@ origin_comp_stacked <- ggplot() +
            position="stack", stat="identity", colour = "black") +
   geom_text(data = labs_origin_comp, 
             aes(x = stock_group, y = 0.05, label = origin_n)) +
-  scale_fill_manual(name = "Marine\nAge", values = origin_pal, 
+  scale_fill_manual(name = "Brood\nOrigin", values = origin_pal, 
                     na.value = "grey60" ) +
-  labs(y = "Proportion Age Composition", x = "Stock") +
+  labs(y = "Proportion Hatchery Composition", x = "Stock") +
   ggsidekick::theme_sleek() +
   theme(
     axis.text.x = element_text(angle = 45, hjust=1)
@@ -141,6 +144,43 @@ png(
   height = 5, width = 8, units = "in", res = 250
 )
 origin_comp_stacked
+dev.off()
+
+
+## SIZE COMPOSITION ------------------------------------------------------------
+
+size_comp <- gsi %>%
+  filter(!is.na(size_bin)) %>% 
+  group_by(stock_group) %>%
+  mutate(size_n = n()) %>%
+  ungroup() %>%
+  group_by(stock_group, size_bin, size_n) %>%
+  tally() %>% 
+  mutate(prop = n / size_n)
+
+labs_size_comp <- size_comp %>%
+  ungroup() %>% 
+  select(stock_group, size_n) %>% 
+  distinct()
+
+size_comp_stacked <- ggplot() +
+  geom_bar(data = size_comp,
+           aes(fill = size_bin, y = prop, x = stock_group),
+           position="stack", stat="identity", colour = "black") +
+  geom_text(data = labs_size_comp,
+            aes(x = stock_group, y = 0.05, label = size_n)) +
+  scale_fill_manual(name = "Size\nClass", values = size_pal) +
+  labs(y = "Proportion Size Composition", x = "Stock") +
+  ggsidekick::theme_sleek() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust=1)
+  )
+
+png(
+  here::here("figs", "stock_size_age", "comp_bar_fishery_size.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+size_comp_stacked
 dev.off()
 
 

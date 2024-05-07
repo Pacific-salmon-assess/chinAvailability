@@ -59,22 +59,22 @@ pfma_areas$rkw_overlap <- ifelse(
 )
 
 # check by plotting
-ggplot() +
-  geom_sf(data = coast_albers, colour = "black", fill = "white") + 
-  geom_sf(data = hab_sf, colour = "red") +
-  # geom_sf(data = pfma_areas %>% filter(mgnt_area %in% c("19", "18")), 
-  #         aes(fill = as.factor(label))) +
-  geom_sf(data = pfma_areas, aes(colour = rkw_overlap), fill = NA) +
-  ggsidekick::theme_sleek()
-
-saveRDS(
-  hab_sf ,
-  here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
-)
-saveRDS(
-  pfma_areas ,
-  here::here("data", "spatial", "pfma_subareas_sBC.rds")
-)
+# ggplot() +
+#   geom_sf(data = coast_albers, colour = "black", fill = "white") + 
+#   geom_sf(data = hab_sf, colour = "red") +
+#   # geom_sf(data = pfma_areas %>% filter(mgnt_area %in% c("19", "18")), 
+#   #         aes(fill = as.factor(label))) +
+#   geom_sf(data = pfma_areas, aes(colour = rkw_overlap), fill = NA) +
+#   ggsidekick::theme_sleek()
+# 
+# saveRDS(
+#   hab_sf ,
+#   here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
+# )
+# saveRDS(
+#   pfma_areas ,
+#   here::here("data", "spatial", "pfma_subareas_sBC.rds")
+# )
 
 
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
@@ -398,7 +398,7 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
 
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jan2024.rds")) %>%
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
