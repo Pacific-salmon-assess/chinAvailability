@@ -8,7 +8,7 @@ library(tidyverse)
 
 gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   filter(
-    !legal == "sublegal"
+    !fl < 550
   ) %>% 
   mutate(
     age_stock_group = case_when(
@@ -221,7 +221,7 @@ saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
 
 # make predictions, constraining to weeks where stocks present
 stock_week <- gsi %>% 
-  filter(month_n > 4 & month_n < 11) %>% 
+  filter(month_n > 4 & month_n < 10) %>% 
   group_by(week_n, age_stock_group) %>% 
   tally() 
 
@@ -244,8 +244,8 @@ stock_age <- gsi %>%
 
 # restrict to weeks where at least two individuals sampled
 week_month <- data.frame(
-  week_n = c(20, 25, 29, 34, 37, 42),
-  month = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+  week_n = c(20, 25, 29, 34, 37),
+  month = c("May", "Jun", "Jul", "Aug", "Sep")
 )
 new_dat <- expand.grid(
   week_n = unique(week_month$week_n),
@@ -259,7 +259,8 @@ new_dat <- expand.grid(
   filter(
     !week_n > max_obs_week,
     !week_n < min_obs_week,
-    !age_n < 5
+    !age_n < 5,
+    !is.na(sw_age)
   ) %>% 
   mutate(year_f = "2020",
          slot_limit = "yes",

@@ -22,7 +22,7 @@ dat <- rec_raw %>%
   filter(
     !is.na(lat),
     !is.na(lon),
-    !legal == "sublegal",
+    !fl < 551,
     #exclude samples collected outside areas in relatively close proximity to 
     # SRKW foraging areas
     !strata == "other"
