@@ -411,8 +411,7 @@ avg_obs_comp <- agg_dat %>%
 post_sim <- ggplot() +
   geom_boxplot(data = avg_sim_comp ,
                aes(x = stock_group, y = mean_sim_ppn)) +
-  geom_point(data = avg_obs_comp %>% 
-               filter(week_n > 24 & week_n < 40),
+  geom_point(data = avg_obs_comp,
              aes(x = stock_group, y = mean_obs_ppn), col = "red") +
   ggsidekick::theme_sleek() +
   facet_wrap(~strata)
@@ -506,13 +505,13 @@ newdata_b <- newdata %>%
 # )
 
 # year-specific predictions
-pred3 = predict(
-  fit2,
-  # se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata
-)
+# pred3 = predict(
+#   fit2,
+#   # se.fit = TRUE,
+#   category_name = "stock_group",
+#   origdata = agg_dat,
+#   newdata = newdata
+# )
 
 # average predictiosn
 excl <- grepl("year", gratia::smooths(fit2))
@@ -535,8 +534,8 @@ pred3b = pred_dummy(
 # newdata2 <- cbind( newdata, fit=pred2) %>% 
 #   filter(!strata == "Saanich")
 # 
-newdata3 <- cbind( newdata, fit=pred3) %>%
-  filter(!strata == "Saanich")
+# newdata3 <- cbind( newdata, fit=pred3) %>%
+#   filter(!strata == "Saanich")
 newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
   mutate(
     lower = fit + (qnorm(0.025)*se.fit),
@@ -547,14 +546,14 @@ newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
 
 ## ribbon predictions
 # includes yearly variation
-summer_preds_yr <- ggplot(newdata3 , aes(week_n, fit)) +
-  geom_line(aes(colour = year)) +
-  facet_grid(stock_group~strata) +
-  scale_color_brewer(type = "qual", palette = "Paired", name = "") +
-  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
-  ggsidekick::theme_sleek() +
-  theme(legend.position = "top")
+# summer_preds_yr <- ggplot(newdata3 , aes(week_n, fit)) +
+#   geom_line(aes(colour = year)) +
+#   facet_grid(stock_group~strata) +
+#   scale_color_brewer(type = "qual", palette = "Paired", name = "") +
+#   coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+#   labs(y="Predicted Proportion", x = "Sampling Week") +
+#   ggsidekick::theme_sleek() +
+#   theme(legend.position = "top")
 
 # integrates out yearly variation
 summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
@@ -604,29 +603,29 @@ summer_pred_stacked <- ggplot(
   )
 
 
-png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_year.png"),
-  height = 8.5, width = 6.5, units = "in", res = 250
-)
-summer_preds_yr
-dev.off()
+# png(
+#   here::here("figs", "ms_figs", "smooth_preds_chinook_year.png"),
+#   height = 8.5, width = 6.5, units = "in", res = 250
+# )
+# summer_preds_yr
+# dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook.png"),
+  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_xaxis.png"),
+  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_xaxis.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
 summer_preds_fullx
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_chinook_stacked.png"),
+  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_stacked.png"),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_pred_stacked
@@ -682,7 +681,9 @@ new_dat_sp <- expand.grid(
   mutate(
     utm_y = Y / 1000,
     utm_x = X / 1000,
-    year_n = unique(agg_dat$year_n)[1]
+    year_n = unique(agg_dat$year_n)[1],
+    sg_year = paste(stock_group, year_n, sep = "_") %>% 
+      as.factor()
   )
   
 # key for month labels
@@ -695,10 +696,10 @@ month_key <- data.frame(
       fct_reorder(., week_n)
   )
 
-excl <- grepl("year_n", gratia::smooths(fit3))
-yr_coefs <- gratia::smooths(fit3)[excl]
+excl <- grepl("year", gratia::smooths(fit2))
+yr_coefs <- gratia::smooths(fit2)[excl]
 pred_sp <- pred_dummy(
-  fit3,
+  fit2,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
@@ -794,21 +795,21 @@ spatial_pred_se <- ggplot() +
 
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds.png"),
+  here::here("figs", "stock_comp_fishery", "spatial_preds.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds_scaled.png"),
+  here::here("figs", "stock_comp_fishery", "spatial_preds_scaled.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "spatial_preds_se.png"),
+  here::here("figs", "stock_comp_fishery", "spatial_preds_se.png"),
   height = 6, width = 6, units = "in", res = 250
 )
 spatial_pred_se

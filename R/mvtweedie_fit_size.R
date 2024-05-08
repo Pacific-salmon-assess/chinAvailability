@@ -20,6 +20,8 @@ size_raw <- readRDS(here::here("data", "rec", "rec_size.rds")) %>%
 
 dat <- size_raw %>% 
   filter(
+    # remove very small as in stock tweedie
+    !fl < 501,
     !is.na(size_bin),
     !is.na(lat),
     !is.na(lon),
@@ -43,9 +45,14 @@ dat <- size_raw %>%
     ),
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 651, 751, 851, Inf), 
-      labels = c("<65", "65-75", "75-85", ">85")
+      breaks = c(-Inf, 601, 701, 801, Inf), 
+      labels = c("<60", "60-75", "70-80", ">80")
     )
+    # size_bin = cut(
+    #   fl, 
+    #   breaks = c(-Inf, 651, 751, 851, Inf), 
+    #   labels = c("<65", "65-75", "75-85", ">85")
+    # )
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
@@ -218,16 +225,15 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
-  agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "cc") +
-    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25)# +
-    # (1 | year)
+  agg_prob ~ size_bin + s(week_n, by = size_bin, k = 7, bs = "tp") +
+    # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 12) 
     ,
-  data = agg_dat,
+  data = agg_dat %>% filter(!strata == "Saanich"),
   spatial = "off",
   spatiotemporal = "off",
-  family = tweedie(link = "log"),
-  knots = list(week_n = c(0, 52))
+  family = tweedie(link = "log")#,
+  # knots = list(week_n = c(0, 52))
 )
 saveRDS(
   fit_sdmTMB,
