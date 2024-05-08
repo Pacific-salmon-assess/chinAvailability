@@ -46,7 +46,7 @@ dat <- size_raw %>%
     size_bin = cut(
       fl, 
       breaks = c(-Inf, 601, 701, 801, Inf), 
-      labels = c("<60", "60-75", "70-80", ">80")
+      labels = c("<60", "60-70", "70-80", ">80")
     )
     # size_bin = cut(
     #   fl, 
@@ -225,15 +225,15 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
-  agg_prob ~ size_bin + s(week_n, by = size_bin, k = 7, bs = "tp") +
-    # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+  agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "tp") +
+    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
     s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 12) 
     ,
-  data = agg_dat %>% filter(!strata == "Saanich"),
+  data = agg_dat,
   spatial = "off",
   spatiotemporal = "off",
-  family = tweedie(link = "log")#,
-  # knots = list(week_n = c(0, 52))
+  family = tweedie(link = "log"),
+  knots = list(week_n = c(0, 52))
 )
 saveRDS(
   fit_sdmTMB,
