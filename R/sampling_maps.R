@@ -104,7 +104,7 @@ diet_samp_map <- ggplot() +
 
 
 png(
-  here::here("figs", "ms_figs", "study_area.png"),
+  here::here("figs", "study_area.png"),
   height = 7.5, width = 7.5, units = "in", res = 250
 )
 diet_samp_map
