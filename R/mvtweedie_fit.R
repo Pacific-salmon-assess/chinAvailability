@@ -513,7 +513,46 @@ newdata_b <- newdata %>%
 #   newdata = newdata
 # )
 
-# average predictiosn
+
+# average seasonal proportion by stock
+newdata_a <- newdata_b %>% 
+  filter(strata == agg_dat$strata[1])
+excl2 <- grepl("utm", gratia::smooths(fit2)) | 
+  grepl("year", gratia::smooths(fit2))
+utm_yr_coefs <- gratia::smooths(fit2)[excl2]
+pred3a = pred_dummy(
+  fit2,
+  se.fit = TRUE,
+  category_name = "stock_group",
+  origdata = agg_dat,
+  newdata = newdata_a,
+  exclude = utm_yr_coefs
+)
+
+newdata3a <- cbind( newdata_a, fit=pred3a$fit, se.fit=pred3a$se.fit ) %>%
+  mutate(
+    lower = fit + (qnorm(0.025)*se.fit),
+    upper = fit + (qnorm(0.975)*se.fit)
+  ) 
+
+season_preds <- ggplot(newdata3a, aes(week_n, fit)) +
+  geom_line(aes(colour = stock_group)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = stock_group), alpha = 0.5) +
+  facet_wrap(~stock_group) +
+  scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
+  scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
+  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  theme(legend.position = "top")
+
+season_preds_fullx <- season_preds +
+  coord_cartesian(xlim = c(0, 52), expand = FALSE) 
+
+
+
+# average across year predictions
 excl <- grepl("year", gratia::smooths(fit2))
 yr_coefs <- gratia::smooths(fit2)[excl]
 pred3b = pred_dummy(
@@ -524,36 +563,6 @@ pred3b = pred_dummy(
   newdata = newdata_b,
   exclude = yr_coefs
 )
-
-
-
-# newdata = cbind( newdata, fit=pred$fit, se.fit=pred$se.fit )
-# newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
-# newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)#+ newdata$se.fit
-# 
-# newdata2 <- cbind( newdata, fit=pred2) %>% 
-#   filter(!strata == "Saanich")
-# 
-# newdata3 <- cbind( newdata, fit=pred3) %>%
-#   filter(!strata == "Saanich")
-newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
-  mutate(
-    lower = fit + (qnorm(0.025)*se.fit),
-    upper = fit + (qnorm(0.975)*se.fit)
-  ) %>%
-  filter(!strata == "Saanich")
-
-
-## ribbon predictions
-# includes yearly variation
-# summer_preds_yr <- ggplot(newdata3 , aes(week_n, fit)) +
-#   geom_line(aes(colour = year)) +
-#   facet_grid(stock_group~strata) +
-#   scale_color_brewer(type = "qual", palette = "Paired", name = "") +
-#   coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
-#   labs(y="Predicted Proportion", x = "Sampling Week") +
-#   ggsidekick::theme_sleek() +
-#   theme(legend.position = "top")
 
 # integrates out yearly variation
 summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
@@ -602,13 +611,19 @@ summer_pred_stacked <- ggplot(
     labels = c("Jun", "Jul", "Aug", "Sep")
   )
 
+png(
+  here::here("figs", "stock_comp_fishery", "season_preds_chinook.png"),
+  height = 6.5, width = 6.5, units = "in", res = 250
+)
+season_preds
+dev.off()
 
-# png(
-#   here::here("figs", "ms_figs", "smooth_preds_chinook_year.png"),
-#   height = 8.5, width = 6.5, units = "in", res = 250
-# )
-# summer_preds_yr
-# dev.off()
+png(
+  here::here("figs", "stock_comp_fishery", "season_preds_chinook_xaxis.png"),
+  height = 6.5, width = 6.5, units = "in", res = 250
+)
+season_preds_fullx
+dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "smooth_preds_chinook.png"),
@@ -684,27 +699,31 @@ new_dat_sp <- expand.grid(
     year_n = unique(agg_dat$year_n)[1],
     sg_year = paste(stock_group, year_n, sep = "_") %>% 
       as.factor()
+  ) %>% 
+  filter(
+    week_n == "29"
   )
   
 # key for month labels
-month_key <- data.frame(
-  week_n = unique(new_dat_sp$week_n)
-) %>% 
-  mutate(
-    month = c("May", "Jun", "Jul", "Aug", "Sep") %>% 
-      as.factor() %>% 
-      fct_reorder(., week_n)
-  )
+# month_key <- data.frame(
+#   week_n = unique(new_dat_sp$week_n)
+# ) %>% 
+#   mutate(
+#     month = c("May", "Jun", "Jul", "Aug", "Sep") %>% 
+#       as.factor() %>% 
+#       fct_reorder(., week_n)
+#   )
 
-excl <- grepl("year", gratia::smooths(fit2))
-yr_coefs <- gratia::smooths(fit2)[excl]
+excl3 <- grepl("week_n", gratia::smooths(fit2)) | 
+  grepl("year", gratia::smooths(fit2))
+week_yr_coefs <- gratia::smooths(fit2)[excl3]
 pred_sp <- pred_dummy(
   fit2,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
   newdata = new_dat_sp,
-  exclude = yr_coefs
+  exclude = week_yr_coefs
 )
 
 coast <- rbind(rnaturalearth::ne_states( "United States of America", 
@@ -729,17 +748,21 @@ new_dat_sp_plot <- cbind(
     scaled_fit = fit / max(fit)
   ) %>% 
   ungroup() %>% 
-  left_join(
-    ., month_key, by = "week_n"
-  )
+  filter(week_n == "29")#%>% 
+  # left_join(
+  #   ., month_key, by = "week_n"
+  # )
 
 spatial_pred <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
               aes(x = X, y = Y, fill = fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_grid(
-    stock_group ~ month
+  facet_wrap(
+    ~ stock_group
   ) +
+  # facet_grid(
+  #   stock_group ~ month
+  # ) +
   scale_fill_viridis_c(
     name = "Predicted Proportion\nof Rec Catch"
   ) +
@@ -757,9 +780,12 @@ spatial_pred_scaled <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
               aes(x = X, y = Y, fill = scaled_fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_grid(
-    stock_group ~ month
+  facet_wrap(
+    ~ stock_group
   ) +
+  # facet_grid(
+  #   stock_group ~ month
+  # ) +
   scale_fill_viridis_c(
     option = "A",
     name = "Predicted Scaled\nProportion\nof Rec Catch"
@@ -778,9 +804,12 @@ spatial_pred_se <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
               aes(x = X, y = Y, fill = se.fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_grid(
-    stock_group ~ month
+  facet_wrap(
+    ~ stock_group
   ) +
+  # facet_grid(
+  #   stock_group ~ month
+  # ) +
   scale_fill_gradient2(
     name = "Predicted SE\nof Proportion\nEstimate"
   ) +
