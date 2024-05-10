@@ -345,22 +345,25 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
-fit_sdmTMB <- sdmTMB(
-  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-    # s(year_n, by = stock_group, bs = "tp", k = 7)
-    (1 | year)
-    # (1 | sg_year)
-  ,
-  data = agg_dat,
-  spatial = "off",
-  spatiotemporal = "off",
-  family = tweedie(link = "log"),
-  knots = list(week_n = c(0, 52))
-)
-saveRDS(
-  fit_sdmTMB,
+# fit_sdmTMB <- sdmTMB(
+#   agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+#     s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+#     # s(year_n, by = stock_group, bs = "tp", k = 7)
+#     (1 | year)
+#     # (1 | sg_year)
+#   ,
+#   data = agg_dat,
+#   spatial = "off",
+#   spatiotemporal = "off",
+#   family = tweedie(link = "log"),
+#   knots = list(week_n = c(0, 52))
+# )
+# saveRDS(
+#   fit_sdmTMB,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+# )
+fit_sdmTMB <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
 
@@ -369,7 +372,12 @@ sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
 
+png(
+  here::here("figs", "stock_comp_fishery", "qq_plot.png"),
+  height = 4, width = 4, units = "in", res = 250
+)
 sdmTMBextra::dharma_residuals(s_sdmTMB, fit_sdmTMB)
+dev.off()
 
 
 # look at average stock comp 
@@ -414,12 +422,15 @@ post_sim <- ggplot() +
   geom_point(data = avg_obs_comp,
              aes(x = stock_group, y = mean_obs_ppn), col = "red") +
   ggsidekick::theme_sleek() +
-  facet_wrap(~strata)
+  facet_wrap(~strata, ncol = 2) +
+  labs(y = "Mean Stock Composition") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank())
 
 
 png(
   here::here("figs", "stock_comp_fishery", "posterior_sims.png"),
-  height = 5, width = 7.5, units = "in", res = 250
+  height = 7.5, width = 4.5, units = "in", res = 250
 )
 post_sim
 dev.off()
@@ -538,18 +549,23 @@ newdata3a <- cbind( newdata_a, fit=pred3a$fit, se.fit=pred3a$se.fit ) %>%
 season_preds <- ggplot(newdata3a, aes(week_n, fit)) +
   geom_line(aes(colour = stock_group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill = stock_group), alpha = 0.5) +
-  facet_wrap(~stock_group) +
+  facet_wrap(~stock_group, scales = "free_y") +
   scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
   scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
-  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
+                  ) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  scale_x_continuous(
+    breaks = c(25, 29.25, 33.5, 38),
+    labels = c("Jun", "Jul", "Aug", "Sep")
+  )
 
 season_preds_fullx <- season_preds +
-  coord_cartesian(xlim = c(0, 52), expand = FALSE) 
-
+  coord_cartesian(xlim = c(0, 52), expand = FALSE)  +
+  scale_x_continuous()
 
 
 # average across year predictions
@@ -563,6 +579,12 @@ pred3b = pred_dummy(
   newdata = newdata_b,
   exclude = yr_coefs
 )
+
+newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
+  mutate(
+    lower = fit + (qnorm(0.025)*se.fit),
+    upper = fit + (qnorm(0.975)*se.fit)
+  ) 
 
 # integrates out yearly variation
 summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
@@ -580,10 +602,15 @@ summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  scale_x_continuous(
+    breaks = c(25, 29.25, 33.5, 38),
+    labels = c("Jun", "Jul", "Aug", "Sep")
+  )
 
 summer_preds_fullx <- summer_preds +
-  coord_cartesian(xlim = c(0, 52)) 
+  coord_cartesian(xlim = c(0, 52)) +
+  scale_x_continuous()
 
 
 ## stacked ribbon predictions
@@ -825,21 +852,21 @@ spatial_pred_se <- ggplot() +
 
 png(
   here::here("figs", "stock_comp_fishery", "spatial_preds.png"),
-  height = 6, width = 6, units = "in", res = 250
+  height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "spatial_preds_scaled.png"),
-  height = 6, width = 6, units = "in", res = 250
+  height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "spatial_preds_se.png"),
-  height = 6, width = 6, units = "in", res = 250
+  height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred_se
 dev.off()
@@ -876,6 +903,7 @@ agg_dat_slot <- expand.grid(
     year_n = as.numeric(year),
     year = as.factor(year),
     stock_group = as.factor(stock_group),
+    sg_year = paste(stock_group, year) %>% as.factor(),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
   ) 
@@ -886,7 +914,8 @@ system.time(
       s(week_n, by = stock_group, k = 7, bs = "cc") +
       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(year_n, by = stock_group, k = 4, bs = "tp"),
+      s(sg_year, bs = "re"),
+      # s(year_n, by = stock_group, k = 4, bs = "tp"),
     data = agg_dat_slot, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
   )
@@ -925,7 +954,7 @@ slot_plot <- ggplot(slot_pars) +
 
 
 png(
-  here::here("figs", "ms_figs", "slot_limit_effect.png"),
+  here::here("figs", "stock_comp_fishery", "slot_limit_effect.png"),
   height = 3.5, width = 5, units = "in", res = 250
 )
 slot_plot
@@ -942,7 +971,8 @@ newdata_slot <- expand.grid(
 ) %>%
   left_join(., loc_key, by = 'strata') %>% 
   mutate(
-    strata = factor(strata, levels = levels(agg_dat_slot$strata))
+    strata = factor(strata, levels = levels(agg_dat_slot$strata)),
+    sg_year = paste(stock_group, year_n, sep = "_") %>% as.factor()
   ) 
 
 excl <- grepl("year_n", gratia::smooths(fit_slot))
@@ -993,7 +1023,7 @@ slot_pred_smooth <- ggplot(
   ) 
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_slot_limit.png"),
+  here::here("figs", "stock_comp_fishery", "smooth_preds_slot_limit.png"),
   height = 5, width = 5, units = "in", res = 250
 )
 slot_pred_smooth
@@ -1032,7 +1062,8 @@ agg_dat_large <- expand.grid(
     year = as.factor(year),
     stock_group = as.factor(stock_group),
     utm_x_m = utm_x * 1000,
-    utm_y_m = utm_y * 1000
+    utm_y_m = utm_y * 1000,
+    sg_year = paste(stock_group, year) %>% as.factor()
   ) 
 
 # Includes smooth for year by stock group
@@ -1042,7 +1073,7 @@ system.time(
       s(week_n, by = stock_group, k = 7, bs = "cc") +
       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(year_n, by = stock_group, k = 4, bs = "tp"),
+      s(sg_year, bs = "re"),
     data = agg_dat_large, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
   )
