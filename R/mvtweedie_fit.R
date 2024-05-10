@@ -975,7 +975,7 @@ newdata_slot <- expand.grid(
     sg_year = paste(stock_group, year_n, sep = "_") %>% as.factor()
   ) 
 
-excl <- grepl("year_n", gratia::smooths(fit_slot))
+excl <- grepl("year", gratia::smooths(fit_slot))
 yr_coefs <- gratia::smooths(fit_slot)[excl]
 pred_slot = pred_dummy(
   fit_slot,
@@ -985,29 +985,29 @@ pred_slot = pred_dummy(
   newdata = newdata_slot,
   exclude = yr_coefs
 )
-newdata_slot = cbind(newdata_slot, fit=pred_slot$fit, se.fit=pred_slot$se.fit )
-newdata_slot$lower = newdata_slot$fit + (qnorm(0.025)*newdata_slot$se.fit)
-newdata_slot$upper = newdata_slot$fit + (qnorm(0.975)*newdata_slot$se.fit)
+data_slot = cbind(newdata_slot, fit=pred_slot$fit, se.fit=pred_slot$se.fit )
+data_slot$lower = data_slot$fit + (qnorm(0.025)*data_slot$se.fit)
+data_slot$upper = data_slot$fit + (qnorm(0.975)*data_slot$se.fit)
 
 
 # focus on strata that introduced slot limits during sampling period
-newdata_slot2 <- newdata_slot %>% 
+data_slot2 <- data_slot %>% 
   filter(
     strata %in% c("Swiftsure", "Nitinat", "Renfrew")
   )
 
 slot_pred_smooth <- ggplot(
-  newdata_slot2,
+  data_slot2,
   aes(week_n, fit, colour = slot_limit, fill = slot_limit)
 ) +
   geom_point(
     data = agg_dat_slot %>%
-      filter(strata %in% newdata_slot2$strata),
+      filter(strata %in% data_slot2$strata),
     aes(x = week_n, y = agg_ppn, size = sample_id_n, colour = slot_limit),
     alpha = 0.3, position = position_dodge(width = 0.5) 
   ) +
   geom_line() +
-  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
+  # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
   facet_grid(stock_group ~ strata) +
   coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
   labs(
@@ -1087,7 +1087,7 @@ saveRDS(
 )
 
 
-excl <- grepl("year_n", gratia::smooths(fit_large))
+excl <- grepl("year", gratia::smooths(fit_large))
 yr_coefs <- gratia::smooths(fit_large)[excl]
 pred_large = pred_dummy(
   fit_large,
@@ -1125,7 +1125,7 @@ large_pred_smooth <- ggplot(newdata_large, aes(week_n, fit)) +
   theme(legend.position = "top")
 
 png(
-  here::here("figs", "ms_figs", "smooth_preds_large.png"),
+  here::here("figs", "stock_comp_fishery", "smooth_preds_large.png"),
   height = 5, width = 5, units = "in", res = 250
 )
 large_pred_smooth
@@ -1135,7 +1135,7 @@ dev.off()
 ## compare predictions from all 3 models
 fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds"
   )
 )
 fit_slot <- readRDS(
@@ -1151,7 +1151,7 @@ fit_large <- readRDS(
 fit_list <- list(fit, fit_slot, fit_large)
 model_names <- c("full", "slot", "large")
 
-excl <- grepl("year_n", gratia::smooths(fit))
+excl <- grepl("year", gratia::smooths(fit))
 yr_coefs <- gratia::smooths(fit)[excl]
 
 pred_list <- purrr::map(
@@ -1192,7 +1192,7 @@ model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   theme(legend.position = "top")
 
 png(
-  here::here("figs", "ms_figs", "model_comp.png"),
+  here::here("figs", "stock_comp_fishery", "model_comp.png"),
   height = 5, width = 5, units = "in", res = 250
 )
 model_comp_smooth
