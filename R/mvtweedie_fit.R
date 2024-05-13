@@ -291,7 +291,18 @@ system.time(
     knots = list(week_n = c(0, 52))
   )
 )
+system.time(
+  fit2b <- gam(
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(year, bs = "re"),
+    data = agg_dat, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
 class(fit2) = c( "mvtweedie", class(fit2) )
+class(fit2b) = c( "mvtweedie", class(fit2b) )
 saveRDS(
   fit2,
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw_raw.rds")
@@ -443,23 +454,34 @@ png(
 post_sim
 dev.off()
 
+
+
 nd <- newdata %>% 
   filter(
     year %in% c("2022", "2023"),
     week_n == "30",
     strata == "Renfrew"
   )
-pp <- predict(fit2, newdata = nd)
-pp$exp_est <- exp(pp$est)
+pp <- predict(fit2, se.fit = FALSE,
+              category_name = "stock_group",
+              origdata = agg_dat,
+              newdata = nd)
+ppb <- predict(fit2b, se.fit = FALSE,
+               category_name = "stock_group",
+               origdata = agg_dat,
+               newdata = nd)
+nd$exp_est2 <- exp(ppb) %>% unlist
 
-pp2 <- pp %>% 
+pp2 <- nd %>% 
   group_by(year) %>% 
   mutate(
-    nn = sum(exp_est)
+    nn = sum(exp_est),
+    nn2 = sum(exp_est2)
   ) %>% 
   ungroup() %>% 
   mutate(
-    prob = exp_est / nn
+    prob = exp_est / nn,
+    prob2 = exp_est2 / nn2
   )
 
 ## simulate based on:
