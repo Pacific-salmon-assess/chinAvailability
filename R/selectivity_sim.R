@@ -58,12 +58,23 @@ agg_dat <- readRDS(
 )
 
 
-# import fitted model
+# import fitted models
 model_fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds"
   )
 )
+slot_fit <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_slot.rds"
+  )
+)
+large_fit <- readRDS(
+  here::here(
+    "data", "model_fits", "mvtweedie", "fit_large.rds"
+  )
+)
+fit_list <- list(model_fit, slot_fit, large_fit)
 
 #### DEFUNCT IF GENERATING PREDICTIONS ALL AT ONCE #####
 # split diet data by sample ID and simulate
@@ -136,7 +147,11 @@ new_dat <- purrr::map(
         by = c("sample_id", "stock_group")
       ) %>% 
       mutate(
-        obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn)
+        obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn),
+        sg_year = paste(stock_group, year_n, sep = "_") %>% as.factor(),
+        slot_limit = ifelse(
+          year_n > 2018, "yes", "no"
+        )
       )
   }
 ) %>% 
@@ -153,7 +168,24 @@ preds <- pred_dummy(
   origdata = agg_dat,
   newdata = new_dat
 )
-new_dat$pred_ppn <- preds
+# new_dat$pred_ppn <- preds
+
+pred_list <- purrr::map2(
+  fit_list,
+  c("standard", "slot", "large"),
+  function (x, y) {
+    preds <- predict(
+      x, se.fit = TRUE, category_name = "stock_group", origdata = x$model,
+      newdata = new_dat
+    )
+    new_dat %>% 
+      mutate(
+        fit = preds$fit,
+        se = preds$se.fit,
+        model = y
+      )
+  }
+)
 
 # split by new sampling event
 new_dat_list <- split(new_dat, new_dat$sample_id)
