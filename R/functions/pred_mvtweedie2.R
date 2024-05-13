@@ -32,7 +32,21 @@ pred_dummy <- function( x,
       
       # Modify data
       data = newdata
-      data[,category_name] = factor( levels(origdata[,category_name])[cI], levels=levels(origdata[,category_name]) )
+      data[,category_name] = factor(
+        levels(origdata[,category_name])[cI], 
+        levels=levels(origdata[,category_name]) 
+        )
+      
+      # include hacky version
+      if ("sg_year" %in% colnames(data)) {
+        data$sg_year <- paste(
+          factor(levels(origdata[,category_name])[cI], 
+                 levels=levels(origdata[,category_name])),
+          data$year_n,
+          sep = "_"
+        ) %>% 
+          as.factor()
+      }
       
       # Modify class
       class(x) = setdiff( class(x), "mvtweedie" )
