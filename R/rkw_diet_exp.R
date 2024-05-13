@@ -334,7 +334,8 @@ agg_dat <- expand.grid(
     month_f = as.factor(month),
     agg_count = ifelse(is.na(agg_prob), 0, agg_count),
     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
-    era = ifelse(year < 2015, "early", "current"),
+    era = ifelse(year < 2015, "early", "current") %>% 
+      as.factor(),
     year_n = year,
     year = as.factor(year),
     stock_group = as.factor(stock_group)
@@ -388,6 +389,33 @@ png(
 )
 era_plot
 dev.off()
+
+
+## CHECK -----------------------------------------------------------------------
+
+ppn_zero_obs <- sum(agg_dat$agg_count == 0) / nrow(agg_dat)
+
+
+# simulate by fitting sdmTMB equivalent of univariate Tweedie
+library(sdmTMB)
+fit_sdmTMB <- sdmTMB(
+  agg_count ~ stock_group*era +
+    s(week_n, by = stock_group, k = 5) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 10),
+  data = agg_dat,
+  spatial = "off",
+  spatiotemporal = "off",
+  family = tweedie(link = "log")
+)
+saveRDS(
+  fit_sdmTMB,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+)
+fit_sdmTMB <- readRDS(
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+)
+
+
 
 
 ## PREDICT ---------------------------------------------------------------------

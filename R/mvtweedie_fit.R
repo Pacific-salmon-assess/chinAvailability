@@ -367,13 +367,7 @@ fit_sdmTMB <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
 
-fit_sdmTMB2 <- update(
-  fit_sdmTMB, 
-  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-  (1 | sg_year)
-)
+
 
 # ppn zeros
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
