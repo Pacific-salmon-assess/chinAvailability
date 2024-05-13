@@ -294,7 +294,7 @@ system.time(
 class(fit2) = c( "mvtweedie", class(fit2) )
 saveRDS(
   fit2,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw_raw.rds")
 )
 
 
@@ -346,13 +346,13 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
 # fit_sdmTMB <- sdmTMB(
-#   agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-#     s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-#     # s(year_n, by = stock_group, bs = "tp", k = 7)
-#     (1 | year)
-#     # (1 | sg_year)
-#   ,
+  # agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+  #   s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+  #   s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+  #   # s(year_n, by = stock_group, bs = "tp", k = 7)
+  #   (1 | year)
+  #   # (1 | sg_year)
+  # ,
 #   data = agg_dat,
 #   spatial = "off",
 #   spatiotemporal = "off",
@@ -365,6 +365,14 @@ library(sdmTMB)
 # )
 fit_sdmTMB <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+)
+
+fit_sdmTMB2 <- update(
+  fit_sdmTMB, 
+  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+  (1 | sg_year)
 )
 
 # ppn zeros
@@ -435,7 +443,24 @@ png(
 post_sim
 dev.off()
 
+nd <- newdata %>% 
+  filter(
+    year %in% c("2022", "2023"),
+    week_n == "30",
+    strata == "Renfrew"
+  )
+pp <- predict(fit2, newdata = nd)
+pp$exp_est <- exp(pp$est)
 
+pp2 <- pp %>% 
+  group_by(year) %>% 
+  mutate(
+    nn = sum(exp_est)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    prob = exp_est / nn
+  )
 
 ## simulate based on:
 # https://gist.github.com/dantonnoriega/ad2081c39b26d0f523ba3464f4a90282
@@ -1175,7 +1200,7 @@ new_dat <- purrr::map2(
       upper = fit + (qnorm(0.975)*se.fit)
     ) %>%
     filter(!strata == "Saanich",
-           slot_limit == "no")
+           slot_limit == "yes")
 ) %>% 
   bind_rows()
 
@@ -1188,12 +1213,17 @@ model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  scale_x_continuous(expand = c(0, 0)) +
-  theme(legend.position = "top")
+  theme(legend.position = "top",
+        axis.title.x = element_blank()) +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37),
+    labels = c("Jun", "Jul", "Aug", "Sep"),
+    expand = c(0, 0)
+  ) 
 
 png(
   here::here("figs", "stock_comp_fishery", "model_comp.png"),
-  height = 5, width = 5, units = "in", res = 250
+  height = 6.5, width = 6.5, units = "in", res = 250
 )
 model_comp_smooth
 dev.off()
