@@ -383,12 +383,41 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
       gsub(" H", "", .) %>% 
       gsub(" ", "_", .) %>% 
       toupper(),
+    # replace stocks with mismatched names
     pbt_stock = case_when(
-        pbt_stock == "CHILLIWACK_RIVER" ~ "CHILLIWACK_RIVER_FALL",
+        pbt_stock %in% c("CHILLIWACK_RIVER", "CHILLIWACK_VEDDER_RIVER",
+                         "H_CHILLIWACK_RIVER", "S_CHILLIWACK_R") ~ 
+          "CHILLIWACK_RIVER_FALL",
+        pbt_stock == "COLDWATER_RIVER_UPPER" ~ "COLWDWATER_RIVER",
         pbt_stock == "SHUSWAP_RIVER,_MIDDLE," ~ "SHUSWAP_RIVER_MIDDLE",
         pbt_stock == "CHEHALIS_RIVER" ~ "CHEHALIS_RIVER_SUMMER",
         pbt_stock == "BIG_QUALICUM_RIVER" ~ "QUALICUM_RIVER",
         pbt_stock == "ATNARKO_RIVER_UPPER" ~ "ATNARKO_RIVER",
+        pbt_stock == "H_NITINAT_RIVER" ~ "NITINAT_RIVER",
+        pbt_stock == "S_BURMAN_R" ~ "BURMAN_RIVER",        
+        pbt_stock %in% c("S_CONUMA_R", "H_CONUMA_R") ~ "CONUMA_RIVER",        
+        pbt_stock == "S_COWICHAN_R" ~ "COWICHAN_RIVER",
+        pbt_stock %in%  c("S_FIRST_LK/GSVI", "S_NANAIMO_R", 
+                          "NANAIMO_RIVER_FALL")   ~ "NANAIMO_RIVER_FALL", 
+        pbt_stock == "S_GOLD_R" ~ "GOLD_RIVER",
+        pbt_stock == "NANAIMO_RIVER_S" ~ "NANAIMO_RIVER_SUMMER",       
+        pbt_stock == "S_NITINAT_R" ~ "NITINAT_RIVER",       
+        pbt_stock %in% c("S_ROBERTSON_CR", "H_ROBERTSON_CR", 
+                         "ROVERTSON_CREEK") ~ "ROBERTSON_CREEK",    
+        grepl("TAHSIS", pbt_stock) ~ "TAHSIS_RIVER",
+        grepl("TAHSISH", pbt_stock) ~ "TAHSIS_RIVER",
+        grepl("PUNTLEDGE", pbt_stock) ~ "PUNTLEDGE_RIVER_FALL",
+        pbt_stock == "H_SOOKE_RIVER" ~ "SOOKE_RIVER",
+        pbt_stock == "S_SALMON_R/JNST" ~ "SALMON_RIVER_JNST",
+        pbt_stock == "S_SARITA_R" ~ "SARITA_RIVER",        
+        pbt_stock == "S_SUCWOA/TLUPANA_R" ~ "TLUPANA_RIVER",
+        pbt_stock == "CARIBOO_RIVER" ~ "CARIBOO",
+        pbt_stock == "S_LEINER_R" ~ "LEINER_RIVER",
+        pbt_stock == "S_MARBLE_R" ~ "MARBLE_RIVER",
+        pbt_stock == "S_NAHMINT_R" ~ "NAHMINT_RIVER",
+        pbt_stock == "S_QUINSAM_R" ~ "QUINSAM_RIVER",
+        pbt_stock == "S_SAN_JUAN_R" ~ "SAN_JUAN_RIVER",
+        pbt_stock == "WOSS_LAKE"~ "WOSS_RIVER",
         TRUE ~ pbt_stock
       )
   ) %>% 
@@ -402,24 +431,25 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
-      pst_agg %in% c("CA_ORCST", "CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa",
-                     "WACST", "Russia", "CR-upper_sp", "NBC_SEAK") ~ "other",
-      stock == "Capilano" | region1name %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
-      # grepl(".2", region1name) ~ "Fraser Yearling",
+      pst_agg == "CR-upper_sp" | region1name == "Willamette_R" ~ "Col_Spring",
+      pst_agg %in% c("CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa") ~ 
+        "Col_Summer_Fall",
+      stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
+        "ECVI_SOMN",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~ "other",
       grepl("Fraser", region1name) ~ region1name,
-      # region1name == "Fraser_Summer_4.1" ~ "Fraser Summer 4.1",
-      # region1name == "Fraser_Fall" ~ "Fraser Fall",
       TRUE ~ pst_agg
     ) %>% 
       factor(
         .,
-        levels = c("other", "PSD", "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
+        levels = c("other", "PSD", "Col_Spring", "Col_Summer_Fall", 
+                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
                    "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
                    "Fraser_Fall"),
-        labels = c("other", "PSD", "WCVI", "ECVI_SOMN", "FR_Spr_4.2",
-                   "FR_Spr_5.2", "FR_Sum_5.2", "FR_Sum_4.1",
-                   "FR_Fall")
-    ) 
+        labels = c("other", "PSD", "Col_Spr", "Col_Sum/Fall", "WCVI", 
+                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
+                   "FR_Sum_4.1", "FR_Fall")
+    )
   )
 
 # trim for GSI purposes
@@ -432,24 +462,14 @@ wide_rec4_trim <- wide_rec4 %>%
 #pivot to long (probs and stock IDs separately) and join 
 probs <- wide_rec4_trim %>% 
   # replace with updated probabilities from above
-  # select(-starts_with("prob")) %>% 
-  # cbind(., new_prbs) %>% 
   pivot_longer(., cols = starts_with("prob"), names_to = "rank", 
                names_pattern = "prob_(.+)",
                values_to = "prob") %>%
   select(id, rank, prob)
 
-# regions <- wide_rec4_trim %>% 
-#   select(id, starts_with("region")) %>% 
-#   pivot_longer(., cols = starts_with("region"), names_to = "rank", 
-#                names_pattern = "region_(.+)_rollup",
-#                values_to = "region") %>%
-#   select(id, rank, region)
 
 long_rec <- wide_rec4_trim %>% 
-  select(-starts_with("prob")
-         #, -starts_with("region")
-         ) %>% 
+  select(-starts_with("prob")) %>% 
   pivot_longer(., cols = starts_with("stock"), names_to = "rank", 
                names_pattern = "stock_(.+)",
                values_to = "stock") %>% 
@@ -483,7 +503,8 @@ long_rec <- wide_rec4_trim %>%
     ),
     #define hatchery status
     origin = case_when(
-      pbt == TRUE | resolved_stock_source == "CWT" ~ "hatchery",
+      pbt == TRUE | 
+        resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
       ad == "Y" ~ "hatchery",
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
                          "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") & 
@@ -496,7 +517,19 @@ long_rec <- wide_rec4_trim %>%
       pst_agg %in% c("PSD", "WACST") | grepl("CR", pst_agg) & ad == "N" ~
         "wild",
       TRUE ~ "unknown"
+    ) %>% 
+      factor(., levels = c("hatchery", "unknown", "wild")),
+    nation = ifelse(
+      pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI"), 
+      "Can",
+      "USA"
     ),
+    origin2 = paste(origin, nation, sep = "_") %>% 
+      factor(., 
+             levels = c("hatchery_Can", "hatchery_USA", 
+                        "unknown_Can", "wild_USA", "wild_Can", "unknown_USA"),
+             labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi", 
+                        "USA Wi")),
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
@@ -515,17 +548,6 @@ long_rec %>%
   ) %>%
   arrange(stock) %>%
   distinct()
-
-
-# saveRDS(
-#   long_rec %>%
-#     select(
-#       stock, region
-#     ) %>%
-#     arrange(stock) %>%
-#     distinct(),
-#   here::here("data", "rec", "southcoast_updated_stocks.rds")
-# )
 
 ## export
 saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))

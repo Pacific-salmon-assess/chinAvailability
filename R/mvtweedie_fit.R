@@ -115,6 +115,10 @@ smu_colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D",
                     "#A50F15", "#EF3B2C", "#FC9272", "#FCBBA1")
 names(smu_colour_pal) <- levels(dat$stock_group)
 
+# hatchery origin colour palette
+hatchery_colour_pal <- c("#31a354", "#e5f5e0", "grey30", "grey60", "#756bb1",
+                         "#efedf5")
+names(hatchery_colour_pal) <- levels(dat$origin2)
 
 
 ## DATA FIGURES ----------------------------------------------------------------
@@ -178,44 +182,44 @@ rec_samp_bar_summer <- dat %>%
 
 
 # as above but for hatchery origin
-# rec_samp_bar_h <- ggplot(dat) +
-#   geom_bar(aes(x = month_n, y = prob, fill = origin), 
-#            stat = "identity") +
-#   facet_wrap(~strata) +
-#   ggsidekick::theme_sleek() +
-#   scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
-#   labs(
-#     y = "Recreational Fishery\nComposition"
-#   ) +
-#   scale_x_continuous(
-#     breaks = c(1, 5, 9, 12),
-#     labels = c("Jan", "May", "Sep", "Dec")
-#   ) +
-#   theme(
-#     legend.position = "top",
-#     axis.title.x = element_blank()
-#   )
-# 
-# # subset of monthly samples that matches RKW diet
-# rec_samp_bar_summer_h <- dat %>% 
-#   filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
-#   ggplot(.) +
-#   geom_bar(aes(x = month_n, y = prob, fill = origin), 
-#            stat = "identity") +
-#   facet_wrap(~strata) +
-#   ggsidekick::theme_sleek() +
-#   scale_fill_brewer(type = "qual", name = "Hatchery\nOrigin") +
-#   labs(
-#     y = "Recreational Fishery\nComposition"
-#   ) +
-#   scale_x_continuous(
-#     breaks = c(6, 7, 8, 9, 10),
-#     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-#   ) +
-#   theme(
-#     legend.position = "top",
-#     axis.title.x = element_blank()
-#   )
+rec_samp_bar_h <- ggplot(dat) +
+  geom_bar(aes(x = month_n, y = prob, fill = origin2),
+           stat = "identity") +
+  facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
+  labs(
+    y = "Recreational Fishery\nComposition"
+  ) +
+  scale_x_continuous(
+    breaks = c(1, 5, 9, 12),
+    labels = c("Jan", "May", "Sep", "Dec")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+# subset of monthly samples that matches RKW diet
+rec_samp_bar_summer_h <- dat %>%
+  filter(month_n %in% c("6", "7", "8", "9", "10"), year > 2017) %>%
+  ggplot(.) +
+  geom_bar(aes(x = month_n, y = prob, fill = origin2),
+           stat = "identity") +
+  facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
+  labs(
+    y = "Recreational Fishery\nComposition"
+  ) +
+  scale_x_continuous(
+    breaks = c(6, 7, 8, 9, 10),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
 
 
 png(
