@@ -525,11 +525,12 @@ long_rec <- wide_rec4_trim %>%
       "USA"
     ),
     origin2 = paste(origin, nation, sep = "_") %>% 
-      factor(., 
-             levels = c("hatchery_Can", "hatchery_USA", 
-                        "unknown_Can", "wild_USA", "wild_Can", "unknown_USA"),
-             labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi", 
-                        "USA Wi")),
+      factor(.,
+             levels = c("hatchery_Can",  "hatchery_USA", "unknown_Can",
+                        "unknown_USA", "wild_Can", "wild_USA"),
+             labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
+                        "USA Wi"))
+      ,
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
