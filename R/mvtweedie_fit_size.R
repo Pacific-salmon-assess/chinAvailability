@@ -48,11 +48,6 @@ dat <- size_raw %>%
       breaks = c(-Inf, 601, 701, 801, Inf), 
       labels = c("<60", "60-70", "70-80", ">80")
     )
-    # size_bin = cut(
-    #   fl, 
-    #   breaks = c(-Inf, 651, 751, 851, Inf), 
-    #   labels = c("<65", "65-75", "75-85", ">85")
-    # )
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
@@ -104,7 +99,9 @@ agg_dat <- expand.grid(
     year = as.factor(year),
     size_bin = as.factor(size_bin),
     utm_x_m = utm_x * 1000,
-    utm_y_m = utm_y * 1000
+    utm_y_m = utm_y * 1000,
+    sg_year = paste(size_bin, year, sep = "_") %>% 
+      as.factor()
   ) 
 
 
@@ -194,16 +191,13 @@ dev.off()
 system.time(
   fit <- gam(
     agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25) #+
-    #remove since didn't fit well with sdmTMB
-#      s(year_n, by = size_bin, k = 4, bs = "tp")
-,
-    data = agg_dat, family = "tw", method = "REML",
+      # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(sg_year, bs = "re"),
+    data = agg_dat, family = nb(), method = "REML",
     knots = list(week_n = c(0, 52))
   )
 )
-class(fit) = c( "mvtweedie", class(fit) )
 saveRDS(
   fit,
   here::here(
@@ -226,13 +220,15 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
   agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "tp") +
-    s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 12) 
+    # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 15)  +
+    (1 | sg_year)
     ,
   data = agg_dat,
   spatial = "off",
   spatiotemporal = "off",
-  family = tweedie(link = "log"),
+  family = sdmTMB::nbinom2(),
+  # family = tweedie(link = "log"),
   knots = list(week_n = c(0, 52))
 )
 saveRDS(
@@ -249,36 +245,77 @@ sdmTMBextra::dharma_residuals(s_sdmTMB, fit_sdmTMB)
 
 
 # look at average stock comp 
-avg_sim_comp <- s_sdmTMB %>% 
+sim_comp <- s_sdmTMB %>% 
   as.data.frame() %>% 
-  mutate(size_bin = agg_dat$size_bin,
-         obs_prob = agg_dat$agg_prob) %>% 
+  cbind(
+    ., 
+    agg_dat %>% 
+      select(sample_id, size_bin, strata, week_n)
+  ) %>% 
   pivot_longer(
     cols = starts_with("V"),
     names_to = "sim_number",
-    values_to = "prob"
-  ) %>% 
-  group_by(size_bin, sim_number) %>% 
-  summarize(
-    mean_sim_prob = mean(prob),
-    mean_obs_prob = mean(obs_prob)
+    values_to = "conc"
   )
 
-ggplot(data = avg_sim_comp) +
-  geom_boxplot(aes(x = size_bin, y = mean_sim_prob)) +
-  geom_point(aes(x = size_bin, y = mean_obs_prob), col = "red") +
-  ggsidekick::theme_sleek()
+avg_sim_comp <- sim_comp %>% 
+  group_by(sim_number, sample_id) %>% 
+  mutate(
+    # calculate number of fish simulated per simulation and sampling event
+    sim_sample_conc = sum(conc),
+    sim_ppn = conc / sim_sample_conc
+  ) %>% 
+  filter(!is.na(sim_ppn),
+         week_n > 24 & week_n < 40) %>% 
+  group_by(strata, size_bin, sim_number) %>% 
+  summarize(
+    mean_sim_ppn = mean(sim_ppn)
+  )
+avg_obs_comp <- agg_dat %>% 
+  filter(week_n > 24 & week_n < 40) %>% 
+  group_by(strata, size_bin) %>% 
+  summarize(
+    mean_obs_ppn = mean(agg_ppn)
+  )
+
+post_sim <- ggplot() +
+  geom_boxplot(data = avg_sim_comp ,
+               aes(x = size_bin, y = mean_sim_ppn)) +
+  geom_point(data = avg_obs_comp,
+             aes(x = size_bin, y = mean_obs_ppn), col = "red") +
+  ggsidekick::theme_sleek() +
+  facet_wrap(~strata, ncol = 2) +
+  labs(y = "Mean Stock Composition") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank())
+
+
+png(
+  here::here("figs", "size_comp_fishery", "posterior_sims.png"),
+  height = 7.5, width = 4.5, units = "in", res = 250
+)
+post_sim
+dev.off()
+
 
 
 ## PREDICT ---------------------------------------------------------------------
 
+# modified prediction function
+source(here::here("R", "functions", "pred_mvtweedie2.R"))
+
+
 newdata <- expand.grid(
   strata = unique(dat$strata),
   week_n = unique(agg_dat$week_n),
-  size_bin = levels(agg_dat$size_bin)
+  size_bin = levels(agg_dat$size_bin),
+  year_n = unique(agg_dat$year_n)
 ) %>%
   left_join(., loc_key, by = 'strata') %>% 
   mutate(
+    year = as.factor(year_n),
+    sg_year = paste(size_bin, year, sep = "_") %>% 
+      as.factor(),
     strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
   filter(

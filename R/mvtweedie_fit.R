@@ -395,7 +395,7 @@ sim_comp <- s_sdmTMB %>%
   cbind(
     ., 
     agg_dat %>% 
-      select(sample_id, stock_group, strata, week_n      )
+      select(sample_id, stock_group, strata, week_n)
     ) %>% 
   # mutate(stock_group = agg_dat$stock_group,
   #        obs_prob = agg_dat$agg_prob) %>% 
