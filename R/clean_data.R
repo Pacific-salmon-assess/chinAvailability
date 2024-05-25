@@ -442,11 +442,11 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>
     ) %>% 
       factor(
         .,
-        levels = c("other", "PSD", "Col_Spring", "Col_Summer_Fall", 
+        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
                    "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
                    "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
                    "Fraser_Fall"),
-        labels = c("other", "PSD", "Col_Spr", "Col_Sum/Fall", "WCVI", 
+        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
                    "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
                    "FR_Sum_4.1", "FR_Fall")
     )

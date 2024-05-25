@@ -40,7 +40,8 @@ dat <- rec_raw %>%
                  "haro", "saanich"),
       labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke/\nVictoria",
                  "S. Gulf\nIslands", "Saanich")
-    )
+    ),
+    stock_group = fct_relevel(stock_group, "PSD", after = 3)
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
@@ -111,8 +112,9 @@ agg_dat <- expand.grid(
 
 
 # SMU colour palette
-smu_colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D", 
-                    "#A50F15", "#EF3B2C", "#FC9272", "#FCBBA1")
+smu_colour_pal <- c("grey30", "#3182bd", "#bdd7e7", "#bae4bc", "#6A51A3",
+                    "#CBC9E2", "#67000D", "#A50F15", "#EF3B2C", "#FC9272", 
+                    "#FCBBA1")
 names(smu_colour_pal) <- levels(dat$stock_group)
 
 # hatchery origin colour palette
@@ -284,11 +286,12 @@ dev.off()
 # )
 
 
-# Includes year/stock as RE (doesn't produce changes)
+# Includes year/stock as RE; remove global smooth after sdmTMB v fails to 
+# converge
 system.time(
   fit2 <- gam(
     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
       s(sg_year, bs = "re"),
     data = agg_dat, family = "tw", method = "REML",
@@ -298,7 +301,7 @@ system.time(
 class(fit2) = c( "mvtweedie", class(fit2) )
 saveRDS(
   fit2,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw_raw.rds")
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
 )
 
 
@@ -348,15 +351,15 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
-library(sdmTMB)
+# library(sdmTMB)
 # fit_sdmTMB <- sdmTMB(
-  # agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-  #   s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-  #   s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-  #   # s(year_n, by = stock_group, bs = "tp", k = 7)
-  #   (1 | year)
-  #   # (1 | sg_year)
-  # ,
+# agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+#   # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 15) +
+#   s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15) +
+#   # s(year_n, by = stock_group, bs = "tp", k = 7)
+#   # (1 | year)
+#   (1 | sg_year)
+# ,
 #   data = agg_dat,
 #   spatial = "off",
 #   spatiotemporal = "off",
@@ -441,72 +444,6 @@ png(
 post_sim
 dev.off()
 
-
-
-# nd <- newdata %>% 
-#   filter(
-#     year %in% c("2022", "2023"),
-#     week_n == "30",
-#     strata == "Renfrew"
-#   )
-# pp <- predict(fit2, se.fit = FALSE,
-#               category_name = "stock_group",
-#               origdata = agg_dat,
-#               newdata = nd)
-# ppb <- predict(fit2b, se.fit = FALSE,
-#                category_name = "stock_group",
-#                origdata = agg_dat,
-#                newdata = nd)
-# nd$exp_est2 <- exp(ppb) %>% unlist
-# 
-# pp2 <- nd %>% 
-#   group_by(year) %>% 
-#   mutate(
-#     nn = sum(exp_est),
-#     nn2 = sum(exp_est2)
-#   ) %>% 
-#   ungroup() %>% 
-#   mutate(
-#     prob = exp_est / nn,
-#     prob2 = exp_est2 / nn2
-#   )
-
-## simulate based on:
-# https://gist.github.com/dantonnoriega/ad2081c39b26d0f523ba3464f4a90282
-# 
-# # use fitted GAM for mean estimates
-# phi.hat <- fit_raw$deviance/sum(fit_raw$prior.weights)
-# mu.hat <- fitted(fit_raw)
-# p.hat <- fit_raw$family$getTheta(TRUE)
-# prob_zero <- exp(-mu.hat^(2-p.hat) / phi.hat / (2-p.hat))
-# 
-# # single sim
-# y.tw <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
-# 
-# # plot generated y vs simulated y from fitted values
-# y <- agg_dat$agg_prob
-# brks = seq(0, ceiling(max(max(y), max(y.tw))), by = 0.5)
-# hist(y, breaks = brks, col = scales::alpha('red', .9))
-# par(new = TRUE)
-# hist(y.tw, breaks = brks, col = scales::alpha('blue', .5), axes = FALSE, xlab = NULL, ylab = NULL, main = NULL)
-# 
-# 
-# # full simulate
-# nsims <- 50
-# sim_mat <- matrix(NA, nrow = length(mu.hat), ncol = nsims)
-# for (i in 1:ncol(sim_mat)) {
-#   sim_mat[ , i] <- mgcv::rTweedie(mu.hat, p = p.hat, phi = phi.hat)
-# }
-# 
-# mu_pred <- predict(fit_raw, newdata = agg_dat) %>% 
-#   fit_raw$family$linkinv(.)
-# 
-# dharma_res <- DHARMa::createDHARMa(
-#   simulatedResponse = sim_mat,
-#   observedResponse = agg_dat$agg_prob,
-#   fittedPredictedResponse = mu_pred
-# )
-# plot(dharma_res)
 
 
 ## PREDICT ---------------------------------------------------------------------
