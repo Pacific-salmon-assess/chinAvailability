@@ -47,7 +47,9 @@ dat <- size_raw %>%
       fl, 
       breaks = c(-Inf, 601, 701, 801, Inf), 
       labels = c("<60", "60-70", "70-80", ">80")
-    )
+    ),
+    #reverse factor order for aesthetics
+    size_bin = forcats::fct_rev(size_bin)
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
@@ -170,6 +172,13 @@ rec_size_bar_summer <- dat %>%
     legend.position = "top",
     axis.title.x = element_blank()
   )
+
+png(
+  here::here("figs", "size_comp_fishery", "rec_size_sample_coverage.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+size_samp_cov
+dev.off()
 
 png(
   here::here("figs", "size_comp_fishery", "rec_monthly_size_bar.png"),
@@ -319,28 +328,81 @@ newdata <- expand.grid(
     strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
   filter(
-    !strata == "Saanich"
+    !strata == "Saanich",
+    # don't bother generating year-specific predictions for now
+    year == agg_dat$year[1]
   )
 
-pred = predict(
+
+## average seasonal predictions by size bin
+newdata_season <- newdata %>% 
+  filter(strata == agg_dat$strata[1])
+excl2 <- grepl("utm", gratia::smooths(fit)) | 
+  grepl("year", gratia::smooths(fit))
+utm_yr_coefs <- gratia::smooths(fit)[excl2]
+pred_season = pred_dummy(
   fit,
   se.fit = TRUE,
   category_name = "size_bin",
   origdata = agg_dat,
-  newdata = newdata
+  newdata = newdata_season,
+  exclude = utm_yr_coefs
 )
 
-newdata2 <- cbind( newdata, fit=pred$fit, se.fit=pred$se.fit ) %>%
+newdata_season2 <- cbind( 
+  newdata_season, fit=pred_season$fit, se.fit=pred_season$se.fit 
+  ) %>%
   mutate(
     lower = fit + (qnorm(0.025)*se.fit),
     upper = fit + (qnorm(0.975)*se.fit)
-  ) %>%
-  filter(!strata == "Saanich")
+  ) 
 
-summer_preds <- ggplot(newdata2, aes(week_n, fit)) +
+season_preds <- ggplot(newdata_season2, aes(week_n, fit)) +
+  geom_line(aes(colour = size_bin)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = size_bin), alpha = 0.5) +
+  facet_wrap(~size_bin, scales = "free_y") +
+  scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
+  scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
+  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
+  ) +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  theme(legend.position = "top") +
+  scale_x_continuous(
+    breaks = c(25, 29.25, 33.5, 38),
+    labels = c("Jun", "Jul", "Aug", "Sep")
+  )
+
+season_preds_fullx <- season_preds +
+  coord_cartesian(xlim = c(0, 52), expand = FALSE)  +
+  scale_x_continuous()
+
+
+
+# average across year predictions
+excl <- grepl("year", gratia::smooths(fit))
+yr_coefs <- gratia::smooths(fit)[excl]
+full_pred = pred_dummy(
+  fit,
+  se.fit = TRUE,
+  category_name = "size_bin",
+  origdata = agg_dat,
+  newdata = newdata,
+  exclude = yr_coefs
+)
+
+newdata_full <- cbind( newdata, fit=full_pred$fit, se.fit=full_pred$se.fit ) %>%
+  mutate(
+    lower = fit + (qnorm(0.025)*se.fit),
+    upper = fit + (qnorm(0.975)*se.fit)
+  ) 
+
+# integrates out yearly variation
+summer_preds <- ggplot(newdata_full, aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
-      filter(week_n %in% newdata2$week_n,
+      filter(week_n %in% newdata$week_n,
              !strata == "Saanich"),
     aes(x = week_n, y = agg_ppn, size = sample_id_n),
     alpha = 0.3
@@ -352,15 +414,20 @@ summer_preds <- ggplot(newdata2, aes(week_n, fit)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  scale_x_continuous(
+    breaks = c(25, 29.25, 33.5, 38),
+    labels = c("Jun", "Jul", "Aug", "Sep")
+  )
 
 summer_preds_fullx <- summer_preds +
-  coord_cartesian(xlim = c(0, 52)) 
+  coord_cartesian(xlim = c(0, 52)) +
+  scale_x_continuous()
 
 
 ## stacked ribbon predictions
 summer_pred_stacked <- ggplot(
-  data = newdata2 %>% 
+  data = newdata_full %>% 
     filter(week_n > 21 & week_n < 39), 
   aes(x = week_n)
 ) +
@@ -385,6 +452,13 @@ summer_pred_stacked <- ggplot(
 
 
 png(
+  here::here("figs", "size_comp_fishery", "size_season_preds_chinook.png"),
+  height = 6.5, width = 6.5, units = "in", res = 250
+)
+season_preds
+dev.off()
+
+png(
   here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook.png"),
   height = 8.5, width = 6.5, units = "in", res = 250
 )
@@ -407,7 +481,6 @@ dev.off()
 
 
 ## spatial predictions
-
 # pfma sf dataframe to subset pred grid
 pfma_sf <- readRDS(
   here::here(
@@ -453,25 +526,26 @@ new_dat_sp <- expand.grid(
   bind_rows %>%
   mutate(
     utm_y = Y / 1000,
-    utm_x = X / 1000
+    utm_x = X / 1000,
+    year_n = unique(agg_dat$year_n)[1],
+    sg_year = paste(size_bin, year_n, sep = "_") %>% 
+      as.factor()
+  ) %>% 
+  filter(
+    week_n == "29"
   )
 
-# key for month labels
-month_key <- data.frame(
-  week_n = unique(new_dat_sp$week_n)
-) %>% 
-  mutate(
-    month = c("May", "Jun", "Jul", "Aug", "Sep") %>% 
-      as.factor() %>% 
-      fct_reorder(., week_n)
-  )
-
-pred_sp <- predict(
+# exclude seasonal and annual effects
+excl3 <- grepl("week_n", gratia::smooths(fit)) | 
+  grepl("year", gratia::smooths(fit))
+week_yr_coefs <- gratia::smooths(fit)[excl3]
+pred_sp <- pred_dummy(
   fit,
   se.fit = TRUE,
   category_name = "size_bin",
   origdata = agg_dat,
-  newdata = new_dat_sp
+  newdata = new_dat_sp,
+  exclude = week_yr_coefs
 )
 
 coast <- rbind(rnaturalearth::ne_states( "United States of America", 
@@ -496,16 +570,14 @@ new_dat_sp_plot <- cbind(
     scaled_fit = fit / max(fit)
   ) %>% 
   ungroup() %>% 
-  left_join(
-    ., month_key, by = "week_n"
-  )
+  filter(week_n == "29")
 
 spatial_pred <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
               aes(x = X, y = Y, fill = fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_grid(
-    size_bin ~ month
+  facet_wrap(
+    ~ size_bin
   ) +
   scale_fill_viridis_c(
     name = "Predicted Proportion\nof Rec Catch"
@@ -524,8 +596,8 @@ spatial_pred_scaled <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
               aes(x = X, y = Y, fill = scaled_fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_grid(
-    size_bin ~ month
+  facet_wrap(
+    ~ size_bin
   ) +
   scale_fill_viridis_c(
     option = "A",
@@ -545,8 +617,8 @@ spatial_pred_se <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
               aes(x = X, y = Y, fill = se.fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_grid(
-    size_bin ~ month
+  facet_wrap(
+    ~ size_bin
   ) +
   scale_fill_gradient2(
     name = "Predicted SE\nof Proportion\nEstimate"
@@ -562,25 +634,27 @@ spatial_pred_se <- ggplot() +
 
 
 png(
-  here::here("figs", "size_comp_fishery", "spatial_size_preds.png"),
-  height = 6, width = 6, units = "in", res = 250
+  here::here("figs", "size_comp_fishery", "spatial_preds.png"),
+  height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "spatial_preds_size_scaled.png"),
-  height = 6, width = 6, units = "in", res = 250
+  here::here("figs", "size_comp_fishery", "spatial_preds_scaled.png"),
+  height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "spatial_preds_size_se.png"),
-  height = 6, width = 6, units = "in", res = 250
+  here::here("figs", "size_comp_fishery", "spatial_preds_se.png"),
+  height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred_se
 dev.off()
+
+
 
 
 ## SENSITIVITY ANALYSES --------------------------------------------------------
