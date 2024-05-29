@@ -910,13 +910,18 @@ agg_dat_slot <- expand.grid(
     sg_year = paste(stock_group, year) %>% as.factor(),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
-  ) 
+  ) %>% 
+  # focus only on western strata
+  filter(
+    strata %in% c("Renfrew", "Swiftsure", "Nitinat")
+  ) %>% 
+  droplevels()
 
 system.time(
   fit_slot <- gam(
     agg_prob ~ 0 + stock_group*slot_limit + 
       s(week_n, by = stock_group, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
       s(sg_year, bs = "re"),
       # s(year_n, by = stock_group, k = 4, bs = "tp"),
@@ -1075,7 +1080,7 @@ system.time(
   fit_large <- gam(
     agg_prob ~ 0 + stock_group + 
       s(week_n, by = stock_group, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
       s(sg_year, bs = "re"),
     data = agg_dat_large, family = "tw", method = "REML",

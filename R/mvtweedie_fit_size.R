@@ -690,9 +690,9 @@ system.time(
   fit_slot <- gam(
     agg_prob ~ 0 + size_bin*slot_limit + 
       s(week_n, by = size_bin, k = 7, bs = "cc") +
-      s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+      # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25),
-    data = agg_dat_slot, family = "tw", method = "REML",
+    data = agg_dat, family = nb(), method = "REML",
     knots = list(week_n = c(0, 52))
   )
 )

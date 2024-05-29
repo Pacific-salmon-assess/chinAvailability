@@ -12,12 +12,22 @@
 library(tidyverse)
 library(mgcv)
 library(mvtweedie)
+library(sf)
 
 raw_dat <- readRDS(
   here::here(
     "data", "rkw_diet", "RKW predation_chin samples_long_filtered.RDS"
     )
-  ) 
+  )
+
+# new data is in SF dataframe format; pull lat/lon and convert to normal DF
+raw_dat_new <- readRDS(
+  here::here(
+    "data", "rkw_diet", "RKW predation_chin samples_long_filteredShort.RDS"
+  )
+) %>% 
+  st_drop_geometry()
+
 
 dat <- raw_dat %>% 
   filter(
