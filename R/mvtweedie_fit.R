@@ -887,8 +887,7 @@ dev.off()
 ## Slot limit analysis
 agg_dat_slot <- expand.grid(
   sample_id = unique(dat$sample_id),
-  stock_group = unique(dat$stock_group)#,
-  # slot_limit = unique(dat$slot_limit)
+  stock_group = unique(dat$stock_group)
 ) %>% 
   left_join(., sample_key, by = "sample_id") %>% 
   left_join(
@@ -907,7 +906,7 @@ agg_dat_slot <- expand.grid(
     year_n = as.numeric(year),
     year = as.factor(year),
     stock_group = as.factor(stock_group),
-    sg_year = paste(stock_group, year) %>% as.factor(),
+    sg_year = paste(stock_group, year, sep = "_") %>% as.factor(),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
   ) %>% 
@@ -924,7 +923,6 @@ system.time(
       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
       s(sg_year, bs = "re"),
-      # s(year_n, by = stock_group, k = 4, bs = "tp"),
     data = agg_dat_slot, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
   )
@@ -1072,7 +1070,7 @@ agg_dat_large <- expand.grid(
     stock_group = as.factor(stock_group),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000,
-    sg_year = paste(stock_group, year) %>% as.factor()
+    sg_year = paste(stock_group, year, sep = "_") %>% as.factor()
   ) 
 
 # Includes smooth for year by stock group

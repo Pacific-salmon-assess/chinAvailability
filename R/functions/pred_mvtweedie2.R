@@ -56,7 +56,9 @@ pred_dummy <- function( x,
       }
       
       # Modify class
-      # class(x) = setdiff( class(x), "mvtweedie" )
+      if ("mvtweedie" %in% class(x)) {
+        class(x) = setdiff( class(x), "mvtweedie" )
+      }
       #class(x) = original_class
       
       # Apply predict.original_class
