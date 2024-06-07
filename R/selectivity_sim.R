@@ -12,19 +12,19 @@ source(here::here("R", "functions", "pred_mvtweedie2.R"))
 
 
 # Function to calculate test statistic (e.g., difference in proportions)
-calculate_test_statistic <- function (sample1, sample2) {
-  # Calculate proportions
-  prop1 <- sample1 / sum(sample1)
-  prop2 <- sample2 / sum(sample2)
-  
-  # Calculate difference in proportions
-  diff_prop <- abs(prop1 - prop2)
-  
-  # Sum of differences
-  sum_diff <- sum(diff_prop)
-  
-  return(sum_diff)
-}
+# calculate_test_statistic <- function (sample1, sample2) {
+#   # Calculate proportions
+#   prop1 <- sample1 / sum(sample1)
+#   prop2 <- sample2 / sum(sample2)
+#   
+#   # Calculate difference in proportions
+#   diff_prop <- abs(prop1 - prop2)
+#   
+#   # Sum of differences
+#   sum_diff <- sum(diff_prop)
+#   
+#   return(sum_diff)
+# }
 
 
 # import SRKW prey data
@@ -187,25 +187,39 @@ pred_list <- purrr::map2(
   }
 )
 
-# split by new sampling event
-new_dat_list <- split(new_dat, new_dat$sample_id)
-
 # simulate based on each observation dataset 
-nsim <- 1000
+nsim <- 50
 sim_dat_out <- vector(mode = "list", length = nsim)
 
 for (i in 1:nsim) {
+  # generate vector of random variables based on predicted proportions and SEs
+  # bounded at 0
+  r_vec <- rep(NA, length = nrow(pred_list[[1]]))
+  for (j in seq_along(r_vec)) {
+    r_vec[j] <- rnorm(1, mean = pred_list[[1]]$fit[j], sd = pred_list[[1]]$se[j])
+  }
+  r_vec2 <- pmax(r_vec, 0)
+  pred_list[[1]]$r_vec <- r_vec2
+  
+  # split and rescale so that proportions sum to one
+  scaled_pred_list <- pred_list[[1]] %>% 
+    group_by(sample_id) %>% 
+    mutate(
+      new_ppn = r_vec / sum(r_vec)
+    ) %>% 
+    ungroup() %>% 
+    split(., .$sample_id)
+  
   # generate null multinomial distribution for each sampling event
   sim_dat <- purrr::map(
-    new_dat_list,
+    scaled_pred_list,
     function (x) {
       # Generate multinomial samples under null hypothesis (i.e. same dist)
       x %>% 
         mutate(
-          nsim = i,
           sample_size = unique(x$sample_size),
-          sample1_null = rmultinom(1, sample_size, x$pred_ppn) %>% as.numeric(),
-          sample2_null = rmultinom(1, sample_size, x$pred_ppn) %>% as.numeric(),
+          sample2_null = rmultinom(1, sample_size, x$new_ppn) %>% as.numeric(),
+          sample1_null = rmultinom(1, sample_size, x$new_ppn) %>% as.numeric(),
           sample_obs = rmultinom(1, sample_size, x$obs_ppn) %>% as.numeric()
         )
     } 
@@ -225,7 +239,10 @@ for (i in 1:nsim) {
       null_diff = abs(sample1_count - sample2_count),
       obs_diff = abs(sample1_count - obs_count),
       test_stat = ifelse(null_diff >= obs_diff, 1, 0)
-    ) 
+    ) %>% 
+    mutate(
+      sim_i = i %>% as.character()
+    )
   sim_dat_out[[i]] <- sim_dat_agg
 }
 
@@ -234,37 +251,32 @@ sim_dat_out %>%
   group_by(stock_group) %>% 
   summarize(p_value = sum(test_stat) / nsim)
 
-p_dat <- rkw_dat_tbl %>%
+dd <- sim_dat_out %>% 
+  bind_rows() %>%
+  # calculate simulated proportion in each simulation to compare to observed
+  group_by(sim_i) %>% 
   mutate(
-    p_value = sim_list %>% unlist()
+    pred_sim_ppn = sample1_count / sum(sample1_count)
+  )
+
+obs_ppn_dat <- rkw_dat %>% 
+  group_by(stock_group) %>% 
+  summarize(
+    sum_obs = sum(agg_prob)
   ) %>% 
-  unnest(cols = data) %>%
-  select(sample_id_pooled, month, strata, n_samples, p_value) %>% 
-  distinct()
+  ungroup() %>% 
+  mutate(
+    obs_ppn = sum_obs / sum(sum_obs)
+  )
 
-# color pal used in sampling maps
-strata_colour_pal <- RColorBrewer::brewer.pal(
-  length(levels(agg_dat$strata)),
-  "Paired"
-)
-names(strata_colour_pal) <- levels(agg_dat$strata) 
-
-p_plot <- ggplot(p_dat) +
+ggplot() +
+  geom_boxplot(
+    data = dd,
+    aes(x = stock_group, y = pred_sim_ppn)
+    ) +
   geom_point(
-    aes(x = n_samples, y = p_value, fill = strata), shape = 21
-  ) +
-  geom_hline(
-    aes(yintercept = 0.05), lty = 2 
-  ) +
-  labs(
-    y = "Selectivity p-value", x = "Number of Prey Samples"
-  ) +
-  scale_fill_manual(values = strata_colour_pal) +
-  ggsidekick::theme_sleek()
+    data = obs_ppn_dat, 
+    aes(x = stock_group, y = obs_ppn), 
+    colour = "red"
+  )
 
-png(
-  here::here("figs", "ms_figs", "selectivity_pvalue.png"),
-  height = 4.5, width = 5.5, units = "in", res = 250
-)
-p_plot
-dev.off()
