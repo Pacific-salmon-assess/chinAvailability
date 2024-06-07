@@ -1189,7 +1189,7 @@ new_dat <- purrr::map2(
 
 model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   geom_line() +
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.5) +
+  # geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.5) +
   facet_grid(stock_group~strata) +
   coord_cartesian(xlim = c(25, 38), ylim = c(0, 0.8)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
