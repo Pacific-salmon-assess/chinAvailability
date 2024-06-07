@@ -21,12 +21,41 @@ raw_dat <- readRDS(
   )
 
 # new data is in SF dataframe format; pull lat/lon and convert to normal DF
-raw_dat_new <- readRDS(
-  here::here(
-    "data", "rkw_diet", "RKW predation_chin samples_long_filteredShort.RDS"
+# raw_dat_new <- readRDS(
+#   here::here(
+#     "data", "rkw_diet", "RKW predation_chin samples_long_filteredShort.RDS"
+#   )
+# ) %>% 
+#   st_drop_geometry()
+
+
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>%
+  janitor::clean_names() %>% 
+  mutate(
+    stock_group = case_when(
+      pst_agg == "CR-upper_sp" | region1name == "Willamette_R" ~ "Col_Spring",
+      pst_agg %in% c("CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa") ~ 
+        "Col_Summer_Fall",
+      stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
+        "ECVI_SOMN",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~ "other",
+      grepl("Fraser", region1name) ~ region1name,
+      TRUE ~ pst_agg
+    ) %>% 
+      factor(
+        .,
+        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
+                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
+                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
+                   "Fraser_Fall"),
+        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
+                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
+                   "FR_Sum_4.1", "FR_Fall")
+      )
+  ) %>% 
+  select(
+    stock, stock_group
   )
-) %>% 
-  st_drop_geometry()
 
 
 dat <- raw_dat %>% 
@@ -34,6 +63,11 @@ dat <- raw_dat %>%
     #remove samples captured in central VI
     !latitude > 49.15
   ) %>%
+  # correct weird stock 
+  mutate(
+    stock = ifelse(stock == "BIGQUL@LANG", "BIG_QUALICUM", stock)
+  ) %>% 
+  left_join(., stock_key, by = "stock") %>%
   mutate(
     strata = ifelse(is.na(strata), "swiftsure", as.character(strata)) %>%
       factor(
@@ -44,29 +78,6 @@ dat <- raw_dat %>%
                  "Sooke/\nVictoria", "San Juan\nIslands")
     ),
     month = lubridate::month(date),
-    stock_group = case_when(
-      agg %in% c("CA_ORCST", "CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa",
-                     "WACST", "Russia", "CR-upper_sp", "NBC_SEAK") ~ "other",
-      smu %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
-      stock == "CAPILANO" ~ "Fraser_Fall",
-      grepl("Fraser", smu) ~ smu,
-      TRUE ~ agg
-    ) %>%  factor(
-      .,
-      levels = c("other", "PSD", "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                 "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                 "Fraser_Fall"),
-      labels = c("other", "PSD", "WCVI", "ECVI_SOMN", "FR_Spr_4.2",
-                 "FR_Spr_5.2", "FR_Sum_5.2", "FR_Sum_4.1",
-                 "FR_Fall")
-    ),
-    age_stock_group = case_when(
-      grepl("Fraser", smu) ~ smu,
-      stock == "CAPILANO" ~ "Fraser_Fall",
-      agg == "SOG" ~ "ECVI_SOMN",
-      TRUE ~ agg
-    ) %>% 
-      as.factor(),
     # in-fill missing ages based on dominant life history strategy
     total_year = case_when(
       grepl("M", gr_age) & grepl(".2", smu) ~ sw_year + 2,
@@ -79,7 +90,14 @@ dat <- raw_dat %>%
     # sampling event = all samples collected in a given strata-year-month
     # week not feasible given sample sizes
     sample_id = paste(year, week, strata, sep = "_"),
-    sw_age = as.factor(sw_year)
+    sw_age = as.factor(sw_year),
+    age_stock_group = case_when(
+      grepl("Fraser", smu) ~ smu,
+      stock == "CAPILANO" ~ "Fraser_Fall",
+      agg == "SOG" ~ "ECVI_SOMN",
+      TRUE ~ agg
+    ) %>% 
+      as.factor()
   ) %>% 
   # since weeks may span multiple months, calculate median month for each week
   group_by(sample_id) %>% 
@@ -158,15 +176,6 @@ ppn_dat_pooled <- dat %>%
 # )
 
 
-# SMU colour palette
-smu_colour_pal <- c("grey30", "#08306B", "#6A51A3", "#CBC9E2", "#67000D", 
-                    "#A50F15", "#EF3B2C", "#FC9272", "#FCBBA1")
-names(smu_colour_pal) <- levels(dat$stock_group)
-
-era_pal <- c(15, 16)
-names(era_pal) <- levels(ppn_dat)
-
-
 ## CALCULATE MEAN SIZE ---------------------------------------------------------
 
 ## use model fit in size_by_stock.R 
@@ -175,7 +184,9 @@ size_fit <- readRDS(here::here("data", "rec", "size_at_age_fit.rds"))
 size_pred_dat <- dat %>% 
   filter(!is.na(sw_age)) %>% 
   mutate(
-    mm = ifelse(year < 2019, "no", "yes"),
+    slot_limit = ifelse(
+      lon < -124 & year < 2018, "no", "yes" 
+    ),
     year_f = size_fit$model$year_f[[1]]
   ) 
 
@@ -196,6 +207,44 @@ dat2 <- left_join(
     select(id, pred_fl),
   by = "id"
 )
+
+dd <- dat2 %>% 
+  select(id, strata, era, month, fw_year, sw_age, age_f, pred_fl) %>% 
+  distinct() %>% 
+  mutate(
+    size_bin = cut(
+      pred_fl, 
+      breaks = c(-Inf, 601, 701, 801, Inf), 
+      labels = c("<60", "60-70", "70-80", ">80")
+    )
+  )
+
+
+## PALETTES --------------------------------------------------------------------
+
+age_pal <- c(
+  "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c"
+)
+names(age_pal) <- levels(size_fit$model$sw_age)
+
+# SMU colour palette
+smu_colour_pal <- c("grey30", "#3182bd", "#bdd7e7", "#bae4bc", "#6A51A3",
+                    "#CBC9E2", "#67000D", "#A50F15", "#EF3B2C", "#FC9272", 
+                    "#FCBBA1")
+names(smu_colour_pal) <- levels(dat$stock_group)
+
+# era shape palette
+era_pal <- c(15, 16)
+names(era_pal) <- levels(ppn_dat)
+
+# size colour palette
+size_colour_pal <- c("grey30", "#8c510a", #"#d8b365", 
+                     "#f6e8c3", "#c7eae5", 
+                     # "#5ab4ac",
+                     "#01665e"
+)
+names(size_colour_pal) <- c(NA, levels(dd$size_bin))
+
 
 ## RAW DATA FIGURES ------------------------------------------------------------
 
@@ -238,23 +287,6 @@ diet_samp_bar <- ggplot(dat) +
     axis.title.x = element_blank()
   )
 
-
-dd <- dat2 %>% 
-  select(id, strata, era, month, fw_year, sw_age, age_f, pred_fl) %>% 
-  distinct() %>% 
-  mutate(
-    size_bin = cut(
-      pred_fl, 
-      breaks = c(-Inf, 700, 750, 800, 850, Inf), 
-      labels = c("<70", "70-75", "75-80", "80-85", ">85")
-    )
-  )
-
-age_pal <- c(
-  "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c"
-)
-names(age_pal) <- levels(size_fit$model$sw_age)
-
 age_samp_bar <- ggplot(dd) +
   geom_bar(aes(x = month, fill = sw_age)) +
   facet_grid(era~strata) +
@@ -278,7 +310,8 @@ size_samp_bar <- ggplot(dd) +
   geom_bar(aes(x = month, fill = size_bin)) +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_brewer(name = "Size\nClass", palette = "Dark2", na.value = "grey60" ) +
+  scale_fill_manual(name = "Size\nClass", values = size_colour_pal, 
+                    na.value = "grey60" ) +
   labs(
     y = "Prey Remains Composition"
   ) +
@@ -294,28 +327,28 @@ size_samp_bar <- ggplot(dd) +
 
 ## export 
 png(
-  here::here("figs", "ms_figs", "temporal_sample_coverage.png"),
+  here::here("figs", "rkw_diet", "temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 diet_samp_cov
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "monthly_comp_bar.png"),
+  here::here("figs", "rkw_diet", "monthly_comp_bar.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 diet_samp_bar
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "comp_bar_prey_age.png"),
+  here::here("figs", "rkw_diet", "comp_bar_prey_age.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 age_samp_bar
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "comp_bar_prey_size.png"),
+  here::here("figs", "rkw_diet", "comp_bar_prey_size.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 size_samp_bar
@@ -394,7 +427,7 @@ era_plot <- ggplot(era_pars) +
   
   
 png(
-  here::here("figs", "ms_figs", "sampling_period_effect.png"),
+  here::here("figs", "rkw_diet", "sampling_period_effect.png"),
   height = 3.5, width = 5, units = "in", res = 250
 )
 era_plot
