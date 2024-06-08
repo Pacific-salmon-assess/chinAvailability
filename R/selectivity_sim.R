@@ -32,7 +32,6 @@ rkw_dat <- readRDS(
   here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
 ) %>%
   rename(
-    week_n = week,
     year_n = year
   ) %>%
   filter(
@@ -76,53 +75,6 @@ large_fit <- readRDS(
 )
 fit_list <- list(model_fit, slot_fit, large_fit)
 
-#### DEFUNCT IF GENERATING PREDICTIONS ALL AT ONCE #####
-# split diet data by sample ID and simulate
-# rkw_dat_tbl <- rkw_dat_pooled %>%
-#   group_by(sample_id_pooled) %>%
-#   group_nest()
-
-# make new data frame consistent with SRKW diet to generate predictions from
-# new_dat_list <- purrr::map(
-#   rkw_dat_tbl$data,
-#   function (x) {
-#     newdata <- expand.grid(
-#       sample_size = unique(x$n_samples),
-#       week_n = unique(x$week_n),
-#       stock_group = levels(model_fit$model$stock_group),
-#       utm_x = unique(x$utm_x),
-#       utm_y = unique(x$utm_y),
-#       year_n = "2020" # dummy year so value doesn't matter
-#     ) %>%
-#       left_join(
-#         .,
-#         x %>%
-#           select(stock_group, obs_prob = agg_prob) %>%
-#           distinct(),
-#         by = c("stock_group")
-#       ) %>%
-#       mutate(
-#         obs_prob = ifelse(is.na(obs_prob), 0, obs_prob)
-#       )
-# 
-#     # exclude year smoother and generate predictions based on fishery model
-#     excl <- grepl("year_n", gratia::smooths(model_fit))
-#     yr_coefs <- gratia::smooths(model_fit)[excl]
-#     preds <- pred_dummy(
-#       model_fit,
-#       se.fit = TRUE,
-#       category_name = "stock_group",
-#       origdata = agg_dat,
-#       newdata = newdata,
-#       exclude = yr_coefs
-#     )
-# 
-#     cbind(
-#       newdata, pred_prob = preds$fit, se_pred = preds$se.fit
-#     ) %>%
-#       distinct()
-#   }
-# )
 
 # infill rkw data to ensure each stock group present for each sampling event
 dat_list <- split(rkw_dat, rkw_dat$sample_id)
@@ -158,107 +110,130 @@ new_dat <- purrr::map(
   bind_rows()
 
 
-# calculate mean ppn for each sampling event
-# excl <- grepl("year_n", gratia::smooths(model_fit))
-# yr_coefs <- gratia::smooths(model_fit)[excl]
-preds <- pred_dummy(
-  model_fit,
-  se.fit = FALSE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = new_dat
-)
-# new_dat$pred_ppn <- preds
-
-pred_list <- purrr::map2(
-  fit_list,
-  c("standard", "slot", "large"),
-  function (x, y) {
-    preds <- predict(
-      x, se.fit = TRUE, category_name = "stock_group", origdata = x$model,
-      newdata = new_dat
-    )
-    new_dat %>% 
-      mutate(
-        fit = preds$fit,
-        se = preds$se.fit,
-        model = y
-      )
-  }
-)
-
-# simulate based on each observation dataset 
-nsim <- 50
-sim_dat_out <- vector(mode = "list", length = nsim)
-
-for (i in 1:nsim) {
-  # generate vector of random variables based on predicted proportions and SEs
-  # bounded at 0
-  r_vec <- rep(NA, length = nrow(pred_list[[1]]))
-  for (j in seq_along(r_vec)) {
-    r_vec[j] <- rnorm(1, mean = pred_list[[1]]$fit[j], sd = pred_list[[1]]$se[j])
-  }
-  r_vec2 <- pmax(r_vec, 0)
-  pred_list[[1]]$r_vec <- r_vec2
-  
-  # split and rescale so that proportions sum to one
-  scaled_pred_list <- pred_list[[1]] %>% 
-    group_by(sample_id) %>% 
-    mutate(
-      new_ppn = r_vec / sum(r_vec)
-    ) %>% 
-    ungroup() %>% 
-    split(., .$sample_id)
-  
-  # generate null multinomial distribution for each sampling event
-  sim_dat <- purrr::map(
-    scaled_pred_list,
-    function (x) {
-      # Generate multinomial samples under null hypothesis (i.e. same dist)
-      x %>% 
-        mutate(
-          sample_size = unique(x$sample_size),
-          sample2_null = rmultinom(1, sample_size, x$new_ppn) %>% as.numeric(),
-          sample1_null = rmultinom(1, sample_size, x$new_ppn) %>% as.numeric(),
-          sample_obs = rmultinom(1, sample_size, x$obs_ppn) %>% as.numeric()
-        )
-    } 
-  ) %>% 
-    bind_rows()
-  
-  # for simulation calculate total counts then test whether obs greater than
-  # null
-  sim_dat_agg <- sim_dat %>% 
-    group_by(
-      stock_group
-    ) %>% 
-    summarize(
-      sample1_count = sum(sample1_null),
-      sample2_count = sum(sample2_null),
-      obs_count = sum(sample_obs),
-      null_diff = abs(sample1_count - sample2_count),
-      obs_diff = abs(sample1_count - obs_count),
-      test_stat = ifelse(null_diff >= obs_diff, 1, 0)
-    ) %>% 
-    mutate(
-      sim_i = i %>% as.character()
-    )
-  sim_dat_out[[i]] <- sim_dat_agg
-}
-
-sim_dat_out %>% 
-  bind_rows() %>% 
-  group_by(stock_group) %>% 
-  summarize(p_value = sum(test_stat) / nsim)
-
-dd <- sim_dat_out %>% 
-  bind_rows() %>%
-  # calculate simulated proportion in each simulation to compare to observed
-  group_by(sim_i) %>% 
+# generate predictions based on each fitted model and store as tibble
+pred_tbl <- tibble(
+  dataset = c("standard", "slot", "large")
+) %>% 
   mutate(
-    pred_sim_ppn = sample1_count / sum(sample1_count)
+    pred_dat = purrr::map(
+      fit_list, function (x) {
+        preds <- predict(
+          x, se.fit = TRUE, category_name = "stock_group", origdata = x$model,
+          newdata = new_dat
+        )
+        new_dat %>% 
+          mutate(
+            fit = preds$fit,
+            se = preds$se.fit
+          )
+      }
+    )
   )
 
+
+# function to generate simulations for a dataframe of predictions
+sim_foo <- function(pred_dat_in, nsim = 50) {
+  sim_dat_out <- vector(mode = "list", length = nsim)
+  
+  for (i in 1:nsim) {
+    # generate vector of random variables based on predicted proportions and SEs
+    r_vec <- rep(NA, length = nrow(pred_dat_in))
+    for (j in seq_along(r_vec)) {
+      r_vec[j] <- rnorm(1, mean = pred_dat_in$fit[j], sd = pred_dat_in$se[j])
+    }
+    # remove negative random draws
+    r_vec2 <- pmax(r_vec, 0)
+    pred_dat_in$r_vec <- r_vec2
+    
+    # rescale so that proportions sum to one then split into a list
+    scaled_pred_list <- pred_dat_in %>% 
+      group_by(sample_id) %>% 
+      mutate(
+        new_ppn = r_vec / sum(r_vec)
+      ) %>% 
+      ungroup() %>% 
+      split(., .$sample_id)
+    
+    # generate null multinomial distribution for each sampling event
+    sim_dat <- purrr::map(
+      scaled_pred_list,
+      function (x) {
+        # Generate multinomial samples under null hypothesis (i.e. same dist)
+        x %>% 
+          mutate(
+            sample_size = unique(x$sample_size),
+            sample1_null = rmultinom(1, sample_size, x$new_ppn) %>% 
+              as.numeric(),
+            sample2_null = rmultinom(1, sample_size, x$new_ppn) %>% 
+              as.numeric(),
+            sample_obs = rmultinom(1, sample_size, x$obs_ppn) %>% 
+              as.numeric()
+          )
+      } 
+    ) %>% 
+      bind_rows()
+    
+    # for simulation calculate total counts then test whether obs greater than
+    # null
+    sim_dat_agg <- sim_dat %>% 
+      group_by(
+        stock_group
+      ) %>% 
+      summarize(
+        sample1_count = sum(sample1_null),
+        sample2_count = sum(sample2_null),
+        obs_count = sum(sample_obs),
+        null_diff = abs(sample1_count - sample2_count),
+        obs_diff = abs(sample1_count - obs_count),
+        test_stat = ifelse(null_diff >= obs_diff, 1, 0)
+      ) %>% 
+      mutate(
+        sim_i = i %>% as.character()
+      )
+    sim_dat_out[[i]] <- sim_dat_agg
+  }
+  
+  sim_dat_out %>% 
+    bind_rows()
+}
+
+
+# generate simulations for each model fit
+plan(multisession, workers = 6)
+pred_tbl$sim_dat <- furrr::future_map(
+  pred_tbl$pred_dat, ~ sim_foo(.x, nsim = 500)
+)
+
+
+# calculate p-values for each and print
+purrr::map(
+  pred_tbl$sim_dat, 
+  ~ .x %>% 
+    group_by(stock_group) %>% 
+    summarize(p_value = sum(test_stat) / length(unique(sim_i)))
+  )
+
+
+# calculate simulated proportion in each simulation to compare to observed
+sim_ppn_dat <- pred_tbl %>% 
+  mutate(
+    dataset = factor(dataset, levels = c("standard", "slot", "large")),
+    sim_ppn = purrr::map(
+      sim_dat,
+      ~ .x %>% 
+        group_by(sim_i) %>% 
+        mutate(
+          pred_sim_ppn = sample1_count / sum(sample1_count)
+        )
+    )
+  ) %>% 
+  select(dataset, sim_ppn) %>% 
+  unnest(
+    cols = sim_ppn
+  )
+
+
+# calculate observed proportions
 obs_ppn_dat <- rkw_dat %>% 
   group_by(stock_group) %>% 
   summarize(
@@ -269,14 +244,16 @@ obs_ppn_dat <- rkw_dat %>%
     obs_ppn = sum_obs / sum(sum_obs)
   )
 
+
 ggplot() +
   geom_boxplot(
-    data = dd,
-    aes(x = stock_group, y = pred_sim_ppn)
+    data = sim_ppn_dat,
+    aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
     ) +
   geom_point(
     data = obs_ppn_dat, 
     aes(x = stock_group, y = obs_ppn), 
     colour = "red"
-  )
+  ) +
+  facet_wrap(~dataset)
 
