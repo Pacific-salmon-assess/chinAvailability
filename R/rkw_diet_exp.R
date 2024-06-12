@@ -20,25 +20,21 @@ raw_dat <- readRDS(
     )
   )
 
-# new data is in SF dataframe format; pull lat/lon and convert to normal DF
-# raw_dat_new <- readRDS(
-#   here::here(
-#     "data", "rkw_diet", "RKW predation_chin samples_long_filteredShort.RDS"
-#   )
-# ) %>% 
-#   st_drop_geometry()
 
-
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>%
+stock_key <- readRDS(
+  here::here("data", "rec", "finalStockList_May2024.rds")
+  ) %>%
   janitor::clean_names() %>% 
   mutate(
+    # adjust stock groups to match priorities
     stock_group = case_when(
       pst_agg == "CR-upper_sp" | region1name == "Willamette_R" ~ "Col_Spring",
       pst_agg %in% c("CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa") ~ 
         "Col_Summer_Fall",
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
         "ECVI_SOMN",
-      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~ "other",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", 
+                     "Yukon") ~ "other",
       grepl("Fraser", region1name) ~ region1name,
       TRUE ~ pst_agg
     ) %>% 
@@ -46,8 +42,8 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>
         .,
         levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
                    "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                   "Fraser_Fall"),
+                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", 
+                   "Fraser_Summer_4.1", "Fraser_Fall"),
         labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
                    "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
                    "FR_Sum_4.1", "FR_Fall")
@@ -59,10 +55,6 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>
 
 
 dat <- raw_dat %>% 
-  filter(
-    #remove samples captured in central VI
-    !latitude > 49.15
-  ) %>%
   # correct weird stock 
   mutate(
     stock = ifelse(stock == "BIGQUL@LANG", "BIG_QUALICUM", stock)
@@ -176,6 +168,20 @@ ppn_dat_pooled <- dat %>%
 # )
 
 
+# calculate hatchery contribution by stock (uses mean values from 
+# mvtweedie_fit.R)
+hatchery_dat <- readRDS(here::here("data", "rec", "hatchery_stock_df.rds")) %>% 
+  select(stock_group, origin2, ppn) %>% 
+  ungroup() %>% 
+  full_join(., 
+            dat %>% select(month, stock_prob, stock_group, era, strata),
+            by = "stock_group",
+            relationship = "many-to-many") %>% 
+  arrange(month, strata) %>% 
+  mutate(scaled_prob = stock_prob * ppn)
+
+
+
 ## CALCULATE MEAN SIZE ---------------------------------------------------------
 
 ## use model fit in size_by_stock.R 
@@ -186,11 +192,10 @@ size_pred_dat <- dat %>%
   mutate(
     slot_limit = ifelse(
       lon < -124 & year < 2018, "no", "yes" 
-    ),
-    year_f = size_fit$model$year_f[[1]]
+    )
   ) 
 
-pp <- predict(size_fit, size_pred_dat, exclude = "s(year_f)")
+pp <- predict(size_fit, size_pred_dat)
 
 # since each sample includes multiple stock IDs calculate mean size 
 size_pred_dat2 <- size_pred_dat %>% 
@@ -238,12 +243,13 @@ era_pal <- c(15, 16)
 names(era_pal) <- levels(ppn_dat)
 
 # size colour palette
-size_colour_pal <- c("grey30", "#8c510a", #"#d8b365", 
-                     "#f6e8c3", "#c7eae5", 
-                     # "#5ab4ac",
-                     "#01665e"
-)
+size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
 names(size_colour_pal) <- c(NA, levels(dd$size_bin))
+
+# hatchery origin colour palette
+hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
+                         "#fbb4b9")
+names(hatchery_colour_pal) <- levels(hatchery_dat$origin2)
 
 
 ## RAW DATA FIGURES ------------------------------------------------------------
@@ -256,6 +262,7 @@ diet_samp_cov <- dat %>%
   geom_point(aes(x = week_n, y = year, size = n, shape = era), 
              alpha = 0.6) +
   facet_wrap(~strata) +
+  geom_hline(aes(yintercept = 2014), col = "red", lty = 2) +
   scale_size_continuous(name = "Sample\nSize") +
   scale_shape_manual(values = era_pal, name = "Sample\nEra") +
   scale_x_continuous(
@@ -304,6 +311,23 @@ age_samp_bar <- ggplot(dd) +
     axis.title.x = element_blank()
   )
 
+hatchery_samp_bar <- ggplot(hatchery_dat) +
+  geom_bar(aes(x = month, y = scaled_prob, fill = origin2), stat = "identity") +
+  facet_grid(era~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_manual(
+    name = "Hatchery\nContribution", values = hatchery_colour_pal) +
+  labs(
+    y = "Prey Remains Composition"
+  ) +
+  scale_x_continuous(
+    breaks = c(6, 7, 8, 9, 10),
+    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  ) +
+  theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
 
 # box plots of size
 size_samp_bar <- ggplot(dd) +
@@ -323,6 +347,7 @@ size_samp_bar <- ggplot(dd) +
     legend.position = "top",
     axis.title.x = element_blank()
   )
+
 
 
 ## export 
@@ -354,6 +379,12 @@ png(
 size_samp_bar
 dev.off()
 
+png(
+  here::here("figs", "rkw_diet", "comp_bar_prey_hatchery.png"),
+  height = 5, width = 8, units = "in", res = 250
+)
+hatchery_samp_bar
+dev.off()
 
 
 ## FIT MODEL -------------------------------------------------------------------
@@ -385,17 +416,17 @@ agg_dat <- expand.grid(
   ) %>% 
   droplevels()
 
-# fit <- gam(
-#   agg_count ~ 0 + stock_group*era +
-#     s(week_n, by = stock_group, k = 6) +
-#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-#   data = agg_dat, family = "tw"
-# )
-# class(fit) = c( "mvtweedie", class(fit) )
-# saveRDS(
-#   fit,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
-# )
+fit <- gam(
+  agg_count ~ 0 + stock_group*era +
+    s(week_n, by = stock_group, k = 7) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
+  data = agg_dat, family = "tw"
+)
+class(fit) = c( "mvtweedie", class(fit) )
+saveRDS(
+  fit,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
+)
 fit <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
 )
@@ -442,9 +473,9 @@ ppn_zero_obs <- sum(agg_dat$agg_count == 0) / nrow(agg_dat)
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
-  agg_count ~ stock_group*era +
-    s(week_n, by = stock_group, k = 5) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 10),
+  agg_count ~ 0 + stock_group*era +
+    s(week_n, by = stock_group, k = 6) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
   data = agg_dat,
   spatial = "off",
   spatiotemporal = "off",
@@ -457,8 +488,6 @@ saveRDS(
 fit_sdmTMB <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
-
-
 
 
 ## PREDICT ---------------------------------------------------------------------
