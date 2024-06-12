@@ -8,7 +8,7 @@ library(tidyverse)
 
 gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   filter(
-    !fl < 550
+    !fl < 501
   ) %>% 
   mutate(
     age_stock_group = case_when(
@@ -17,6 +17,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       TRUE ~ pst_agg
     )
   ) %>%
+  # calculate the stock group level probability for each individual
   group_by(
     id, strata, stock_group, age_stock_group, week_n, month_n, slot_limit, fl,
     age, sw_age, origin, year
@@ -25,7 +26,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     sum_prob = sum(prob), .groups = "drop"
   ) %>% 
   ungroup() %>% 
-  # focus on: study area; Canadian stocks + Puget Sound + Columbia; May-Oct
+  # focus on: study area; May-Oct
   # remove uncertain assignments
   filter(
     sum_prob < 0.75,
@@ -53,8 +54,8 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     sw_age = as.factor(sw_age),
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 651, 751, 851, Inf), 
-      labels = c("<65", "65-75", "75-85", ">85")
+      breaks = c(-Inf, 601, 701, 801, Inf), 
+      labels = c("<60", "60-70", "70-80", ">80")
     ),
     origin = factor(
       origin, levels = c("wild", "hatchery", "unknown")
@@ -63,8 +64,8 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
 
 
 # colour palettes
-size_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
-names(size_pal) <- c(NA, levels(gsi$size_bin))
+size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
+names(size_colour_pal) <- c(NA, levels(gsi$size_bin))
   
 age_pal <- c("grey30", "#1f78b4", "#a6cee3", "#b2df8a", "#33a02c")
 names(age_pal) <- c(NA, levels(gsi$sw_age))
@@ -150,7 +151,7 @@ dev.off()
 ## SIZE COMPOSITION ------------------------------------------------------------
 
 size_comp <- gsi %>%
-  filter(!is.na(size_bin)) %>% 
+  filter(!is.na(size_bin)) %>%
   group_by(stock_group) %>%
   mutate(size_n = n()) %>%
   ungroup() %>%
@@ -169,7 +170,7 @@ size_comp_stacked <- ggplot() +
            position="stack", stat="identity", colour = "black") +
   geom_text(data = labs_size_comp,
             aes(x = stock_group, y = 0.05, label = size_n)) +
-  scale_fill_manual(name = "Size\nClass", values = size_pal) +
+  scale_fill_manual(name = "Size\nClass", values = size_colour_pal) +
   labs(y = "Proportion Size Composition", x = "Stock") +
   ggsidekick::theme_sleek() +
   theme(
@@ -188,6 +189,7 @@ dev.off()
 
 # add fill color by SMU
 size_at_age_box <- gsi %>%
+  filter(!is.na(sw_age)) %>% 
   ggplot(.) +
   geom_boxplot(aes(x = stock_group, y = fl)) +
   labs(y = "Fork Length", x = "Stock") +
@@ -242,7 +244,7 @@ stock_age <- gsi %>%
     age_n = length(unique(id))
   ) 
 
-# restrict to weeks where at least two individuals sampled
+# restrict to weeks where at least five individuals sampled
 week_month <- data.frame(
   week_n = c(20, 25, 29, 34, 37),
   month = c("May", "Jun", "Jul", "Aug", "Sep")
