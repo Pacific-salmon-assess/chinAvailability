@@ -215,7 +215,10 @@ fit <- gam(
   fl ~ 0 + sw_age + s(week_n, bs = "tp", k = 4, m = 2) +
     s(week_n, bs = "tp", by = sw_age, k = 4, m = 1) +
     s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) +
-    slot_limit:age_stock_group + s(year_f, bs = "re"),
+    slot_limit:age_stock_group 
+  # remove given minimal variability in size and some missing years
+  #+ s(year_f, bs = "re")
+  ,
   data = gsi
 )
 saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
