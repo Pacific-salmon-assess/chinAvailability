@@ -118,8 +118,8 @@ smu_colour_pal <- c("grey30", "#3182bd", "#bdd7e7", "#bae4bc", "#6A51A3",
 names(smu_colour_pal) <- levels(dat$stock_group)
 
 # hatchery origin colour palette
-hatchery_colour_pal <- c("#31a354", "#e5f5e0", "grey30", "grey60", "#756bb1",
-                         "#efedf5")
+hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
+                         "#fbb4b9")
 names(hatchery_colour_pal) <- levels(dat$origin2)
 
 
@@ -204,7 +204,7 @@ rec_samp_bar_h <- ggplot(dat) +
 
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer_h <- dat %>%
-  filter(month_n %in% c("6", "7", "8", "9", "10"), year > 2017) %>%
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
@@ -223,7 +223,37 @@ rec_samp_bar_summer_h <- dat %>%
     axis.title.x = element_blank()
   )
 
+# proportion hatchery within each stock group
+hatchery_stock_dat <- dat %>% 
+  group_by(stock_group, origin2) %>% 
+  summarize(
+    sum_prob = sum(prob), #/ total_n,
+    .groups = "drop"
+  ) %>% 
+  group_by(stock_group) %>% 
+  mutate(
+    ppn = sum_prob / sum(sum_prob)
+  )
+# export to estimate hatchery comp of diet
+saveRDS(hatchery_stock_dat, here::here("data", "rec", "hatchery_stock_df.rds"))
 
+
+hatchery_stock_bar <- ggplot(hatchery_stock_dat) +
+  geom_bar(aes(x = stock_group, y = ppn, fill = origin2),
+           stat = "identity") +
+  # facet_wrap(~strata) +
+  ggsidekick::theme_sleek() +
+  scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
+  labs(
+    y = "Recreational Fishery\nComposition"
+  ) +
+ theme(
+    legend.position = "top",
+    axis.title.x = element_blank()
+  )
+
+
+## export
 png(
   here::here("figs", "stock_comp_fishery", "rec_temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
@@ -257,6 +287,13 @@ png(
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_summer_h
+dev.off()
+
+png(
+  here::here("figs", "stock_comp_fishery", "rec_stock_hatchery_bar.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+hatchery_stock_bar
 dev.off()
 
 

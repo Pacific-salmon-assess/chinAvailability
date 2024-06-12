@@ -435,7 +435,8 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>
         "Col_Summer_Fall",
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
         "ECVI_SOMN",
-      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~ "other",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~
+        "other",
       grepl("Fraser", region1name) ~ region1name,
       TRUE ~ pst_agg
     ) %>% 

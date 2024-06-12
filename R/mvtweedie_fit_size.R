@@ -21,7 +21,7 @@ size_raw <- readRDS(here::here("data", "rec", "rec_size.rds")) %>%
 dat <- size_raw %>% 
   filter(
     # remove very small as in stock tweedie
-    !fl < 501,
+    !fl < 551,
     !is.na(size_bin),
     !is.na(lat),
     !is.na(lon),

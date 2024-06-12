@@ -8,7 +8,7 @@ library(tidyverse)
 
 gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>% 
   filter(
-    !fl < 501
+    !fl < 551
   ) %>% 
   mutate(
     age_stock_group = case_when(
