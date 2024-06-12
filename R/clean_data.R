@@ -10,7 +10,7 @@ library(ggplot2)
 # CRITICAL HABITAT CLEAN -------------------------------------------------------
 
 if (Sys.info()['sysname'] == "Windows") {
-  shp_path <- "C:/Users/FRESHWATERC/Documents/drive docs/spatial/"
+  shp_path <- "G:/My Drive/spatial"
 } else {
   shp_path <- "/Users/cam/Google Drive/spatial"
 }
@@ -277,6 +277,7 @@ rec_sf <- wide_all %>%
   ) 
 
 ## identify whether samples caught inside/outside critical habitat
+# NO LONGER NECESSARY WITH SPATIALLY EXPLICIT MODEL
 # hab_sf <- readRDS(
 #   here::here("data", "spatial", "rkw_critical_habitat_0.25exc_0.7prop.rds")
 # )
@@ -287,25 +288,23 @@ pfma_areas <- readRDS(
   here::here("data", "spatial", "pfma_subareas_sBC.rds")
 )
 rec_sf_areas <- st_intersection(rec_sf, pfma_areas)
-rec_sf_areas_trim <- rec_sf_areas %>% 
-  sf::st_drop_geometry() %>% 
+rec_sf_areas_trim <- rec_sf_areas %>%
+  sf::st_drop_geometry() %>%
   select(id, #new_location,
-         subarea_new = label, 
-         subarea_inc_rkw = rkw_overlap)
-coast <- readRDS(
-  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
-  # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
-  sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.75, ymax = 48.8)
+         subarea_new = label)
+# coast <- readRDS(
+#   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
+#   # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+#   sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.75, ymax = 48.8)
 
 
 
 wide_rec4 <- wide_all %>% 
   left_join(., rec_sf_areas_trim, by = "id") %>%
-  # filter(!(lat > 48.8)) %>% #focus on focal areas but apply other to non-focal sites
   mutate(
-    rkw_habitat1 = ifelse(
-      id %in% rec_sf_sub$id, "yes", "no"
-    ),
+    # rkw_habitat1 = ifelse(
+    #   id %in% rec_sf_sub$id, "yes", "no"
+    # ),
     # redefine strata manually
     strata = case_when(
       lat > 48.8 ~ "other",
@@ -520,7 +519,8 @@ long_rec <- wide_rec4_trim %>%
     ) %>% 
       factor(., levels = c("hatchery", "unknown", "wild")),
     nation = ifelse(
-      pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI"), 
+      pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI") | 
+        region4name == "NBC", 
       "Can",
       "USA"
     ),
