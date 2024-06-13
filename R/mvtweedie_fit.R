@@ -136,11 +136,12 @@ rec_samp_cov <- ggplot(sample_key) +
     breaks = c(2, 20, 36, 50),
     labels = c("Jan", "May", "Sep", "Dec")
   ) + 
+  lims(y = c(2003, 2023.5)) +
+  geom_hline(aes(yintercept = 2013), col = "red", lty = 2) +
   ggsidekick::theme_sleek() +
   theme(
     axis.title = element_blank()
   )
-
 
 # stacked bar plot
 rec_samp_bar <- ggplot(dat) +
@@ -532,20 +533,21 @@ pred3 = pred_dummy(
 newdata_yr <- cbind( newdata, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
   mutate(
     lower = fit + (qnorm(0.025)*se.fit),
-    upper = fit + (qnorm(0.975)*se.fit)
+    upper = fit + (qnorm(0.975)*se.fit),
+    stock_group2 = gsub("_", "\n", stock_group)
   ) 
 
 year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
-  facet_grid(strata~stock_group, scales = "free_y") +
-  scale_colour_discrete(name = "Stock Group") +
-  scale_colour_discrete(name = "Stock Group") +
+  facet_grid(stock_group2~strata, scales = "free_y") +
+  scale_colour_discrete() +
   coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
   ) +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y="Predicted Proportion") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "top") +
+  theme(legend.position = "none",
+        axis.title.x = element_blank()) +
   scale_x_continuous(
     breaks = c(25, 29.25, 33.5, 38),
     labels = c("Jun", "Jul", "Aug", "Sep")

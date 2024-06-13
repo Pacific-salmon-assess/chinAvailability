@@ -89,14 +89,15 @@ diet_samp_map <- ggplot() +
     shape = 4
   ) +
   coord_sf(expand = FALSE) +
-  scale_colour_manual(values = strata_colour_pal, name = element_blank()) +
+  scale_colour_manual(values = strata_colour_pal, name = "Spatial\nStrata") +
   scale_size_continuous(name = "Number\nof\nSamples") +
-  scale_shape_manual(values = era_shape_pal, name = element_blank()) +
+  scale_shape_manual(values = era_shape_pal, name = "Diet\nSampling\nEra") +
   ggsidekick::theme_sleek() +
   theme(
     panel.background = element_rect(fill = "white"),
     axis.title = element_blank(),
-    legend.position = "top"
+    legend.position = "top",
+    axis.text = element_blank()
   ) +
   facet_wrap(
     ~dataset,
@@ -106,10 +107,7 @@ diet_samp_map <- ggplot() +
 
 png(
   here::here("figs", "study_area.png"),
-  height = 7.5, width = 7.5, units = "in", res = 250
+  height = 7.5, width = 8, units = "in", res = 250
 )
 diet_samp_map
 dev.off()
-
-
-

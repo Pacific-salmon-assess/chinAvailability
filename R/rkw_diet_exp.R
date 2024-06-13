@@ -262,7 +262,7 @@ diet_samp_cov <- dat %>%
   geom_point(aes(x = week_n, y = year, size = n, shape = era), 
              alpha = 0.6) +
   facet_wrap(~strata) +
-  geom_hline(aes(yintercept = 2014), col = "red", lty = 2) +
+  geom_hline(aes(yintercept = 2013), col = "red", lty = 2) +
   scale_size_continuous(name = "Sample\nSize") +
   scale_shape_manual(values = era_pal, name = "Sample\nEra") +
   scale_x_continuous(

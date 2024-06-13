@@ -47,9 +47,9 @@ dat <- size_raw %>%
       fl, 
       breaks = c(-Inf, 601, 701, 801, Inf), 
       labels = c("<60", "60-70", "70-80", ">80")
-    ),
+    )#,
     #reverse factor order for aesthetics
-    size_bin = forcats::fct_rev(size_bin)
+    # size_bin = forcats::fct_rev(size_bin)
   ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "km",
@@ -107,7 +107,7 @@ agg_dat <- expand.grid(
   ) 
 
 
-# SMU colour palette
+# size colour palette
 size_colour_pal <- c("grey30", "#8c510a", #"#d8b365", 
                      "#f6e8c3", "#c7eae5", 
                     # "#5ab4ac",

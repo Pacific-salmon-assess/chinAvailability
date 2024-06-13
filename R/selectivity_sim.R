@@ -268,6 +268,12 @@ sel_boxplot <- ggplot() +
   scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
-        axis.title.x = element_blank())
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
 
-
+png(
+  here::here("figs", "selectivity", "selectivity_boxplot.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+sel_boxplot
+dev.off()
