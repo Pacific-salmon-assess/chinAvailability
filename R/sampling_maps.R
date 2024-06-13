@@ -27,7 +27,8 @@ rec_dat <- rec_dat_in %>%
     dataset = "fishery",
     n_samples = round(sample_id_n, digits = 0)
   ) %>% 
-  select(utm_x_m, utm_y_m, era, strata, n_samples, dataset)
+  select(utm_x_m, utm_y_m, era, strata, n_samples, dataset) %>% 
+  distinct()
 
 
 # combine and trim for mapping
@@ -81,7 +82,7 @@ diet_samp_map <- ggplot() +
     data = dat,
     aes(x = utm_x_m, y = utm_y_m, colour = strata, shape = era, 
         size = n_samples), 
-    alpha = 0.4
+    alpha = 0.6
   ) +
   geom_point(
     data = strata_key, aes(x = utm_x_m, y = utm_y_m), 

@@ -417,7 +417,7 @@ agg_dat <- expand.grid(
   droplevels()
 
 fit <- gam(
-  agg_count ~ 0 + stock_group*era +
+  agg_count ~ 0 + stock_group +
     s(week_n, by = stock_group, k = 7) +
     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
   data = agg_dat, family = "tw"
@@ -434,35 +434,35 @@ fit <- readRDS(
 
 ## parameter estimates plot
 
-era_pars <- broom::tidy(fit, parametric = TRUE, conf.int = TRUE) %>% 
-  filter(grepl("era", term)) %>% 
-  mutate(
-    stock_group = levels(agg_dat$stock_group) %>% 
-      factor(., levels = levels(agg_dat$stock_group))
-  ) 
-
-era_plot <- ggplot(era_pars) +
-  geom_pointrange(
-    aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high, 
-        fill = stock_group), 
-    shape = 21) +
-  scale_fill_manual(values = smu_colour_pal) +
-  geom_hline(aes(yintercept = 0), lty = 2) +
-  ggsidekick::theme_sleek() +
-  labs(y = "Sampling Period Effect Size") +
-  theme(
-    legend.position = "none",
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
-  
-  
-png(
-  here::here("figs", "rkw_diet", "sampling_period_effect.png"),
-  height = 3.5, width = 5, units = "in", res = 250
-)
-era_plot
-dev.off()
+# era_pars <- broom::tidy(fit, parametric = TRUE, conf.int = TRUE) %>% 
+#   filter(grepl("era", term)) %>% 
+#   mutate(
+#     stock_group = levels(agg_dat$stock_group) %>% 
+#       factor(., levels = levels(agg_dat$stock_group))
+#   ) 
+# 
+# era_plot <- ggplot(era_pars) +
+#   geom_pointrange(
+#     aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high, 
+#         fill = stock_group), 
+#     shape = 21) +
+#   scale_fill_manual(values = smu_colour_pal) +
+#   geom_hline(aes(yintercept = 0), lty = 2) +
+#   ggsidekick::theme_sleek() +
+#   labs(y = "Sampling Period Effect Size") +
+#   theme(
+#     legend.position = "none",
+#     axis.title.x = element_blank(),
+#     axis.text.x = element_text(angle = 45, hjust = 1)
+#   )
+#   
+#   
+# png(
+#   here::here("figs", "rkw_diet", "sampling_period_effect.png"),
+#   height = 3.5, width = 5, units = "in", res = 250
+# )
+# era_plot
+# dev.off()
 
 
 ## CHECK -----------------------------------------------------------------------
@@ -473,7 +473,7 @@ ppn_zero_obs <- sum(agg_dat$agg_count == 0) / nrow(agg_dat)
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
-  agg_count ~ 0 + stock_group*era +
+  agg_count ~ 0 + stock_group +#*era +
     s(week_n, by = stock_group, k = 6) +
     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
   data = agg_dat,
@@ -488,6 +488,33 @@ saveRDS(
 fit_sdmTMB <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
+
+
+
+# fit spatial model
+mesh <- make_mesh(agg_dat, c("utm_x", "utm_y"), n_knots = 50)
+
+fit_sdmTMB2 <-  sdmTMB(
+  agg_count ~ 0 + stock_group*era #+
+    # s(week_n, by = stock_group, k = 6)
+    ,
+  data = agg_dat,
+  mesh = mesh,
+  spatial = "on",
+  groups = "stock_group",
+  spatiotemporal = "off",
+  family = tweedie(link = "log"),
+  control = sdmTMBcontrol(
+    map = list(
+      ln_tau_Z = factor(
+        rep(1, times = length(unique(agg_dat$stock_group)))
+      )
+    )
+  ),
+  silent = FALSE,
+  do_fit = FALSE
+)
+
 
 
 ## PREDICT ---------------------------------------------------------------------
@@ -508,7 +535,7 @@ newdata <- expand.grid(
   strata = levels(agg_dat$strata),
   week_n = seq(25, 38, by = 0.25),
   stock_group = levels(agg_dat$stock_group),
-  era = unique(agg_dat$era),
+  # era = unique(agg_dat$era),
   year = levels(agg_dat$year)[1]
 ) %>%
   left_join(., loc_key, by = 'strata') %>% 
@@ -516,8 +543,8 @@ newdata <- expand.grid(
     strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
   filter(
-    !strata == "sooke"
-  ) 
+    !strata == "sooke",
+  )
 
 pred = predict(
   fit,
@@ -550,7 +577,9 @@ newdata_trim <- newdata %>%
   )
 
 diet_pred_smooth <- ggplot(newdata_trim,
-       aes(week_n, fit, colour = era, fill = era)) +
+       aes(week_n, fit
+           #, colour = era, fill = era
+           )) +
   geom_point(
     data = agg_dat %>%
       filter(strata %in% newdata_trim$strata),
@@ -563,8 +592,8 @@ diet_pred_smooth <- ggplot(newdata_trim,
   coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
   labs(
     y = "Predicted Proportion of Diet Sample",
-    fill = "Sampling\nEra",
-    colour = "Sampling\nEra",
+    # fill = "Sampling\nEra",
+    # colour = "Sampling\nEra",
     size = "Sample\nSize"
   ) +
   ggsidekick::theme_sleek() +
@@ -584,13 +613,13 @@ diet_pred_stacked <- ggplot(data = newdata_trim,
   labs(y = "Predicted Mean Composition of Diet Sample", x = "Week") +
   ggsidekick::theme_sleek() +
   theme(
-    legend.position = "right",
+    legend.position = "top",
     axis.text = element_text(size=9),
     plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points"),
     axis.title.x = element_blank()
   ) +
   coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
-  facet_grid(strata~era) +
+  facet_wrap(~strata) +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37, 41),
     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
@@ -599,15 +628,15 @@ diet_pred_stacked <- ggplot(data = newdata_trim,
 
 ## export 
 png(
-  here::here("figs", "ms_figs", "smooth_preds.png"),
+  here::here("figs", "rkw_diet", "smooth_preds.png"),
   height = 8, width = 6.5, units = "in", res = 250
 )
 diet_pred_smooth
 dev.off()
 
 png(
-  here::here("figs", "ms_figs", "stacked_pred.png"),
-  height = 8, width = 6.5, units = "in", res = 250
+  here::here("figs", "rkw_diet", "stacked_pred.png"),
+  height = 4, width = 6.5, units = "in", res = 250
 )
 diet_pred_stacked
 dev.off()
