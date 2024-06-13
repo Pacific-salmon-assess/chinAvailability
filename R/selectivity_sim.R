@@ -73,7 +73,9 @@ large_fit <- readRDS(
     "data", "model_fits", "mvtweedie", "fit_large.rds"
   )
 )
-fit_list <- list(model_fit, slot_fit, large_fit)
+# exclude slot model for now because no 2023 data
+fit_list <- list(model_fit, #slot_fit, 
+                 large_fit)
 
 
 # infill rkw data to ensure each stock group present for each sampling event
@@ -112,7 +114,8 @@ new_dat <- purrr::map(
 
 # generate predictions based on each fitted model and store as tibble
 pred_tbl <- tibble(
-  dataset = c("standard", "slot", "large")
+  dataset = c("standard",# "slot", 
+              "large")
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -173,8 +176,8 @@ sim_foo <- function(pred_dat_in, nsim = 50) {
     ) %>% 
       bind_rows()
     
-    # for simulation calculate total counts then test whether obs greater than
-    # null
+    # for simulation calculate total counts then test whether obs differences
+    # greater than null differences
     sim_dat_agg <- sim_dat %>% 
       group_by(
         stock_group
@@ -199,9 +202,10 @@ sim_foo <- function(pred_dat_in, nsim = 50) {
 
 
 # generate simulations for each model fit
-plan(multisession, workers = 6)
+future::plan(future::multisession, workers = 6)
 pred_tbl$sim_dat <- furrr::future_map(
-  pred_tbl$pred_dat, ~ sim_foo(.x, nsim = 500)
+  pred_tbl$pred_dat, ~ sim_foo(.x, nsim = 500),
+  .options = furrr::furrr_options(seed = TRUE)
 )
 
 
@@ -217,7 +221,8 @@ purrr::map(
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat <- pred_tbl %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", "slot", "large")),
+    dataset = factor(dataset, levels = c("standard", #"slot", 
+                                         "large")),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
@@ -244,8 +249,11 @@ obs_ppn_dat <- rkw_dat %>%
     obs_ppn = sum_obs / sum(sum_obs)
   )
 
+dataset_pal <- c("#e0f3db", #"#a8ddb5", 
+                 "#43a2ca")
+names(dataset_pal) <- levels(sim_ppn_dat$dataset)
 
-ggplot() +
+sel_boxplot <- ggplot() +
   geom_boxplot(
     data = sim_ppn_dat,
     aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
@@ -255,5 +263,11 @@ ggplot() +
     aes(x = stock_group, y = obs_ppn), 
     colour = "red"
   ) +
-  facet_wrap(~dataset)
+  labs(y = "Simulated Sample Composition") +
+  facet_wrap(~dataset, ncol = 1) +
+  scale_fill_manual(values = dataset_pal, name = "Model") +
+  ggsidekick::theme_sleek() +
+  theme(legend.position = "top",
+        axis.title.x = element_blank())
+
 
