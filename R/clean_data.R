@@ -79,7 +79,7 @@ pfma_areas$rkw_overlap <- ifelse(
 
 # INDIVIDUAL DATA CLEAN --------------------------------------------------------
 
-# recreational composition data since through 2021 (clean to match rec_raw)
+# clean recreational composition data through 2022 (clean to match rec_raw)
 rec_raw_new <- read_csv(
   here::here("data", "rec", "sc_biodata_aug_23.csv"),
   # here::here("data", "rec", "sc_biodata_jan_23.csv"),
@@ -89,46 +89,57 @@ rec_raw_new <- read_csv(
 ) %>% 
   janitor::clean_names(.) %>% 
   # remove blanks
-  filter(!is.na(biokey)) 
+  filter(!is.na(biokey)) %>% 
+  mutate(
+    # convert lat/lon to numeric
+    lat = as.numeric(lat),
+    lon = as.numeric(long) %>%
+      ifelse(. > 0, -1 * ., .)
+  )
+
+site_ll <- rec_raw_new %>% 
+  select(fishing_location, area, lat, lon) %>% 
+  distinct() %>% 
+  filter(
+    !is.na(lat) 
+  ) %>% 
+  #remove duplicates that have very similar lat and lon
+  mutate(
+    dd = paste(fishing_location, area, sep = "-")
+  ) %>% 
+  group_by(dd) %>% 
+  slice_head(n = 1) %>% 
+  ungroup() %>% 
+  select(-dd)
+
+
+# most recent push from AP, 2022 and 2023 data 
+rec_raw_new24 <- read_csv(
+  here::here("data", "rec", "sc_biodata_jun_24.csv"),
+  na = c("","NA")
+) %>% 
+  janitor::clean_names(.) %>% 
+  # remove blanks, samples already present above, and non sport caught fish
+  filter(!is.na(biokey),
+         !biokey %in% rec_raw_new$biokey,
+         sample_type == "Sport") %>% 
+  left_join(., site_ll, by = c("area", "fishing_location")) %>% 
+  select(-c(scale_submission_number))
 
 
 # remove duplicates, id numbers w/ multiple in columns, check unique vals are
 # correct, merge with id2
 wide_rec <- rec_raw_new %>% 
+  select(colnames(rec_raw_new24)) %>% 
+  rbind(., rec_raw_new24) %>% 
   mutate(
-    new_pfma = str_replace_all(new_pfma, ".00", ""),
-    area = case_when(
-      is.na(area) ~ as.character(new_pfma),
-      new_area == "US7" ~ "US7",
-      TRUE ~ as.character(area)
-    ),
-    area_n = as.numeric(area),
-    # separate northern areas of 13 (normally in JS) and add to NSoG
-    cap_region = case_when(
-      new_creel_subarea %in% c("13M", "13N") ~ "N. Strait of Georgia",
-      area_n > 124 ~ "NWVI",
-      area_n < 28 & area > 24 ~ "NWVI",
-      area %in% c("20W", "20E", "20", "121", "21", "19JDF") ~
-        "Juan de Fuca Strait",
-      area_n < 125 & area_n > 120 ~ "SWVI",
-      area_n < 25 & area_n > 20 ~ "SWVI",
-      area %in% c("14", "15", "16") ~ "N. Strait of Georgia",
-      area %in% c("17", "18", "19", "19GST", "28", "29") ~
-        "S. Strait of Georgia",
-      area %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
-      area %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
-    ),
     date = as.POSIXct(collection_date, format="%d-%b-%Y"),
     month_n = lubridate::month(date),
     week_n = lubridate::week(date),
-    # temporary key for identifying weird sizes below
+    # # temporary key for identifying weird sizes below
     temp_key = paste(biokey, date, sep = "_"),
-    # convert lat/lon to numeric
-    lat = as.numeric(lat),
-    lon = as.numeric(long) %>%
-      ifelse(. > 0, -1 * ., .),
     pbt_brood_year_n = case_when(
-      pbt_brood_year %in% c("GSI 0000", "Not Loaded", "0") | 
+      pbt_brood_year %in% c("GSI 0000", "Not Loaded", "0") |
         is.na(pbt_brood_year) ~  NaN,
       TRUE ~ as.numeric(pbt_brood_year)
       ),
@@ -138,7 +149,7 @@ wide_rec <- rec_raw_new %>%
       !is.na(cwt_brood_year) ~ year - cwt_brood_year,
       !is.na(pbt_brood_year_n) ~ year - pbt_brood_year_n,
       TRUE ~ resolved_age
-    ), 
+    ),
     pbt = ifelse(
       is.na(pbt_brood_year_n),
       FALSE,
@@ -148,10 +159,10 @@ wide_rec <- rec_raw_new %>%
 
 # check to see if true duplicates by grouping by biokey then checking to see if 
 # fork lengths and resolved stock id match
-# dups <- wide_rec %>% 
+# dups <- wide_rec %>%
 #   group_by(biokey) %>%
-#   filter(n() > 1) %>% 
-#   mutate(row_id = row_number()) 
+#   filter(n() > 1) %>%
+#   mutate(row_id = row_number())
 # 
 # biokey_seq <- unique(dups$biokey)
 # code_vec <- NULL
@@ -165,17 +176,17 @@ wide_rec <- rec_raw_new %>%
 # }
 # 
 # # all duplicates appear to be valid so remove second entry
-# wide_rec <- wide_rec %>% 
-#   group_by(biokey) %>% 
-#   mutate(row_id = row_number()) %>% 
-#   filter(!row_id == "2") %>% 
+# wide_rec <- wide_rec %>%
+#   group_by(biokey) %>%
+#   mutate(row_id = row_number()) %>%
+#   filter(!row_id == "2") %>%
 #   ungroup()
 
 
 ## correct some size entries
 # weird_sizes <- wide_rec %>%
 #   filter(length_mm < 150 | length_mm > 1500) %>%
-#   select(temp_key, length_mm, new_disposition, contains("size"))
+#   select(temp_key, length_mm, disposition, contains("size"))
 
 corrected_sizes <- read.csv(
   here::here("data", "rec", "southcoast_size_errors_corrected.csv"),
@@ -223,8 +234,8 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
       as.numeric(),
     fl = ifelse((fl < 150 | fl > 1500), NaN, fl),
     # shift locations to overlap with subareas
-    lat = ifelse(new_location == "Cullite", 48.505, lat),
-    lon = ifelse(new_location == "Moresby I.", -123.287, lon),
+    lat = ifelse(fishing_location == "Cullite", 48.505, lat),
+    lon = ifelse(fishing_location == "Moresby I.", -123.287, lon),
     # make oto/dna/cwt equivalent
     stock_1 = case_when(
       resolved_stock_source == "DNA" ~ dna_results_stock_1,
@@ -237,20 +248,16 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
       resolved_stock_source == "Otolith Stock" ~ 1.0
     )
     ) %>% 
-  # trim
   select(
-    id = biokey, date, week_n, month_n, year, area, fishing_site = new_location,
-    subarea = new_creel_subarea, lat, lon, fl, ad = adipose_fin_clipped, 
+    id = biokey, date, week_n, month_n, year, area, 
+    fishing_site = fishing_location,
+    subarea, lat, lon, fl, ad = adipose_fin_clipped, 
     pbt, pbt_brood_year_n,
     age, age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob")
   )
-
-
-# import mark selective fisheries data and join
-wide_msf <- readRDS(here::here("data", "rec", "clean_msf_gsi.rds")) 
 
 
 wide_all <- rbind(wide_rec3, wide_msf) %>% 
