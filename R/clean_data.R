@@ -97,11 +97,13 @@ rec_raw_new <- read_csv(
       ifelse(. > 0, -1 * ., .)
   )
 
+
+## clean spatial data
 site_ll <- rec_raw_new %>% 
   select(fishing_location, area, lat, lon) %>% 
   distinct() %>% 
   filter(
-    !is.na(lat) 
+    !is.na(lon) 
   ) %>% 
   #remove duplicates that have very similar lat and lon
   mutate(
@@ -112,6 +114,19 @@ site_ll <- rec_raw_new %>%
   ungroup() %>% 
   select(-dd)
 
+# add distance to coast estimates 
+coast <- readRDS(here::here("data", "spatial", "coast_sf.RDS"))
+coast_dist <- geosphere::dist2Line(
+  p = site_ll %>% select(lon, lat), 
+  line = as(coast, 'Spatial')
+)
+site_ll$shore_dist <- coast_dist[, "distance"]
+
+rec_raw_new <- left_join(
+  rec_raw_new, 
+  site_ll %>% select(fishing_location, area, shore_dist),
+  by = c("fishing_location", "area")
+  )
 
 # most recent push from AP, 2022 and 2023 data 
 rec_raw_new24 <- read_csv(
@@ -204,6 +219,7 @@ corrected_sizes <- read.csv(
 #           here::here("data", "rec", "southcoast_size_errors.csv"),
 #           row.names = FALSE)
 
+
 # define marine age based on total age readings
 # estimates seem suspicious (e.g. lots of 4_1s for for Spring 4_2s and fall run 
 # stocks); DONT USE
@@ -227,7 +243,8 @@ corrected_sizes <- read.csv(
 #   ) %>% 
 #   select(temp_key, sw_age)
 
-wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
+
+wide_all <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   # left_join(., sw_age_key, by = "temp_key") %>% 
   mutate(
     fl = ifelse(is.na(new_length_mm), length_mm, new_length_mm) %>% 
@@ -251,16 +268,13 @@ wide_rec3 <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   select(
     id = biokey, date, week_n, month_n, year, area, 
     fishing_site = fishing_location,
-    subarea, lat, lon, fl, ad = adipose_fin_clipped, 
+    subarea, lat, lon, shore_dist, fl, ad = adipose_fin_clipped, 
     pbt, pbt_brood_year_n,
     age, age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob")
-  )
-
-
-wide_all <- rbind(wide_rec3, wide_msf) %>% 
+  ) %>% 
   mutate(
     area_n = as.numeric(area),
     legal_lim = case_when(
@@ -299,19 +313,11 @@ rec_sf_areas_trim <- rec_sf_areas %>%
   sf::st_drop_geometry() %>%
   select(id, #new_location,
          subarea_new = label)
-# coast <- readRDS(
-#   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>% 
-#   # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
-#   sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.75, ymax = 48.8)
-
 
 
 wide_rec4 <- wide_all %>% 
   left_join(., rec_sf_areas_trim, by = "id") %>%
   mutate(
-    # rkw_habitat1 = ifelse(
-    #   id %in% rec_sf_sub$id, "yes", "no"
-    # ),
     # redefine strata manually
     strata = case_when(
       lat > 48.8 ~ "other",
@@ -320,8 +326,7 @@ wide_rec4 <- wide_all %>%
       lat > 48.61 & lon < -124.78 ~ "swiftsure_nearshore",
       lon > -124.8 & lon < -124.2 ~ "renfrew",
       lat < 48.52 ~ "vic",
-      subarea_new == "19-8" | subarea_new == "18-7" | subarea_new == "19-7" ~
-        "saanich", 
+      subarea %in% c("18A", "19A") ~ "saanich", 
       lat > 48.5 & lat < 48.8 & lon < -122.9 ~ "haro",
       TRUE ~ "other"
     ),
@@ -331,7 +336,12 @@ wide_rec4 <- wide_all %>%
     )
    )
 
+
 #checks for mapping locations 
+# coast <- readRDS(
+#   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")) %>%
+#   # sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
+#   sf::st_crop(xmin = -126, ymin = 48.2, xmax = -122.75, ymax = 48.8)
 # ggplot() +
 #   geom_sf(data = coast, color = "black", fill = NA) +
 #   # geom_sf(data = pfma_areas, aes(colour = rkw_overlap), fill = NA) +
@@ -340,7 +350,7 @@ wide_rec4 <- wide_all %>%
 #   scale_y_continuous(expand = c(0, 0)) +
 #   geom_point(
 #     data = wide_rec4  %>%
-#       filter(!strata2 == "other") %>% 
+#       filter(!strata2 == "other") %>%
 #       group_by(
 #         fishing_site, lat, lon, strata2
 #       ) %>%
@@ -354,11 +364,11 @@ wide_rec4 <- wide_all %>%
 
 
 # sample sizes
-nrow(wide_rec4) #103k samples
+nrow(wide_rec4) #119k samples
 nrow(wide_rec4 %>% 
-       filter(!is.na(stock_1))) #79k stock
+       filter(!is.na(stock_1))) #80k stock
 nrow(wide_rec4 %>% 
-       filter(!is.na(stock_1) & !is.na(lat))) #69k stock/loc 
+       filter(!is.na(stock_1) & !is.na(lat))) #70k stock/loc 
 
 
 saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
@@ -433,12 +443,13 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
 
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_May2024.rds")) %>%
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2024.rds")) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
-      pst_agg == "CR-upper_sp" | region1name == "Willamette_R" ~ "Col_Spring",
-      pst_agg %in% c("CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa") ~ 
+      pst_agg %in% c("CR-lower_sp", "CR-upper_sp") | 
+        region1name == "Willamette_R" ~ "Col_Spring",
+      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") ~ 
         "Col_Summer_Fall",
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
         "ECVI_SOMN",
@@ -567,11 +578,6 @@ saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
 
 wide_size <- wide_rec4 %>% 
-  # select(id = biokey, date, week_n, month_n, year, cap_region, area, area_n,
-  #        fishing_site = new_location, subarea = subarea_new, strata,
-  #        lat, lon, rkw_habitat, subarea_inc_rkw,
-  #        whale_samples_time, legal, fl, sex, ad = adipose_fin_clipped,
-  #        resolved_stock_source, resolved_stock_region) %>%
   #remove missing and non-sensical size_classes
   filter(
     !is.na(fl)
@@ -579,12 +585,9 @@ wide_size <- wide_rec4 %>%
   mutate(
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 651, 701, 751, 801, 851, Inf), 
-      labels = c("<65", "65-70", "70-75", "75-80", "80-85", ">85")
+      breaks = c(-Inf, 601, 701, 801, Inf), 
+      labels = c("<60", "60-70", "70-80", ">80")
     ),
-    # size_bin2 = factor(
-    #   size_bin, labels = c("sublegal", "small", "medium", "large")
-    # ),
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
@@ -592,10 +595,11 @@ wide_size <- wide_rec4 %>%
     )
   ) 
 
+
 # visualize sample coverage through space and time
-size_n <- wide_size %>% 
-  group_by(month_n, year, strata) %>% 
-  tally() 
+# size_n <- wide_size %>% 
+#   group_by(month_n, year, strata) %>% 
+#   tally() 
 
 # ggplot(size_n) +
 #   geom_raster(aes(x = month_n, y = year, fill = n)) +
