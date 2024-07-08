@@ -18,6 +18,8 @@ knitr-cache
 *.laccdb
 *.mdb
 data/rec/sc_biodata_aug_23.csv
+data/rec/sc_biodata_jun_24.csv
+data/rec/rec_msf_feb_24.csv
 
 # History files
 .Rhistory
