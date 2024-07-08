@@ -53,7 +53,7 @@ dat <- rec_raw %>%
   ungroup()
 
 sample_key <- dat %>% 
-  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, 
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, shore_dist,
          slot_limit) %>% 
   distinct()
 
@@ -84,7 +84,7 @@ agg_dat <- expand.grid(
   sample_id = unique(dat$sample_id),
   stock_group = unique(dat$stock_group)
 ) %>% 
-  left_join(., sample_key, by = "sample_id") %>% 
+  left_join(., sample_key, by = "sample_id", relationship = "many-to-many") %>% 
   left_join(
     ., 
     dat %>% 
@@ -104,7 +104,9 @@ agg_dat <- expand.grid(
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000,
     sg_year = paste(stock_group, year, sep = "_") %>% 
-      as.factor()
+      as.factor(),
+    week_z = scale(week_n) %>% as.numeric(),
+    shore_dist_z = scale(shore_dist) %>% as.numeric()
   ) 
 # saveRDS(
 #   agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
@@ -329,6 +331,7 @@ dev.off()
 system.time(
   fit2 <- gam(
     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+      # s(shore_dist, by = stock_group, k = 4, bs = "tp") +
       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
       s(sg_year, bs = "re"),
@@ -341,6 +344,25 @@ saveRDS(
   fit2,
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
 )
+
+# NOTE: experimented with distance to shore covariate, but sdmTMB equivalent
+# failed to converge
+# system.time(
+#   fit3 <- gam(
+#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+#       s(shore_dist, by = stock_group, k = 4, bs = "tp") +
+#       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+#       s(sg_year, bs = "re"),
+#     data = agg_dat, family = "tw", method = "REML",
+#     knots = list(week_n = c(0, 52))
+#   )
+# )
+# class(fit3) = c( "mvtweedie", class(fit2) )
+# saveRDS(
+#   fit3,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery2_ri_mvtw.rds")
+# )
 
 
 # Includes smooth for year by stock group
@@ -383,31 +405,47 @@ fit2 <- readRDS(
 # )
   
 
+# equivlent sdmTMB model
+dat_coords <- agg_dat %>% 
+  select(utm_x, utm_y) %>% 
+  as.matrix()
+inla_mesh_raw <- INLA::inla.mesh.2d(
+  loc = dat_coords,
+  max.edge = c(2, 10) * 500,
+  cutoff = 30,
+  offset = c(10, 50)
+)  
+spde <- make_mesh(
+  agg_dat,
+  c("utm_x", "utm_y"),
+  mesh = inla_mesh_raw
+) 
+
+spde$mesh$n
+
+
 ## CHECK -----------------------------------------------------------------------
 
 ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
-# library(sdmTMB)
-# fit_sdmTMB <- sdmTMB(
-# agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-#   # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 15) +
-#   s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15) +
-#   # s(year_n, by = stock_group, bs = "tp", k = 7)
-#   # (1 | year)
-#   (1 | sg_year)
-# ,
-#   data = agg_dat,
-#   spatial = "off",
-#   spatiotemporal = "off",
-#   family = tweedie(link = "log"),
-#   knots = list(week_n = c(0, 52))
-# )
-# saveRDS(
-#   fit_sdmTMB,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
-# )
+library(sdmTMB)
+fit_sdmTMB <- sdmTMB(
+  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15) +
+    (1 | sg_year)
+  ,
+  data = agg_dat,
+  spatial = "off",
+  spatiotemporal = "off",
+  family = tweedie(link = "log"),
+  knots = list(week_n = c(0, 52))
+)
+saveRDS(
+  fit_sdmTMB,
+  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+)
 fit_sdmTMB <- readRDS(
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
@@ -418,12 +456,19 @@ fit_sdmTMB <- readRDS(
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
+pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
+
+qq_plot <- DHARMa::createDHARMa(
+  simulatedResponse = s_sdmTMB,
+  observedResponse = agg_dat$agg_prob,
+  fittedPredictedResponse = pred_fixed
+)
 
 png(
   here::here("figs", "stock_comp_fishery", "qq_plot.png"),
   height = 4, width = 4, units = "in", res = 250
 )
-sdmTMBextra::dharma_residuals(s_sdmTMB, fit_sdmTMB)
+plot(qq_plot)
 dev.off()
 
 
@@ -546,7 +591,7 @@ year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   labs(y="Predicted Proportion") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "none",
+  theme(legend.position = "top",
         axis.title.x = element_blank()) +
   scale_x_continuous(
     breaks = c(25, 29.25, 33.5, 38),
@@ -676,7 +721,7 @@ summer_pred_stacked <- ggplot(
 
 png(
   here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_year.png"),
-  height = 6.5, width = 6.5, units = "in", res = 250
+  height = 7.5, width = 6.5, units = "in", res = 250
 )
 year_preds
 dev.off()
@@ -686,13 +731,6 @@ png(
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 season_preds
-dev.off()
-
-png(
-  here::here("figs", "stock_comp_fishery", "season_preds_chinook_xaxis.png"),
-  height = 6.5, width = 6.5, units = "in", res = 250
-)
-season_preds_fullx
 dev.off()
 
 png(
@@ -818,10 +856,7 @@ new_dat_sp_plot <- cbind(
     scaled_fit = fit / max(fit)
   ) %>% 
   ungroup() %>% 
-  filter(week_n == "29")#%>% 
-  # left_join(
-  #   ., month_key, by = "week_n"
-  # )
+  filter(week_n == "29")
 
 spatial_pred <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
@@ -830,9 +865,6 @@ spatial_pred <- ggplot() +
   facet_wrap(
     ~ stock_group
   ) +
-  # facet_grid(
-  #   stock_group ~ month
-  # ) +
   scale_fill_viridis_c(
     name = "Predicted Proportion\nof Rec Catch"
   ) +
