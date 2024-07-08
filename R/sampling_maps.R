@@ -48,10 +48,10 @@ strata_key <- data.frame(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "m",
     utm_names = c("utm_x_m", "utm_y_m")
   )
-saveRDS(
-  strata_key,
-  here::here("data", "spatial", "strata_key.rds")
-)
+# saveRDS(
+#   strata_key,
+#   here::here("data", "spatial", "strata_key.rds")
+# )
 
 
 strata_colour_pal <- RColorBrewer::brewer.pal(
