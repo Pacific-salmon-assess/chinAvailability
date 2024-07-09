@@ -960,7 +960,7 @@ agg_dat_slot <- expand.grid(
   sample_id = unique(dat$sample_id),
   stock_group = unique(dat$stock_group)
 ) %>% 
-  left_join(., sample_key, by = "sample_id") %>% 
+  left_join(., sample_key, by = "sample_id", relationship = "many-to-many") %>% 
   left_join(
     ., 
     dat %>% 
@@ -1108,7 +1108,7 @@ slot_pred_smooth
 dev.off()
 
 
-## Slot limit analysis
+## Size analysis
 large_dat <- dat %>%
   filter(fl >= 750) %>%
   group_by(sample_id) %>%
