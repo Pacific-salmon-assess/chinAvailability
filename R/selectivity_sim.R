@@ -74,8 +74,7 @@ large_fit <- readRDS(
   )
 )
 # exclude slot model for now because no 2023 data
-fit_list <- list(model_fit, #slot_fit, 
-                 large_fit)
+fit_list <- list(model_fit, slot_fit, large_fit)
 
 
 # infill rkw data to ensure each stock group present for each sampling event
@@ -114,8 +113,7 @@ new_dat <- purrr::map(
 
 # generate predictions based on each fitted model and store as tibble
 pred_tbl <- tibble(
-  dataset = c("standard",# "slot", 
-              "large")
+  dataset = c("standard", "slot", "large")
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -126,8 +124,8 @@ pred_tbl <- tibble(
         )
         new_dat %>% 
           mutate(
-            fit = preds$fit,
-            se = preds$se.fit
+            fit = preds$fit %>% as.numeric(),
+            se = preds$se.fit %>% as.numeric()
           )
       }
     )
@@ -221,7 +219,7 @@ purrr::map(
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat <- pred_tbl %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", #"slot", 
+    dataset = factor(dataset, levels = c("standard", "slot", 
                                          "large")),
     sim_ppn = purrr::map(
       sim_dat,
@@ -249,7 +247,7 @@ obs_ppn_dat <- rkw_dat %>%
     obs_ppn = sum_obs / sum(sum_obs)
   )
 
-dataset_pal <- c("#e0f3db", #"#a8ddb5", 
+dataset_pal <- c("#e0f3db", "#a8ddb5", 
                  "#43a2ca")
 names(dataset_pal) <- levels(sim_ppn_dat$dataset)
 
@@ -273,7 +271,7 @@ sel_boxplot <- ggplot() +
 
 png(
   here::here("figs", "selectivity", "selectivity_boxplot.png"),
-  height = 5, width = 7.5, units = "in", res = 250
+  height = 7.5, width = 7.5, units = "in", res = 250
 )
 sel_boxplot
 dev.off()
