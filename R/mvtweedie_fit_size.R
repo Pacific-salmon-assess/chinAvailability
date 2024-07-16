@@ -20,7 +20,7 @@ size_raw <- readRDS(here::here("data", "rec", "rec_size.rds")) %>%
 
 dat <- size_raw %>% 
   filter(
-    # remove very small as in stock tweedie
+    # remove smallest sizes that are absent from diets entirely
     !fl < 551,
     !is.na(size_bin),
     !is.na(lat),
@@ -36,6 +36,8 @@ dat <- size_raw %>%
       as.numeric() %>% 
       paste("site", ., sep = ""),
     sample_id = paste(spatial_loc, week_n, year, sep = "_"),
+    # correct sample with misIDd strata
+    strata = ifelse(fishing_site == "Cape Kepple", "saanich", strata),
     strata = factor(
       strata,
       levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "vic",
@@ -45,8 +47,9 @@ dat <- size_raw %>%
     ),
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 601, 701, 801, Inf), 
-      labels = c("<60", "60-70", "70-80", ">80")
+      breaks = c(-Inf, 651, 751, 851, Inf), 
+      labels = c("55-65", "65-75", "75-85", ">85")
+      # labels = c("<60", "60-70", "70-80", ">80")
     )#,
     #reverse factor order for aesthetics
     # size_bin = forcats::fct_rev(size_bin)
@@ -249,8 +252,20 @@ saveRDS(
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
+pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
 
-sdmTMBextra::dharma_residuals(s_sdmTMB, fit_sdmTMB)
+qq_plot <- DHARMa::createDHARMa(
+  simulatedResponse = s_sdmTMB,
+  observedResponse = agg_dat$agg_prob,
+  fittedPredictedResponse = pred_fixed
+)
+
+png(
+  here::here("figs", "size_comp_fishery", "qq_plot.png"),
+  height = 4, width = 4, units = "in", res = 250
+)
+plot(qq_plot)
+dev.off()
 
 
 # look at average stock comp 
@@ -696,7 +711,6 @@ system.time(
     knots = list(week_n = c(0, 52))
   )
 )
-class(fit_slot) = c( "mvtweedie", class(fit_slot) )
 saveRDS(
   fit_slot,
   here::here(
@@ -748,7 +762,7 @@ newdata_slot <- expand.grid(
     strata = factor(strata, levels = levels(agg_dat_slot$strata))
   ) 
 
-pred_slot = predict(
+pred_slot = pred_dummy(
   fit_slot,
   se.fit = TRUE,
   category_name = "size_bin",

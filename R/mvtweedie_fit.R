@@ -433,6 +433,7 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
   agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+    # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 15) +
     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15) +
     (1 | sg_year)
   ,
