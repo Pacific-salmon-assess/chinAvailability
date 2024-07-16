@@ -255,7 +255,8 @@ week_month <- data.frame(
 new_dat <- expand.grid(
   week_n = unique(week_month$week_n),
   age_stock_group = unique(gsi$age_stock_group),
-  sw_age = unique(gsi$sw_age) %>% as.factor()
+  sw_age = unique(gsi$sw_age) %>% as.factor(),
+  slot_limit = c("yes", "no")
 ) %>% 
   left_join(., week_month, by = "week_n") %>% 
   left_join(., obs_weeks, by = "age_stock_group") %>% 
@@ -265,10 +266,10 @@ new_dat <- expand.grid(
     !week_n > max_obs_week,
     !week_n < min_obs_week,
     !age_n < 5,
-    !is.na(sw_age)
+    !is.na(sw_age),
+    # slot_limit == "yes"
   ) %>% 
   mutate(year_f = "2020",
-         slot_limit = "yes",
          month = fct_reorder(month, week_n))
 
 preds <- predict(fit, newdata = new_dat,  se.fit = TRUE, 
@@ -281,12 +282,18 @@ new_dat2 <- new_dat %>%
     up_fl = pred_fl + (stats::qnorm(0.975) * as.numeric(preds$se.fit))
     )
 
-size_month2 <- ggplot(new_dat2) +
+shape_pal <- c(21, 22)
+names(shape_pal) <- c("yes", "no")
+
+size_month2 <- ggplot(new_dat2 %>% filter(slot_limit == "yes")) +
   geom_pointrange(
     aes(x = month, y = pred_fl, ymin = lo_fl, ymax = up_fl, 
-        fill = sw_age),
+        fill = sw_age#, shape = slot_limit
+        ),
     shape = 21
+    # position = position_dodge(width = 1)
   ) +
+  # scale_shape_manual(values = shape_pal, na.value = "grey60" ) +
   scale_fill_manual(name = "Marine\nAge", values = age_pal, 
                     na.value = "grey60" ) +
   facet_wrap(~age_stock_group) +

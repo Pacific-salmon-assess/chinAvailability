@@ -22,7 +22,7 @@ raw_dat <- readRDS(
 
 
 stock_key <- readRDS(
-  here::here("data", "rec", "finalStockList_May2024.rds")
+  here::here("data", "rec", "finalStockList_Jul2024.rds")
   ) %>%
   janitor::clean_names() %>% 
   mutate(
