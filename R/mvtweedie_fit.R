@@ -127,6 +127,20 @@ names(hatchery_colour_pal) <- levels(dat$origin2)
 
 ## DATA FIGURES ----------------------------------------------------------------
 
+# sample sizes
+full_samp_size <- dat %>% 
+  group_by(strata) %>% 
+  summarize(
+    n = length(unique(id))
+  )
+summer_samp_size <- dat %>% 
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  group_by(strata) %>% 
+  summarize(
+    n = length(unique(id))
+  )
+
+
 # sampling coverage 
 rec_samp_cov <- ggplot(sample_key) +
   geom_jitter(aes(x = week_n, y = year, size = sample_id_n),
@@ -162,6 +176,10 @@ rec_samp_bar <- ggplot(dat) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = full_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
 
 # subset of monthly samples that matches RKW diet
@@ -183,6 +201,10 @@ rec_samp_bar_summer <- dat %>%
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
 
 
@@ -203,7 +225,11 @@ rec_samp_bar_h <- ggplot(dat) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
-  )
+  )+
+  geom_text(
+    data = full_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
+  ) 
 
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer_h <- dat %>%
@@ -224,7 +250,12 @@ rec_samp_bar_summer_h <- dat %>%
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
+
 
 # proportion hatchery within each stock group
 hatchery_stock_dat <- dat %>% 
@@ -253,7 +284,7 @@ hatchery_stock_bar <- ggplot(hatchery_stock_dat) +
  theme(
     legend.position = "top",
     axis.title.x = element_blank()
-  )
+  ) 
 
 
 ## export
@@ -294,7 +325,7 @@ dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "rec_stock_hatchery_bar.png"),
-  height = 5, width = 7.5, units = "in", res = 250
+  height = 5, width = 8.25, units = "in", res = 250
 )
 hatchery_stock_bar
 dev.off()

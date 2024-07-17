@@ -170,15 +170,15 @@ ppn_dat_pooled <- dat %>%
 
 # calculate hatchery contribution by stock (uses mean values from 
 # mvtweedie_fit.R)
-hatchery_dat <- readRDS(here::here("data", "rec", "hatchery_stock_df.rds")) %>% 
-  select(stock_group, origin2, ppn) %>% 
-  ungroup() %>% 
-  full_join(., 
-            dat %>% select(month, stock_prob, stock_group, era, strata),
-            by = "stock_group",
-            relationship = "many-to-many") %>% 
-  arrange(month, strata) %>% 
-  mutate(scaled_prob = stock_prob * ppn)
+# hatchery_dat <- readRDS(here::here("data", "rec", "hatchery_stock_df.rds")) %>% 
+#   select(stock_group, origin2, ppn) %>% 
+#   ungroup() %>% 
+#   full_join(., 
+#             dat %>% select(month, stock_prob, stock_group, era, strata),
+#             by = "stock_group",
+#             relationship = "many-to-many") %>% 
+#   arrange(month, strata) %>% 
+#   mutate(scaled_prob = stock_prob * ppn)
 
 
 
@@ -190,9 +190,7 @@ size_fit <- readRDS(here::here("data", "rec", "size_at_age_fit.rds"))
 size_pred_dat <- dat %>% 
   filter(!is.na(sw_age)) %>% 
   mutate(
-    slot_limit = ifelse(
-      lon < -124 & year < 2018, "no", "yes" 
-    )
+    slot_limit = "no"
   ) 
 
 pp <- predict(size_fit, size_pred_dat)
@@ -219,8 +217,9 @@ dd <- dat2 %>%
   mutate(
     size_bin = cut(
       pred_fl, 
-      breaks = c(-Inf, 601, 701, 801, Inf), 
-      labels = c("<60", "60-70", "70-80", ">80")
+      breaks = c(-Inf, 651, 751, 851, Inf), 
+      labels = c("55-65", "65-75", "75-85", ">85")
+      # labels = c("<60", "60-70", "70-80", ">80")
     )
   )
 
@@ -247,9 +246,9 @@ size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
 names(size_colour_pal) <- c(NA, levels(dd$size_bin))
 
 # hatchery origin colour palette
-hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
-                         "#fbb4b9")
-names(hatchery_colour_pal) <- levels(hatchery_dat$origin2)
+# hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
+#                          "#fbb4b9")
+# names(hatchery_colour_pal) <- levels(hatchery_dat$origin2)
 
 
 ## RAW DATA FIGURES ------------------------------------------------------------
@@ -274,6 +273,11 @@ diet_samp_cov <- dat %>%
     axis.title = element_blank()
   )
 
+samp_size <- dat %>% 
+  group_by(era, strata) %>% 
+  summarize(
+    n = length(unique(id))
+  )
 
 # stacked bar plots
 diet_samp_bar <- ggplot(dat) +
@@ -292,13 +296,19 @@ diet_samp_bar <- ggplot(dat) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
 
 age_samp_bar <- ggplot(dd) +
   geom_bar(aes(x = month, fill = sw_age)) +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
+  scale_fill_manual(
+    name = "Marine\nAge", values = age_pal, na.value = "grey60" 
+    ) +
   labs(
     y = "Prey Remains Composition"
   ) +
@@ -309,25 +319,29 @@ age_samp_bar <- ggplot(dd) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  )+
+  geom_text(
+    data = samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
 
-hatchery_samp_bar <- ggplot(hatchery_dat) +
-  geom_bar(aes(x = month, y = scaled_prob, fill = origin2), stat = "identity") +
-  facet_grid(era~strata) +
-  ggsidekick::theme_sleek() +
-  scale_fill_manual(
-    name = "Hatchery\nContribution", values = hatchery_colour_pal) +
-  labs(
-    y = "Prey Remains Composition"
-  ) +
-  scale_x_continuous(
-    breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-  ) +
-  theme(
-    legend.position = "top",
-    axis.title.x = element_blank()
-  )
+# hatchery_samp_bar <- ggplot(hatchery_dat) +
+#   geom_bar(aes(x = month, y = scaled_prob, fill = origin2), stat = "identity") +
+#   facet_grid(era~strata) +
+#   ggsidekick::theme_sleek() +
+#   scale_fill_manual(
+#     name = "Hatchery\nContribution", values = hatchery_colour_pal) +
+#   labs(
+#     y = "Prey Remains Composition"
+#   ) +
+#   scale_x_continuous(
+#     breaks = c(6, 7, 8, 9, 10),
+#     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+#   ) +
+#   theme(
+#     legend.position = "top",
+#     axis.title.x = element_blank()
+#   )
 
 # box plots of size
 size_samp_bar <- ggplot(dd) +
@@ -346,6 +360,10 @@ size_samp_bar <- ggplot(dd) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
 
 
@@ -378,13 +396,13 @@ png(
 )
 size_samp_bar
 dev.off()
-
-png(
-  here::here("figs", "rkw_diet", "comp_bar_prey_hatchery.png"),
-  height = 5, width = 8, units = "in", res = 250
-)
-hatchery_samp_bar
-dev.off()
+# 
+# png(
+#   here::here("figs", "rkw_diet", "comp_bar_prey_hatchery.png"),
+#   height = 5, width = 8, units = "in", res = 250
+# )
+# hatchery_samp_bar
+# dev.off()
 
 
 ## FIT MODEL -------------------------------------------------------------------
@@ -416,20 +434,27 @@ agg_dat <- expand.grid(
   ) %>% 
   droplevels()
 
-fit <- gam(
-  agg_count ~ 0 + stock_group +
-    s(week_n, by = stock_group, k = 7) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-  data = agg_dat, family = "tw"
-)
-class(fit) = c( "mvtweedie", class(fit) )
-saveRDS(
-  fit,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
-)
-fit <- readRDS(
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
-)
+# fails to converge
+# fit <- gam(
+#   agg_count ~ 0 + stock_group * era * strata +
+#     s(week_n, by = stock_group, k = 7),
+#     # s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
+#   data = agg_dat, family = "tw"
+# )
+# fit2 <- gam(
+#   agg_count ~ 0 + stock_group * era  +#* strata +
+#     s(week_n, by = stock_group, k = 7) +
+#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
+#   data = agg_dat, family = "tw"
+# )
+# class(fit) = c( "mvtweedie", class(fit) )
+# saveRDS(
+#   fit,
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
+# )
+# fit <- readRDS(
+#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
+# )
 
 
 ## parameter estimates plot

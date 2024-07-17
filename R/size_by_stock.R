@@ -212,10 +212,10 @@ dev.off()
 library(mgcv)
 
 fit <- gam(
-  fl ~ 0 + sw_age + s(week_n, bs = "tp", k = 4, m = 2) +
+  fl ~ #0 + 
+    slot_limit*sw_age + age_stock_group + s(week_n, bs = "tp", k = 4, m = 2) +
     s(week_n, bs = "tp", by = sw_age, k = 4, m = 1) +
-    s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) +
-    slot_limit:age_stock_group 
+    s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) 
   # remove given minimal variability in size and some missing years
   #+ s(year_f, bs = "re")
   ,
@@ -314,3 +314,34 @@ size_month2
 dev.off()
 
 
+# estimate effect of management regime on size-at-age
+## estimate slot limit period effects
+slot_pars <- broom::tidy(fit, parametric = TRUE, conf.int = TRUE) %>% 
+  filter(grepl("slot", term)) %>% 
+  mutate(
+    sw_age = ifelse(
+      term == "slot_limityes", "sw_age1", str_remove(term, ".*:")
+    )
+  ) 
+
+slot_plot <- ggplot(slot_pars) +
+  geom_pointrange(
+    aes(x = sw_age, y = estimate,  ymin = conf.low, ymax = conf.high),
+    position = position_dodge(width = 1)
+    ) +
+  geom_hline(aes(yintercept = 0), lty = 2, colour = "red") +
+  ggsidekick::theme_sleek() +
+  labs(y = "Effect of Output Controls on Mean Size") +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+png(
+  here::here("figs", "stock_size_age", "slot_limit_effect.png"),
+  height = 3.5, width = 5, units = "in", res = 250
+)
+slot_plot
+dev.off()
