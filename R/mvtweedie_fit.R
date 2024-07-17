@@ -436,25 +436,6 @@ fit2 <- readRDS(
 # )
   
 
-# equivlent sdmTMB model
-dat_coords <- agg_dat %>% 
-  select(utm_x, utm_y) %>% 
-  as.matrix()
-inla_mesh_raw <- INLA::inla.mesh.2d(
-  loc = dat_coords,
-  max.edge = c(2, 10) * 500,
-  cutoff = 30,
-  offset = c(10, 50)
-)  
-spde <- make_mesh(
-  agg_dat,
-  c("utm_x", "utm_y"),
-  mesh = inla_mesh_raw
-) 
-
-spde$mesh$n
-
-
 ## CHECK -----------------------------------------------------------------------
 
 ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
@@ -839,10 +820,7 @@ new_dat_sp <- expand.grid(
     year_n = unique(agg_dat$year_n)[1],
     sg_year = paste(stock_group, year_n, sep = "_") %>% 
       as.factor()
-  ) %>% 
-  filter(
-    week_n == "29"
-  )
+  ) 
   
 # key for month labels
 # month_key <- data.frame(
@@ -854,16 +832,16 @@ new_dat_sp <- expand.grid(
 #       fct_reorder(., week_n)
 #   )
 
-excl3 <- grepl("week_n", gratia::smooths(fit2)) | 
+excl3 <- #grepl("week_n", gratia::smooths(fit2)) | 
   grepl("year", gratia::smooths(fit2))
-week_yr_coefs <- gratia::smooths(fit2)[excl3]
+yr_coefs <- gratia::smooths(fit2)[excl3]
 pred_sp <- pred_dummy(
   fit2,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat,
   newdata = new_dat_sp,
-  exclude = week_yr_coefs
+  exclude = yr_coefs
 )
 
 coast <- rbind(rnaturalearth::ne_states( "United States of America", 
@@ -878,17 +856,25 @@ coast <- rbind(rnaturalearth::ne_states( "United States of America",
     xmax = max(new_dat_sp$X) + 1500, 
     ymax = max(new_dat_sp$Y) + 2000
   )
-  
 
+# calculate the average summer distribution (SE dropped to avoid delta method):
+# 1) calculate mean comp for each stock/cell
+# 2) rescale each cell so that summed comp = 1
+# 3) calculate scaled_fit for each stock_group
 new_dat_sp_plot <- cbind(
-  new_dat_sp, fit=pred_sp$fit, se.fit=pred_sp$se.fit 
+  new_dat_sp, fit=pred_sp$fit#, se.fit=pred_sp$se.fit 
 ) %>% 
+  group_by(stock_group, X, Y, utm_y, utm_x) %>% 
+  summarize(
+    mean_fit = mean(fit)
+  ) %>% 
+  group_by(X, Y, utm_y, utm_x) %>% 
+  mutate(fit = mean_fit / sum(mean_fit)) %>% 
   group_by(stock_group) %>% 
   mutate(
     scaled_fit = fit / max(fit)
   ) %>% 
-  ungroup() %>% 
-  filter(week_n == "29")
+  ungroup() 
 
 spatial_pred <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
@@ -917,9 +903,6 @@ spatial_pred_scaled <- ggplot() +
   facet_wrap(
     ~ stock_group
   ) +
-  # facet_grid(
-  #   stock_group ~ month
-  # ) +
   scale_fill_viridis_c(
     option = "A",
     name = "Predicted Scaled\nProportion\nof Rec Catch"
@@ -934,27 +917,24 @@ spatial_pred_scaled <- ggplot() +
   ) 
 
 
-spatial_pred_se <- ggplot() +
-  geom_raster(data = new_dat_sp_plot, 
-              aes(x = X, y = Y, fill = se.fit)) +
-  geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_wrap(
-    ~ stock_group
-  ) +
-  # facet_grid(
-  #   stock_group ~ month
-  # ) +
-  scale_fill_gradient2(
-    name = "Predicted SE\nof Proportion\nEstimate"
-  ) +
-  ggsidekick::theme_sleek()  +
-  theme(
-    axis.title = element_blank(),
-    axis.text = element_blank(), 
-    axis.ticks = element_blank(),
-    legend.position = "top",
-    strip.text = element_text(size = 5)
-  ) 
+# spatial_pred_se <- ggplot() +
+#   geom_raster(data = new_dat_sp_plot, 
+#               aes(x = X, y = Y, fill = se.fit)) +
+#   geom_sf(data = coast, color = "black", fill = "grey") +
+#   facet_wrap(
+#     ~ stock_group
+#   ) +
+#   scale_fill_gradient2(
+#     name = "Predicted SE\nof Proportion\nEstimate"
+#   ) +
+#   ggsidekick::theme_sleek()  +
+#   theme(
+#     axis.title = element_blank(),
+#     axis.text = element_blank(), 
+#     axis.ticks = element_blank(),
+#     legend.position = "top",
+#     strip.text = element_text(size = 5)
+#   ) 
 
 
 png(
@@ -971,12 +951,12 @@ png(
 spatial_pred_scaled
 dev.off()
 
-png(
-  here::here("figs", "stock_comp_fishery", "spatial_preds_se.png"),
-  height = 4, width = 6, units = "in", res = 250
-)
-spatial_pred_se
-dev.off()
+# png(
+#   here::here("figs", "stock_comp_fishery", "spatial_preds_se.png"),
+#   height = 4, width = 6, units = "in", res = 250
+# )
+# spatial_pred_se
+# dev.off()
 
 
 ## SENSITIVITY ANALYSES --------------------------------------------------------
