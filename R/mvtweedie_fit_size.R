@@ -121,6 +121,19 @@ names(size_colour_pal) <- c(NA, levels(agg_dat$size_bin))
 
 ## DATA FIGURES ----------------------------------------------------------------
 
+# sample sizes
+full_samp_size <- dat %>% 
+  group_by(strata) %>% 
+  summarize(
+    n = length(unique(id))
+  )
+summer_samp_size <- dat %>% 
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  group_by(strata) %>% 
+  summarize(
+    n = length(unique(id))
+  )
+
 # sampling coverage 
 size_samp_cov <- ggplot(sample_key) +
   geom_jitter(aes(x = week_n, y = year, size = sample_id_n),
@@ -141,7 +154,7 @@ size_samp_cov <- ggplot(sample_key) +
 # stacked bar plot
 rec_size_bar <- ggplot(dat) +
   geom_bar(aes(x = month_n, fill = size_bin)) +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = size_colour_pal, name = "Size\nBin") +
   labs(
@@ -154,14 +167,19 @@ rec_size_bar <- ggplot(dat) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = full_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
+
 
 # subset of monthly samples that matches RKW diet
 rec_size_bar_summer <- dat %>% 
   filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
   ggplot(.) +
   geom_bar(aes(x = month_n, fill = size_bin)) +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = size_colour_pal, name = "Size\nBin") +
   labs(
@@ -174,7 +192,12 @@ rec_size_bar_summer <- dat %>%
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
+  ) +
+  geom_text(
+    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
   )
+
 
 png(
   here::here("figs", "size_comp_fishery", "rec_size_sample_coverage.png"),
@@ -230,10 +253,10 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
-fit_sdmTMB <- sdmTMB(
+fit_sdmTMB2 <- sdmTMB(
   agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 7, bs = "tp") +
     # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 15)  +
+    s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25)  +
     (1 | sg_year)
     ,
   data = agg_dat,
@@ -250,21 +273,24 @@ saveRDS(
 
 # ppn zeros
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
-s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
+s_sdmTMB <- simulate(fit_sdmTMB2, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
-pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
 
-qq_plot <- DHARMa::createDHARMa(
-  simulatedResponse = s_sdmTMB,
-  observedResponse = agg_dat$agg_prob,
-  fittedPredictedResponse = pred_fixed
-)
+# pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
+# qq_plot <- DHARMa::createDHARMa(
+#   simulatedResponse = s_sdmTMB,
+#   observedResponse = agg_dat$agg_prob,
+#   fittedPredictedResponse = pred_fixed
+# )
+
+samp <- sdmTMBextra::predict_mle_mcmc(fit_sdmTMB2, mcmc_iter = 101, mcmc_warmup = 100)
+mcmc_res <- residuals(fit_sdmTMB2, type = "mle-mcmc", mcmc_samples = samp)
 
 png(
-  here::here("figs", "size_comp_fishery", "qq_plot.png"),
+  here::here("figs", "size_comp_fishery", "qq_plot_size.png"),
   height = 4, width = 4, units = "in", res = 250
 )
-plot(qq_plot)
+qqnorm(mcmc_res); qqline(mcmc_res)
 dev.off()
 
 
@@ -282,41 +308,71 @@ sim_comp <- s_sdmTMB %>%
     values_to = "conc"
   )
 
+# focus on summer samples
+sum_samps <- dat %>% 
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  select(week_n, sample_id) %>% 
+  distinct()
+
+week_key <- data.frame(
+  week_n = seq(min(sum_samps$week_n), max(sum_samps$week_n), by = 1)
+) %>% 
+  mutate(
+    month = cut(
+      week_n, breaks = 5, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
+  )
+
 avg_sim_comp <- sim_comp %>% 
   group_by(sim_number, sample_id) %>% 
   mutate(
     # calculate number of fish simulated per simulation and sampling event
     sim_sample_conc = sum(conc),
-    sim_ppn = conc / sim_sample_conc
+    sim_ppn = ifelse(sim_sample_conc == "0", 0, conc / sim_sample_conc)
   ) %>% 
-  filter(!is.na(sim_ppn),
-         week_n > 24 & week_n < 40) %>% 
-  group_by(strata, size_bin, sim_number) %>% 
+  filter(week_n %in% sum_samps$week_n) %>% 
+  left_join(., week_key, by = "week_n") %>% 
+  group_by(strata, month_n, size_bin, sim_number) %>% 
   summarize(
     mean_sim_ppn = mean(sim_ppn)
   )
-avg_obs_comp <- agg_dat %>% 
-  filter(week_n > 24 & week_n < 40) %>% 
-  group_by(strata, size_bin) %>% 
+avg_obs_comp1 <- agg_dat %>% 
+  filter(sample_id %in% sum_samps$sample_id) %>%
+  left_join(., week_key, by = "week_n") %>% 
+  group_by(strata, month) %>% 
+  mutate(
+    strata_n = sum(agg_prob)
+  ) %>%
+  ungroup()
+avg_obs_comp <- avg_obs_comp1 %>% 
+  group_by(strata, month, strata_n, size_bin) %>% 
   summarize(
-    mean_obs_ppn = mean(agg_ppn)
-  )
+    mean_obs_ppn = mean(agg_ppn),
+    se_obs_ppn = sqrt(mean_obs_ppn * (1 - mean_obs_ppn) / strata_n)
+  ) %>% 
+  distinct()
 
 post_sim <- ggplot() +
-  geom_boxplot(data = avg_sim_comp ,
-               aes(x = size_bin, y = mean_sim_ppn)) +
-  geom_point(data = avg_obs_comp,
-             aes(x = size_bin, y = mean_obs_ppn), col = "red") +
+  geom_violin(data = avg_sim_comp ,
+               aes(x = month, y = mean_sim_ppn)) +
+  geom_pointrange(
+    data = avg_obs_comp,
+    aes(x = month, y = mean_obs_ppn, ymin = mean_obs_ppn - se_obs_ppn,
+        ymax = mean_obs_ppn + se_obs_ppn), 
+    col = "red", alpha = 0.6) +
   ggsidekick::theme_sleek() +
-  facet_wrap(~strata, ncol = 2) +
-  labs(y = "Mean Stock Composition") +
+  facet_grid(strata~size_bin) +
+  labs(y = "Mean Composition") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
+        axis.title.x = element_blank()) +
+  geom_text(
+    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    hjust = 1.1, vjust = 1.1
+  )
 
 
 png(
-  here::here("figs", "size_comp_fishery", "posterior_sims.png"),
-  height = 7.5, width = 4.5, units = "in", res = 250
+  here::here("figs", "size_comp_fishery", "posterior_sims_size.png"),
+  height = 8.5, width = 7.5, units = "in", res = 250
 )
 post_sim
 dev.off()
@@ -329,7 +385,7 @@ dev.off()
 source(here::here("R", "functions", "pred_mvtweedie2.R"))
 
 
-newdata <- expand.grid(
+newdata1 <- expand.grid(
   strata = unique(dat$strata),
   week_n = unique(agg_dat$week_n),
   size_bin = levels(agg_dat$size_bin),
@@ -343,9 +399,44 @@ newdata <- expand.grid(
     strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
   filter(
-    !strata == "Saanich",
-    # don't bother generating year-specific predictions for now
+    !strata == "Saanich"
+  )
+
+newdata <- newdata1 %>% 
+  filter(
     year == agg_dat$year[1]
+  )
+
+
+# year-specific predictions (average strata)
+pred3 = pred_dummy(
+  fit,
+  se.fit = TRUE,
+  category_name = "size_bin",
+  origdata = agg_dat,
+  newdata = newdata1
+)
+
+newdata_yr <- cbind( newdata1, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
+  mutate(
+    lower = fit + (qnorm(0.025)*se.fit),
+    upper = fit + (qnorm(0.975)*se.fit)
+  ) 
+
+year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
+  geom_line(aes(colour = year)) +
+  facet_grid(size_bin~strata, scales = "free_y") +
+  scale_colour_discrete() +
+  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
+  ) +
+  labs(y="Predicted Proportion") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  theme(legend.position = "top",
+        axis.title.x = element_blank()) +
+  scale_x_continuous(
+    breaks = c(25, 29.25, 33.5, 38),
+    labels = c("Jun", "Jul", "Aug", "Sep")
   )
 
 
@@ -392,7 +483,6 @@ season_preds <- ggplot(newdata_season2, aes(week_n, fit)) +
 season_preds_fullx <- season_preds +
   coord_cartesian(xlim = c(0, 52), expand = FALSE)  +
   scale_x_continuous()
-
 
 
 # average across year predictions
@@ -467,6 +557,13 @@ summer_pred_stacked <- ggplot(
 
 
 png(
+  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_year.png"),
+  height = 6.5, width = 6.5, units = "in", res = 250
+)
+year_preds
+dev.off()
+
+png(
   here::here("figs", "size_comp_fishery", "size_season_preds_chinook.png"),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
@@ -475,14 +572,14 @@ dev.off()
 
 png(
   here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook.png"),
-  height = 8.5, width = 6.5, units = "in", res = 250
+  height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
 png(
   here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_xaxis.png"),
-  height = 8.5, width = 6.5, units = "in", res = 250
+  height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_preds_fullx
 dev.off()
@@ -545,22 +642,20 @@ new_dat_sp <- expand.grid(
     year_n = unique(agg_dat$year_n)[1],
     sg_year = paste(size_bin, year_n, sep = "_") %>% 
       as.factor()
-  ) %>% 
-  filter(
-    week_n == "29"
-  )
+  ) 
+
 
 # exclude seasonal and annual effects
-excl3 <- grepl("week_n", gratia::smooths(fit)) | 
+excl3 <- #grepl("week_n", gratia::smooths(fit)) | 
   grepl("year", gratia::smooths(fit))
-week_yr_coefs <- gratia::smooths(fit)[excl3]
+yr_coefs <- gratia::smooths(fit)[excl3]
 pred_sp <- pred_dummy(
   fit,
   se.fit = TRUE,
   category_name = "size_bin",
   origdata = agg_dat,
   newdata = new_dat_sp,
-  exclude = week_yr_coefs
+  exclude = yr_coefs
 )
 
 coast <- rbind(rnaturalearth::ne_states( "United States of America", 
@@ -577,15 +672,25 @@ coast <- rbind(rnaturalearth::ne_states( "United States of America",
   )
 
 
+# calculate the average summer distribution (SE dropped to avoid delta method):
+# 1) calculate mean comp for each stock/cell
+# 2) rescale each cell so that summed comp = 1
+# 3) calculate scaled_fit for each size bin
 new_dat_sp_plot <- cbind(
-  new_dat_sp, fit=pred_sp$fit, se.fit=pred_sp$se.fit 
+  new_dat_sp, fit=pred_sp$fit#, se.fit=pred_sp$se.fit 
 ) %>% 
+  group_by(size_bin, X, Y, utm_y, utm_x) %>% 
+  summarize(
+    mean_fit = mean(fit)
+  ) %>% 
+  group_by(X, Y, utm_y, utm_x) %>% 
+  mutate(fit = mean_fit / sum(mean_fit)) %>% 
   group_by(size_bin) %>% 
   mutate(
     scaled_fit = fit / max(fit)
   ) %>% 
-  ungroup() %>% 
-  filter(week_n == "29")
+  ungroup() 
+
 
 spatial_pred <- ggplot() +
   geom_raster(data = new_dat_sp_plot, 
@@ -628,47 +733,47 @@ spatial_pred_scaled <- ggplot() +
   ) 
 
 
-spatial_pred_se <- ggplot() +
-  geom_raster(data = new_dat_sp_plot, 
-              aes(x = X, y = Y, fill = se.fit)) +
-  geom_sf(data = coast, color = "black", fill = "grey") +
-  facet_wrap(
-    ~ size_bin
-  ) +
-  scale_fill_gradient2(
-    name = "Predicted SE\nof Proportion\nEstimate"
-  ) +
-  ggsidekick::theme_sleek()  +
-  theme(
-    axis.title = element_blank(),
-    axis.text = element_blank(), 
-    axis.ticks = element_blank(),
-    legend.position = "top",
-    strip.text = element_text(size = 5)
-  ) 
+# spatial_pred_se <- ggplot() +
+#   geom_raster(data = new_dat_sp_plot, 
+#               aes(x = X, y = Y, fill = se.fit)) +
+#   geom_sf(data = coast, color = "black", fill = "grey") +
+#   facet_wrap(
+#     ~ size_bin
+#   ) +
+#   scale_fill_gradient2(
+#     name = "Predicted SE\nof Proportion\nEstimate"
+#   ) +
+#   ggsidekick::theme_sleek()  +
+#   theme(
+#     axis.title = element_blank(),
+#     axis.text = element_blank(), 
+#     axis.ticks = element_blank(),
+#     legend.position = "top",
+#     strip.text = element_text(size = 5)
+#   ) 
 
 
 png(
-  here::here("figs", "size_comp_fishery", "spatial_preds.png"),
+  here::here("figs", "size_comp_fishery", "size_spatial_preds.png"),
   height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "spatial_preds_scaled.png"),
+  here::here("figs", "size_comp_fishery", "size_spatial_preds_scaled.png"),
   height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
-png(
-  here::here("figs", "size_comp_fishery", "spatial_preds_se.png"),
-  height = 4, width = 6, units = "in", res = 250
-)
-spatial_pred_se
-dev.off()
-
+# png(
+#   here::here("figs", "size_comp_fishery", "spatial_preds_se.png"),
+#   height = 4, width = 6, units = "in", res = 250
+# )
+# spatial_pred_se
+# dev.off()
+# 
 
 
 

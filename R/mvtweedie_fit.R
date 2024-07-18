@@ -361,7 +361,7 @@ dev.off()
 # converge
 system.time(
   fit2 <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 10, bs = "cc") +
       # s(shore_dist, by = stock_group, k = 4, bs = "tp") +
       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
@@ -443,10 +443,10 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
-fit_sdmTMB <- sdmTMB(
-  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
+fit_sdmTMB2 <- sdmTMB(
+  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 10, bs = "cc") +
     # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 15) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
     (1 | sg_year)
   ,
   data = agg_dat,
@@ -466,17 +466,19 @@ fit_sdmTMB <- readRDS(
 
 # ppn zeros
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
-s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
+s_sdmTMB <- simulate(fit_sdmTMB2, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
-pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
 
-dharma_sim <- DHARMa::createDHARMa(
-  simulatedResponse = s_sdmTMB,
-  observedResponse = agg_dat$agg_prob,
-  fittedPredictedResponse = pred_fixed
-)
+# pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
+# dharma_sim <- DHARMa::createDHARMa(
+#   simulatedResponse = s_sdmTMB,
+#   observedResponse = agg_dat$agg_prob,
+#   fittedPredictedResponse = pred_fixed
+# )
 
-samp <- sdmTMBextra::predict_mle_mcmc(fit_sdmTMB, mcmc_iter = 101, mcmc_warmup = 100)
+samp <- sdmTMBextra::predict_mle_mcmc(
+  fit_sdmTMB, mcmc_iter = 101, mcmc_warmup = 100
+  )
 mcmc_res <- residuals(fit_sdmTMB, type = "mle-mcmc", mcmc_samples = samp)
 
 png(
@@ -487,61 +489,102 @@ qqnorm(mcmc_res); qqline(mcmc_res)
 dev.off()
 
 
-# look at average stock comp 
-sim_comp <- s_sdmTMB %>% 
-  as.data.frame() %>% 
-  cbind(
-    ., 
-    agg_dat %>% 
-      select(sample_id, stock_group, strata, week_n)
-    ) %>% 
-  # mutate(stock_group = agg_dat$stock_group,
-  #        obs_prob = agg_dat$agg_prob) %>% 
-  pivot_longer(
-    cols = starts_with("V"),
-    names_to = "sim_number",
-    values_to = "conc"
+# focus on summer samples
+sum_samps <- dat %>% 
+  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  select(week_n, sample_id) %>% 
+  distinct()
+
+week_key <- data.frame(
+  week_n = seq(min(sum_samps$week_n), max(sum_samps$week_n), by = 1)
+) %>% 
+  mutate(
+    month = cut(
+      week_n, breaks = 5, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
   )
 
-avg_sim_comp <- sim_comp %>% 
+avg_sim_comp1 <- sim_comp %>% 
   group_by(sim_number, sample_id) %>% 
   mutate(
     # calculate number of fish simulated per simulation and sampling event
     sim_sample_conc = sum(conc),
-    sim_ppn = conc / sim_sample_conc
+    sim_ppn = ifelse(sim_sample_conc == "0", 0, conc / sim_sample_conc)
   ) %>% 
-  filter(!is.na(sim_ppn),
-         week_n > 24 & week_n < 40) %>% 
-  group_by(strata, stock_group, sim_number) %>% 
+  filter(week_n %in% sum_samps$week_n) %>% 
+  left_join(., week_key, by = "week_n") 
+avg_sim_comp <- avg_sim_comp1 %>% 
+  group_by(strata, month, stock_group, sim_number) %>% 
   summarize(
-    mean_sim_ppn = mean(sim_ppn)
+    median_sim_ppn = mean(sim_ppn)
   )
-avg_obs_comp <- agg_dat %>% 
-  filter(week_n > 24 & week_n < 40) %>% 
-  group_by(strata, stock_group) %>% 
+avg_obs_comp1 <- agg_dat %>% 
+  filter(sample_id %in% sum_samps$sample_id) %>%
+  left_join(., week_key, by = "week_n") %>% 
+  group_by(strata, month) %>% 
+  mutate(
+    strata_n = sum(agg_prob)
+  ) %>%
+  ungroup()
+avg_obs_comp <- avg_obs_comp1 %>% 
+  group_by(strata, month, strata_n, stock_group) %>% 
   summarize(
-    mean_obs_ppn = mean(agg_ppn)
-  )
+    mean_obs_ppn = mean(agg_ppn),
+    se_obs_ppn = sqrt(mean_obs_ppn * (1 - mean_obs_ppn) / strata_n),
+    lo = pmax(0, mean_obs_ppn - (1.96 * se_obs_ppn)),
+    up = pmin(1, mean_obs_ppn + (1.96 * se_obs_ppn))
+  ) %>% 
+  distinct()
 
-post_sim <- ggplot() +
-  geom_boxplot(data = avg_sim_comp ,
-               aes(x = stock_group, y = mean_sim_ppn)) +
-  geom_point(data = avg_obs_comp,
-             aes(x = stock_group, y = mean_obs_ppn), col = "red") +
-  ggsidekick::theme_sleek() +
-  facet_wrap(~strata, ncol = 2) +
-  labs(y = "Mean Stock Composition") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
+# manage size by plotting 4 at a time
+g1 <- c("other", "Col_Spr", "Col_Sum/Fall", "PSD")
+g2 <- c("WCVI", "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2")
+g3 <- c("FR_Sum_5.2", "FR_Sum_4.1", "FR_Fall")
+post_sim_list <- purrr::map(
+  list(g1, g2, g3), function (x) {
+    ggplot() +
+      geom_boxplot(
+        data = avg_sim_comp %>% 
+          filter(stock_group %in% x) %>% 
+          droplevels(),
+        aes(x = month, y = median_sim_ppn)
+      ) +
+      geom_pointrange(
+        data = avg_obs_comp %>% 
+          filter(stock_group %in% x) %>%
+          droplevels(),
+        aes(x = as.numeric(month) - 0.2, y = mean_obs_ppn, ymin = lo, ymax = up), 
+        col = "red", alpha = 0.6) +
+      ggsidekick::theme_sleek() +
+      facet_grid(strata~stock_group) +
+      labs(y = "Mean Composition") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            axis.title.x = element_blank()) +
+      geom_text(
+        data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+        hjust = 1.1, vjust = 1.1
+      )
+  }
+)
 
 
 png(
-  here::here("figs", "stock_comp_fishery", "posterior_sims_stock.png"),
-  height = 7.5, width = 4.5, units = "in", res = 250
+  here::here("figs", "stock_comp_fishery", "posterior_sims_stock1.png"),
+  height = 7.5, width = 7.5, units = "in", res = 250
 )
-post_sim
+post_sim_list[[1]]
 dev.off()
-
+png(
+  here::here("figs", "stock_comp_fishery", "posterior_sims_stock2.png"),
+  height = 7.5, width = 7.5, units = "in", res = 250
+)
+post_sim_list[[2]]
+dev.off()
+png(
+  here::here("figs", "stock_comp_fishery", "posterior_sims_stock3.png"),
+  height = 7.5, width = 7.5, units = "in", res = 250
+)
+post_sim_list[[3]]
+dev.off()
 
 
 ## PREDICT ---------------------------------------------------------------------
@@ -1260,7 +1303,7 @@ new_dat <- purrr::map2(
 model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   geom_line() +
   # geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.5) +
-  facet_grid(stock_group~strata) +
+  facet_grid(stock_group~strata, scales = "free_y") +
   coord_cartesian(xlim = c(25, 38), ylim = c(0, 0.8)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
