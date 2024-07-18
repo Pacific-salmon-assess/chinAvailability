@@ -163,7 +163,7 @@ rec_samp_cov <- ggplot(sample_key) +
 rec_samp_bar <- ggplot(dat) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
@@ -188,7 +188,7 @@ rec_samp_bar_summer <- dat %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
@@ -212,7 +212,7 @@ rec_samp_bar_summer <- dat %>%
 rec_samp_bar_h <- ggplot(dat) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
   labs(
@@ -237,7 +237,7 @@ rec_samp_bar_summer_h <- dat %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
   labs(
@@ -283,7 +283,8 @@ hatchery_stock_bar <- ggplot(hatchery_stock_dat) +
   ) +
  theme(
     legend.position = "top",
-    axis.title.x = element_blank()
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size = 9)
   ) 
 
 
