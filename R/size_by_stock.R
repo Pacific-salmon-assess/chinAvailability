@@ -219,7 +219,7 @@ fit <- gam(
   # remove given minimal variability in size and some missing years
   #+ s(year_f, bs = "re")
   ,
-  data = gsi
+  data = gsi %>% filter(!is.na(sw_age))
 )
 saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
 

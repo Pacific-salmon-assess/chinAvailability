@@ -464,24 +464,26 @@ fit_sdmTMB <- readRDS(
 )
 
 
-
 # ppn zeros
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
 pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
 
-qq_plot <- DHARMa::createDHARMa(
+dharma_sim <- DHARMa::createDHARMa(
   simulatedResponse = s_sdmTMB,
   observedResponse = agg_dat$agg_prob,
   fittedPredictedResponse = pred_fixed
 )
 
+samp <- sdmTMBextra::predict_mle_mcmc(fit_sdmTMB, mcmc_iter = 101, mcmc_warmup = 100)
+mcmc_res <- residuals(fit_sdmTMB, type = "mle-mcmc", mcmc_samples = samp)
+
 png(
-  here::here("figs", "stock_comp_fishery", "qq_plot.png"),
-  height = 4, width = 4, units = "in", res = 250
+  here::here("figs", "stock_comp_fishery", "qq_plot_stock.png"),
+  height = 4.5, width = 4.5, units = "in", res = 250
 )
-plot(qq_plot)
+qqnorm(mcmc_res); qqline(mcmc_res)
 dev.off()
 
 
@@ -534,7 +536,7 @@ post_sim <- ggplot() +
 
 
 png(
-  here::here("figs", "stock_comp_fishery", "posterior_sims.png"),
+  here::here("figs", "stock_comp_fishery", "posterior_sims_stock.png"),
   height = 7.5, width = 4.5, units = "in", res = 250
 )
 post_sim
@@ -561,23 +563,6 @@ newdata <- expand.grid(
     !strata == "Saanich"
   )
 
-
-# fit 1 
-# pred = predict(
-#   fit,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat,
-#   newdata = newdata
-# )
-
-# pred2 = predict(
-#   fit2,
-#   # se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat,
-#   newdata = newdata
-# )
 
 # year-specific predictions (average strata)
 pred3 = pred_dummy(
@@ -683,7 +668,8 @@ summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
       filter(week_n %in% newdata$week_n,
-             !strata == "Saanich"),
+             !strata == "Saanich"
+             ),
     aes(x = week_n, y = agg_ppn, size = sample_id_n),
     alpha = 0.3
   ) +
@@ -694,7 +680,8 @@ summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "top") +
+  theme(legend.position = "top",
+        strip.text = element_text(size = 7)) +
   scale_x_continuous(
     breaks = c(25, 29.25, 33.5, 38),
     labels = c("Jun", "Jul", "Aug", "Sep")
