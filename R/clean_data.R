@@ -553,7 +553,7 @@ long_rec <- wide_rec4_trim %>%
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
-      (lon < -124 | strata == "saanich") & year < 2018, "no", "yes" 
+      (lon < -124 | strata == "saanich") & year < 2019, "no", "yes" 
     )
   )
 
@@ -585,13 +585,13 @@ wide_size <- wide_rec4 %>%
   mutate(
     size_bin = cut(
       fl, 
-      breaks = c(-Inf, 601, 701, 801, Inf), 
-      labels = c("<60", "60-70", "70-80", ">80")
+      breaks = c(-Inf, 651, 751, 851, Inf), 
+      labels = c("55-65", "65-75", "75-85", ">85")
     ),
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
-      lon < -124 & year < 2018, "no", "yes" 
+      lon < -124 & year < 2019, "no", "yes" 
     )
   ) 
 
