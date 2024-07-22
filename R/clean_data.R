@@ -126,7 +126,7 @@ rec_raw_new <- left_join(
   rec_raw_new, 
   site_ll %>% select(fishing_location, area, shore_dist),
   by = c("fishing_location", "area")
-  )
+)
 
 # most recent push from AP, 2022 and 2023 data 
 rec_raw_new24 <- read_csv(
@@ -157,7 +157,7 @@ wide_rec <- rec_raw_new %>%
       pbt_brood_year %in% c("GSI 0000", "Not Loaded", "0") |
         is.na(pbt_brood_year) ~  NaN,
       TRUE ~ as.numeric(pbt_brood_year)
-      ),
+    ),
     # in some cases resolved age deviates from cwt/pbt brood year; replace w/
     # corrected version
     age = case_when(
@@ -264,7 +264,7 @@ wide_all <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
       resolved_stock_source == "CWT" ~ 1.0,
       resolved_stock_source == "Otolith Stock" ~ 1.0
     )
-    ) %>% 
+  ) %>% 
   select(
     id = biokey, date, week_n, month_n, year, area, 
     fishing_site = fishing_location,
@@ -334,7 +334,7 @@ wide_rec4 <- wide_all %>%
       strata == "vic" & lon > -123.55 ~ "haro",
       TRUE ~ strata
     )
-   )
+  )
 
 
 #checks for mapping locations 
@@ -401,41 +401,41 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
       toupper(),
     # replace stocks with mismatched names
     pbt_stock = case_when(
-        pbt_stock %in% c("CHILLIWACK_RIVER", "CHILLIWACK_VEDDER_RIVER",
-                         "H_CHILLIWACK_RIVER", "S_CHILLIWACK_R") ~ 
-          "CHILLIWACK_RIVER_FALL",
-        pbt_stock == "COLDWATER_RIVER_UPPER" ~ "COLWDWATER_RIVER",
-        pbt_stock == "SHUSWAP_RIVER,_MIDDLE," ~ "SHUSWAP_RIVER_MIDDLE",
-        pbt_stock == "CHEHALIS_RIVER" ~ "CHEHALIS_RIVER_SUMMER",
-        pbt_stock == "BIG_QUALICUM_RIVER" ~ "QUALICUM_RIVER",
-        pbt_stock == "ATNARKO_RIVER_UPPER" ~ "ATNARKO_RIVER",
-        pbt_stock == "H_NITINAT_RIVER" ~ "NITINAT_RIVER",
-        pbt_stock == "S_BURMAN_R" ~ "BURMAN_RIVER",        
-        pbt_stock %in% c("S_CONUMA_R", "H_CONUMA_R") ~ "CONUMA_RIVER",        
-        pbt_stock == "S_COWICHAN_R" ~ "COWICHAN_RIVER",
-        pbt_stock %in%  c("S_FIRST_LK/GSVI", "S_NANAIMO_R", 
-                          "NANAIMO_RIVER_FALL")   ~ "NANAIMO_RIVER_FALL", 
-        pbt_stock == "S_GOLD_R" ~ "GOLD_RIVER",
-        pbt_stock == "NANAIMO_RIVER_S" ~ "NANAIMO_RIVER_SUMMER",       
-        pbt_stock == "S_NITINAT_R" ~ "NITINAT_RIVER",       
-        pbt_stock %in% c("S_ROBERTSON_CR", "H_ROBERTSON_CR", 
-                         "ROVERTSON_CREEK") ~ "ROBERTSON_CREEK",    
-        grepl("TAHSIS", pbt_stock) ~ "TAHSIS_RIVER",
-        grepl("TAHSISH", pbt_stock) ~ "TAHSIS_RIVER",
-        grepl("PUNTLEDGE", pbt_stock) ~ "PUNTLEDGE_RIVER_FALL",
-        pbt_stock == "H_SOOKE_RIVER" ~ "SOOKE_RIVER",
-        pbt_stock == "S_SALMON_R/JNST" ~ "SALMON_RIVER_JNST",
-        pbt_stock == "S_SARITA_R" ~ "SARITA_RIVER",        
-        pbt_stock == "S_SUCWOA/TLUPANA_R" ~ "TLUPANA_RIVER",
-        pbt_stock == "CARIBOO_RIVER" ~ "CARIBOO",
-        pbt_stock == "S_LEINER_R" ~ "LEINER_RIVER",
-        pbt_stock == "S_MARBLE_R" ~ "MARBLE_RIVER",
-        pbt_stock == "S_NAHMINT_R" ~ "NAHMINT_RIVER",
-        pbt_stock == "S_QUINSAM_R" ~ "QUINSAM_RIVER",
-        pbt_stock == "S_SAN_JUAN_R" ~ "SAN_JUAN_RIVER",
-        pbt_stock == "WOSS_LAKE"~ "WOSS_RIVER",
-        TRUE ~ pbt_stock
-      )
+      pbt_stock %in% c("CHILLIWACK_RIVER", "CHILLIWACK_VEDDER_RIVER",
+                       "H_CHILLIWACK_RIVER", "S_CHILLIWACK_R") ~ 
+        "CHILLIWACK_RIVER_FALL",
+      pbt_stock == "COLDWATER_RIVER_UPPER" ~ "COLWDWATER_RIVER",
+      pbt_stock == "SHUSWAP_RIVER,_MIDDLE," ~ "SHUSWAP_RIVER_MIDDLE",
+      pbt_stock == "CHEHALIS_RIVER" ~ "CHEHALIS_RIVER_SUMMER",
+      pbt_stock == "BIG_QUALICUM_RIVER" ~ "QUALICUM_RIVER",
+      pbt_stock == "ATNARKO_RIVER_UPPER" ~ "ATNARKO_RIVER",
+      pbt_stock == "H_NITINAT_RIVER" ~ "NITINAT_RIVER",
+      pbt_stock == "S_BURMAN_R" ~ "BURMAN_RIVER",        
+      pbt_stock %in% c("S_CONUMA_R", "H_CONUMA_R") ~ "CONUMA_RIVER",        
+      pbt_stock == "S_COWICHAN_R" ~ "COWICHAN_RIVER",
+      pbt_stock %in%  c("S_FIRST_LK/GSVI", "S_NANAIMO_R", 
+                        "NANAIMO_RIVER_FALL")   ~ "NANAIMO_RIVER_FALL", 
+      pbt_stock == "S_GOLD_R" ~ "GOLD_RIVER",
+      pbt_stock == "NANAIMO_RIVER_S" ~ "NANAIMO_RIVER_SUMMER",       
+      pbt_stock == "S_NITINAT_R" ~ "NITINAT_RIVER",       
+      pbt_stock %in% c("S_ROBERTSON_CR", "H_ROBERTSON_CR", 
+                       "ROVERTSON_CREEK") ~ "ROBERTSON_CREEK",    
+      grepl("TAHSIS", pbt_stock) ~ "TAHSIS_RIVER",
+      grepl("TAHSISH", pbt_stock) ~ "TAHSIS_RIVER",
+      grepl("PUNTLEDGE", pbt_stock) ~ "PUNTLEDGE_RIVER_FALL",
+      pbt_stock == "H_SOOKE_RIVER" ~ "SOOKE_RIVER",
+      pbt_stock == "S_SALMON_R/JNST" ~ "SALMON_RIVER_JNST",
+      pbt_stock == "S_SARITA_R" ~ "SARITA_RIVER",        
+      pbt_stock == "S_SUCWOA/TLUPANA_R" ~ "TLUPANA_RIVER",
+      pbt_stock == "CARIBOO_RIVER" ~ "CARIBOO",
+      pbt_stock == "S_LEINER_R" ~ "LEINER_RIVER",
+      pbt_stock == "S_MARBLE_R" ~ "MARBLE_RIVER",
+      pbt_stock == "S_NAHMINT_R" ~ "NAHMINT_RIVER",
+      pbt_stock == "S_QUINSAM_R" ~ "QUINSAM_RIVER",
+      pbt_stock == "S_SAN_JUAN_R" ~ "SAN_JUAN_RIVER",
+      pbt_stock == "WOSS_LAKE"~ "WOSS_RIVER",
+      TRUE ~ pbt_stock
+    )
   ) %>% 
   left_join(
     ., pbt_rate, by = c("pbt_brood_year_n", "pbt_stock")
@@ -467,7 +467,7 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2024.rds")) %>
         labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
                    "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
                    "FR_Sum_4.1", "FR_Fall")
-    )
+      )
   )
 
 # trim for GSI purposes
@@ -509,13 +509,13 @@ long_rec <- wide_rec4_trim %>%
         as.numeric(),
       # young 2.1s likely 1.2s
       (stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
-        pst_agg %in% c("NBC_SEAK")) & age_gr == "21" ~ 1,
+         pst_agg %in% c("NBC_SEAK")) & age_gr == "21" ~ 1,
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
         pst_agg %in% c("NBC_SEAK") ~ age - 2,
       # if stock group has variable life history use identified yearlings
       (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", "CA_ORCST", "WACST", 
                       "CR-lower_fa", "PSD") | 
-        stock_group %in% c("Fraser_Sum_4.1")) & 
+         stock_group %in% c("Fraser_Sum_4.1")) & 
         age_gr %in% c("32", "42", "52") ~ age - 2,
       TRUE ~ age - 1
     ),
@@ -549,7 +549,7 @@ long_rec <- wide_rec4_trim %>%
                         "unknown_USA", "wild_Can", "wild_USA"),
              labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
                         "USA Wi"))
-      ,
+    ,
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
@@ -681,7 +681,7 @@ rec_creel <- rec_creel_raw %>%
     #is a subarea specific estimate available
     subarea_est = ifelse(grepl("Area", creel_sub_area), "n", "y")
   ) 
-  
+
 
 # separate catch/effort and rejoin
 effort_subarea <- rec_creel %>% 
@@ -689,7 +689,7 @@ effort_subarea <- rec_creel %>%
          !is.na(estimate)) %>% 
   mutate(effort = as.numeric(estimate)) %>%
   select(month, year, subarea = creel_sub_area, area, effort)
-  
+
 catch_subarea <- rec_creel %>% 
   filter(species == "CHINOOK SALMON") %>% 
   mutate(
@@ -727,7 +727,7 @@ effort_area <- effort_subarea %>%
     .groups = "drop"
   )
 sum(effort_area$effort) == sum(effort_subarea$effort)
-  
+
 catch_area <- catch_subarea %>% 
   mutate(reg = abbreviate(region, 4)) %>% 
   group_by(month, month_n, year, area, reg, region, legal) %>% 
@@ -748,5 +748,3 @@ catch_area %>%
 
 saveRDS(catch_subarea, here::here("data", "rec", "rec_creel_subarea.rds"))
 saveRDS(catch_area, here::here("data", "rec", "rec_creel_area.rds"))
-
-

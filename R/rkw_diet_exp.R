@@ -209,19 +209,34 @@ dat2 <- left_join(
   size_pred_dat2 %>% 
     select(id, pred_fl),
   by = "id"
-)
-
-dd <- dat2 %>% 
-  select(id, strata, era, month, fw_year, sw_age, age_f, pred_fl) %>% 
-  distinct() %>% 
+) %>% 
   mutate(
     size_bin = cut(
       pred_fl, 
       breaks = c(-Inf, 651, 751, 851, Inf), 
       labels = c("55-65", "65-75", "75-85", ">85")
-      # labels = c("<60", "60-70", "70-80", ">80")
     )
   )
+
+dd <- dat2 %>% 
+  select(id, strata, era, month, fw_year, sw_age, age_f, pred_fl, size_bin) %>% 
+  distinct() 
+
+ppn_dat_size <- dat2 %>% 
+  filter(!is.na(size_bin)) %>% 
+  group_by(sample_id, era, year, week_n, month, strata, size_bin) %>% 
+  summarize(
+    agg_count = sum(length(unique(id))),
+    .groups = "drop"
+  ) %>% 
+  ungroup() %>% 
+  left_join(., sample_key, by = "sample_id") %>% 
+  mutate(
+    agg_prob = agg_count / n_samples
+  ) 
+saveRDS(
+  ppn_dat_size, here::here("data", "rkw_diet", "cleaned_ppn_dat_size.rds")
+)
 
 
 ## PALETTES --------------------------------------------------------------------
