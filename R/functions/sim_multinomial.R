@@ -1,7 +1,7 @@
 ## Function to simulate composition estimates from multinomial based on DF of 
 # predictions
 
-sim_foo <- function(pred_dat_in, nsim = 50) {
+sim_foo <- function(pred_dat_in, category_name = "stock_group",  nsim = 50) {
   sim_dat_out <- vector(mode = "list", length = nsim)
   
   for (i in 1:nsim) {
@@ -44,9 +44,10 @@ sim_foo <- function(pred_dat_in, nsim = 50) {
     
     # for simulation calculate total counts then test whether obs differences
     # greater than null differences
+    cat_name <- sym(category_name)
     sim_dat_agg <- sim_dat %>% 
       group_by(
-        stock_group
+        !!cat_name
       ) %>% 
       summarize(
         sample1_count = sum(sample1_null),

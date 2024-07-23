@@ -12,6 +12,9 @@ source(here::here("R", "functions", "pred_mvtweedie2.R"))
 source(here::here("R", "functions", "sim_multinomial.R"))
 
 
+dataset_pal <- c("#e0f3db", "#a8ddb5", "#43a2ca")
+names(dataset_pal) <- c("standard", "management", "large")
+
 
 ## STOCK SELECTIVITY -----------------------------------------------------------
 
@@ -83,7 +86,7 @@ new_dat <- purrr::map(
 
 # generate predictions based on each fitted model and store as tibble
 pred_tbl <- tibble(
-  dataset = c("standard", "slot", "large")
+  dataset = c("standard", "management", "large")
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -120,14 +123,16 @@ p_val <- purrr::map2(
   ) %>% 
   bind_rows()
 p_val_sig <- p_val %>% 
-  filter(p_value < 0.05) 
+  filter(p_value < 0.05) %>% 
+  mutate(
+    dataset = factor(dataset, levels = c("standard", "management", "large"))
+  )
 
 
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat <- pred_tbl %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", "slot", 
-                                         "large")),
+    dataset = factor(dataset, levels = c("standard", "management", "large")),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
@@ -141,7 +146,6 @@ sim_ppn_dat <- pred_tbl %>%
   unnest(
     cols = sim_ppn
   )
-
 
 # calculate observed proportions
 obs_ppn_dat <- rkw_dat %>% 
@@ -157,14 +161,10 @@ obs_ppn_dat <- rkw_dat %>%
     up = pmin(1, obs_ppn + (1.96 * se_obs_ppn))
   )
 
-dataset_pal <- c("#e0f3db", "#a8ddb5", 
-                 "#43a2ca")
-names(dataset_pal) <- levels(sim_ppn_dat$dataset)
-
 sel_boxplot <- ggplot() +
   geom_boxplot(
-    data = sim_ppn_dat,
-    aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
+    data = sim_ppn_dat %>% filter(dataset == "standard"),
+    aes(x = stock_group, y = pred_sim_ppn)
     ) +
   geom_pointrange(
     data = obs_ppn_dat, 
@@ -173,12 +173,35 @@ sel_boxplot <- ggplot() +
     position = position_nudge(x = 0.1)
     ) +
   geom_text(
+    data = p_val_sig %>% filter(dataset == "standard"),
+    aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
+    label = "*", size = 7.5
+  ) +
+  lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.1))) +
+  labs(y = "Sample Composition") +
+  ggsidekick::theme_sleek() +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+sel_boxplot2 <- ggplot() +
+  geom_boxplot(
+    data = sim_ppn_dat,
+    aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
+  ) +
+  geom_pointrange(
+    data = obs_ppn_dat, 
+    aes(x = stock_group, y = obs_ppn, ymin = lo, ymax = up), 
+    colour = "red",
+    position = position_nudge(x = 0.1)
+  ) +
+  geom_text(
     data = p_val_sig,
     aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
     label = "*", size = 7.5
   ) +
-  lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.2))) +
-  labs(y = "Simulated Sample Composition") +
+  lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.13))) +
+  labs(y = "Sample Composition") +
   facet_wrap(~dataset, ncol = 1) +
   scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
@@ -188,9 +211,16 @@ sel_boxplot <- ggplot() +
 
 png(
   here::here("figs", "selectivity", "selectivity_boxplot_stock.png"),
-  height = 7.5, width = 7.5, units = "in", res = 250
+  height = 4.5, width = 7.5, units = "in", res = 250
 )
 sel_boxplot
+dev.off()
+
+png(
+  here::here("figs", "selectivity", "selectivity_boxplot_stock_comp.png"),
+  height = 7.5, width = 7.5, units = "in", res = 250
+)
+sel_boxplot2
 dev.off()
 
 
@@ -230,10 +260,10 @@ size_bins <- levels(fit_size$model$size_bin)
 
 
 # infill rkw data to ensure each stock group present for each sampling event
-dat_list <- split(rkw_dat_size, rkw_dat_size$sample_id)
+dat_list_size <- split(rkw_dat_size, rkw_dat_size$sample_id)
 
-new_dat <- purrr::map(
-  dat_list,
+new_dat_size <- purrr::map(
+  dat_list_size,
   function (x) {
     expand.grid(
       sample_id = unique(x$sample_id),
@@ -264,7 +294,7 @@ new_dat <- purrr::map(
 
 
 # generate predictions based on each fitted model and store as tibble
-pred_tbl <- tibble(
+pred_tbl_size <- tibble(
   dataset = c("standard", "management")
 ) %>% 
   mutate(
@@ -272,9 +302,9 @@ pred_tbl <- tibble(
       fit_list, function (x) {
         preds <- pred_dummy(
           x, se.fit = TRUE, category_name = "size_bin", origdata = x$model,
-          newdata = new_dat
+          newdata = new_dat_size
         )
-        new_dat %>% 
+        new_dat_size %>% 
           mutate(
             fit = preds$fit %>% as.numeric(),
             se = preds$se.fit %>% as.numeric()
@@ -286,30 +316,32 @@ pred_tbl <- tibble(
 
 # generate simulations for each model fit
 future::plan(future::multisession, workers = 6)
-pred_tbl$sim_dat <- furrr::future_map(
-  pred_tbl$pred_dat, ~ sim_foo(.x, nsim = 500),
+pred_tbl_size$sim_dat <- furrr::future_map(
+  pred_tbl_size$pred_dat, ~ sim_foo(.x, category_name = "size_bin", nsim = 500),
   .options = furrr::furrr_options(seed = TRUE)
 )
 
 
 # calculate p-values for each and print
-p_val <- purrr::map2(
-  pred_tbl$sim_dat, pred_tbl$dataset,
+p_val_size <- purrr::map2(
+  pred_tbl_size$sim_dat, pred_tbl_size$dataset,
   ~ .x %>% 
-    group_by(stock_group) %>% 
+    group_by(size_bin) %>% 
     summarize(p_value = sum(test_stat) / length(unique(sim_i))) %>% 
     mutate(dataset = .y)
 ) %>% 
   bind_rows()
-p_val_sig <- p_val %>% 
-  filter(p_value < 0.05) 
+p_val_sig_size <- p_val_size %>% 
+  filter(p_value < 0.05) %>% 
+  mutate(
+    dataset = factor(dataset, levels = c("standard", "management"))
+  )
 
 
 # calculate simulated proportion in each simulation to compare to observed
-sim_ppn_dat <- pred_tbl %>% 
+sim_ppn_dat_size <- pred_tbl_size %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", "slot", 
-                                         "large")),
+    dataset = factor(dataset, levels = c("standard", "management")),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
@@ -326,41 +358,67 @@ sim_ppn_dat <- pred_tbl %>%
 
 
 # calculate observed proportions
-obs_ppn_dat <- rkw_dat %>% 
-  group_by(stock_group) %>% 
+obs_ppn_dat_size <- rkw_dat_size %>% 
+  group_by(size_bin) %>% 
   summarize(
     sum_obs = sum(agg_prob)
   ) %>% 
   ungroup() %>% 
+  # no smallest sizes observed so add manually as zero
+  rbind(
+    .,
+    data.frame(
+      size_bin = "55-65", sum_obs = 0
+    )
+  ) %>% 
   mutate(
-    obs_ppn = sum_obs / sum(sum_obs),
+    obs_ppn = ifelse(sum_obs == "0", 0, sum_obs / sum(sum_obs)),
     se_obs_ppn = sqrt(obs_ppn * (1 - obs_ppn) / sum(sum_obs)),
     lo = pmax(0, obs_ppn - (1.96 * se_obs_ppn)),
     up = pmin(1, obs_ppn + (1.96 * se_obs_ppn))
   )
 
-dataset_pal <- c("#e0f3db", "#a8ddb5", 
-                 "#43a2ca")
-names(dataset_pal) <- levels(sim_ppn_dat$dataset)
-
-sel_boxplot <- ggplot() +
+sel_boxplot_size <- ggplot() +
   geom_boxplot(
-    data = sim_ppn_dat,
-    aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
+    data = sim_ppn_dat_size %>% filter(dataset == "standard"),
+    aes(x = size_bin, y = pred_sim_ppn)
   ) +
   geom_pointrange(
-    data = obs_ppn_dat, 
-    aes(x = stock_group, y = obs_ppn, ymin = lo, ymax = up), 
+    data = obs_ppn_dat_size, 
+    aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
     colour = "red",
     position = position_nudge(x = 0.1)
   ) +
   geom_text(
-    data = p_val_sig,
-    aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
+    data = p_val_sig_size %>% filter(dataset == "standard"),
+    aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
     label = "*", size = 7.5
   ) +
-  lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.2))) +
-  labs(y = "Simulated Sample Composition") +
+  lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
+  labs(y = "Sample Composition") +
+  ggsidekick::theme_sleek() +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+sel_boxplot_size2 <- ggplot() +
+  geom_boxplot(
+    data = sim_ppn_dat_size,
+    aes(x = size_bin, y = pred_sim_ppn, fill = dataset)
+  ) +
+  geom_pointrange(
+    data = obs_ppn_dat_size, 
+    aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
+    colour = "red",
+    position = position_nudge(x = 0.1)
+  ) +
+  geom_text(
+    data = p_val_sig_size,
+    aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
+    label = "*", size = 7.5
+  ) +
+  lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
+  labs(y = "Sample Composition") +
   facet_wrap(~dataset, ncol = 1) +
   scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
@@ -369,8 +427,15 @@ sel_boxplot <- ggplot() +
         axis.text.x = element_text(angle = 45, hjust = 1))
 
 png(
-  here::here("figs", "selectivity", "selectivity_boxplot.png"),
-  height = 7.5, width = 7.5, units = "in", res = 250
+  here::here("figs", "selectivity", "selectivity_boxplot_size.png"),
+  height = 4.5, width = 5.5, units = "in", res = 250
 )
-sel_boxplot
+sel_boxplot_size
+dev.off()
+
+png(
+  here::here("figs", "selectivity", "selectivity_boxplot_size_comp.png"),
+  height = 6, width = 5.5, units = "in", res = 250
+)
+sel_boxplot_size2
 dev.off()
