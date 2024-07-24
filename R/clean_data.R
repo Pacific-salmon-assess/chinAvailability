@@ -115,16 +115,17 @@ site_ll <- rec_raw_new %>%
   select(-dd)
 
 # add distance to coast estimates 
-coast <- readRDS(here::here("data", "spatial", "coast_sf.RDS"))
-coast_dist <- geosphere::dist2Line(
-  p = site_ll %>% select(lon, lat), 
-  line = as(coast, 'Spatial')
-)
-site_ll$shore_dist <- coast_dist[, "distance"]
+# coast <- readRDS(here::here("data", "spatial", "coast_sf.RDS"))
+# coast_dist <- geosphere::dist2Line(
+#   p = site_ll %>% select(lon, lat), 
+#   line = as(coast, 'Spatial')
+# )
+# site_ll$shore_dist <- coast_dist[, "distance"]
 
 rec_raw_new <- left_join(
   rec_raw_new, 
-  site_ll %>% select(fishing_location, area, shore_dist),
+  site_ll %>% select(fishing_location, area#, shore_dist
+                     ),
   by = c("fishing_location", "area")
 )
 
@@ -268,7 +269,8 @@ wide_all <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
   select(
     id = biokey, date, week_n, month_n, year, area, 
     fishing_site = fishing_location,
-    subarea, lat, lon, shore_dist, fl, ad = adipose_fin_clipped, 
+    subarea, lat, lon, #shore_dist,
+    fl, ad = adipose_fin_clipped, 
     pbt, pbt_brood_year_n,
     age, age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
@@ -553,8 +555,8 @@ long_rec <- wide_rec4_trim %>%
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
-      ((lon < -124 | strata == "Saanich") & year < 2019) | 
-        ((lon < -124 | strata == "Saanich")  & week_n > 28), "no", "yes" 
+      ((lon < -124 | strata == "saanich") & year < 2019) | 
+        ((lon < -124 | strata == "saanich")  & week_n > 28), "no", "yes" 
     )
   )
 
@@ -592,7 +594,8 @@ wide_size <- wide_rec4 %>%
     # add factor accounting for slot limits that went into place in different
     # years depending on whether west of 20-4/-5 line
     slot_limit = ifelse(
-      (lon < -124 & year < 2019) | (lon < -124 & week_n > 28), "no", "yes" 
+      ((lon < -124 | strata == "saanich") & year < 2019) | 
+        ((lon < -124 | strata == "saanich")  & week_n > 28), "no", "yes" 
     )
   ) 
 

@@ -1023,12 +1023,12 @@ agg_dat_slot <- expand.grid(
     sg_year = paste(stock_group, year, sep = "_") %>% as.factor(),
     utm_x_m = utm_x * 1000,
     utm_y_m = utm_y * 1000
-  ) %>% 
+  ) #%>% 
   # focus only on western strata
-  filter(
-    strata %in% c("Renfrew", "Swiftsure", "Nitinat")
-  ) %>% 
-  droplevels()
+  # filter(
+  #   strata %in% c("Renfrew", "Swiftsure", "Nitinat")
+  # ) %>% 
+  # droplevels()
 
 system.time(
   fit_slot <- gam(
@@ -1059,14 +1059,18 @@ slot_pars <- broom::tidy(fit_slot, parametric = TRUE, conf.int = TRUE) %>%
   ) 
 
 slot_plot <- ggplot(slot_pars) +
-  geom_pointrange(
-    aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high, 
+  geom_point(
+    aes(x = stock_group, y = estimate,  
         fill = stock_group), 
+    shape = 21) +
+  geom_pointrange(
+    aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high,
+        fill = stock_group),
     shape = 21) +
   scale_fill_manual(values = smu_colour_pal) +
   geom_hline(aes(yintercept = 0), lty = 2) +
   ggsidekick::theme_sleek() +
-  labs(y = "Effect of Slot Limit") +
+  labs(y = "Management Regime Effect Size") +
   theme(
     legend.position = "none",
     axis.title.x = element_blank(),
@@ -1367,16 +1371,18 @@ new_dat <- purrr::map2(
     !(model %in% c("full", "large") & slot_limit == "yes")
     )
 
-model_pal <- c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3")
-names(model_pal) <- c("full", "slot yes", "slot no", "large")
-
 model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   geom_line() +
   facet_grid(stock_group~strata, scales = "free_y") +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  scale_colour_manual(values = model_pal) +
+  scale_colour_manual(
+    name = "Model",
+    values = c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3"), #model_pal,
+    labels = c("standard", "pre-2019\nmanagement", "post-2019\nmanagement",
+               "large")
+  ) +
   theme(legend.position = "right",
         axis.title.x = element_blank(),
         strip.text = element_text(size = 8)) +

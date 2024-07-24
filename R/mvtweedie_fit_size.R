@@ -72,7 +72,6 @@ loc_key <- readRDS(
     utm_y = utm_y_m / 1000
   )
 
-
 # add zero observations
 agg_dat <- expand.grid(
   sample_id = unique(dat$sample_id),
@@ -806,11 +805,27 @@ agg_dat_slot <- expand.grid(
     utm_y_m = utm_y * 1000,
     sg_year = paste(size_bin, year, sep = "_") %>% 
       as.factor()
-  )  %>% 
+  ) # %>% 
+  # filter(
+  #   strata %in% c("Swiftsure", "Nitinat", "Renfrew")
+  # ) %>%
+  # droplevels()
+
+
+
+dd <- agg_dat %>% 
   filter(
     strata %in% c("Swiftsure", "Nitinat", "Renfrew")
-  ) %>%
-  droplevels()
+  ) %>% 
+  group_by(year) %>% 
+  mutate(total = sum(agg_ppn))
+dd %>% 
+  group_by(year, size_bin, strata) %>% 
+  summarize(sum(agg_ppn) / total) %>% 
+  filter(size_bin == ">85") %>% 
+  distinct() %>% 
+  arrange(strata, year)
+
 
 system.time(
   fit_slot <- gam(
@@ -849,7 +864,7 @@ slot_plot <- ggplot(slot_pars) +
   scale_fill_manual(values = size_colour_pal) +
   geom_hline(aes(yintercept = 0), lty = 2) +
   ggsidekick::theme_sleek() +
-  labs(y = "Effect of Slot Limit") +
+  labs(y = "Management Regime Effect Size") +
   theme(
     legend.position = "none",
     axis.title.x = element_blank(),
@@ -865,7 +880,7 @@ slot_plot
 dev.off()
 
 
-newdata_yr <- expand.grid(
+newdata_yr1 <- expand.grid(
   strata = unique(agg_dat_slot$strata),
   week_n = unique(agg_dat_slot$week_n),
   size_bin = levels(agg_dat_slot$size_bin),
@@ -890,20 +905,22 @@ pred_yr_slot = pred_dummy(
   newdata = newdata_yr
 )
 
-newdata_yr <- cbind( newdata_yr, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
+newdata_yr <- cbind( newdata_yr1, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
   mutate(
     lower = fit + (qnorm(0.025)*se.fit),
     upper = fit + (qnorm(0.975)*se.fit)
   ) 
 
 #time series of changes in July size composition
-jul_ts <- ggplot(newdata_yr %>% filter(week_n == "29", slot_limit == "no"),
+jul_ts <- ggplot(newdata_yr %>% 
+                   filter(week_n == "29", slot_limit == "no",
+                          strata %in% c("Swiftsure", "Nitinat", "Renfrew")),
                  aes(x = year, y = fit, fill = size_bin)) +
   geom_pointrange(
     aes(ymin = lower, ymax = upper),
     shape = 21#, position = position_dodge(width = 0.9)
   ) +
-  facet_grid(size_bin~strata, scales == "free_y") +
+  facet_grid(size_bin~strata, scales = "free_y") +
   scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
   ggsidekick::theme_sleek() +
   labs(y = "Predicted Mean Composition") +
@@ -989,7 +1006,7 @@ fit_list <- list(fit, fit_slot)
 model_names <- c("full", "slot")
 
 
-newdata_slot <- newdata_yr %>%
+newdata_slot <- newdata_yr1 %>%
   filter(year == "2014") %>%
   droplevels()
 
@@ -1030,16 +1047,17 @@ new_dat <- purrr::map2(
     !(model %in% c("full") & slot_limit == "yes")
   )
 
-model_pal <- c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3")
-names(model_pal) <- c("full", "slot yes", "slot no", "large")
-
 model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   geom_line() +
   facet_grid(size_bin~strata, scales = "free_y") +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  scale_colour_manual(values = model_pal) +
+  scale_colour_manual(
+    name = "Model",
+    values = c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3"), #model_pal,
+    labels = c("standard", "pre-2019\nmanagement", "post-2019\nmanagement")
+    ) +
   theme(legend.position = "right",
         axis.title.x = element_blank(),
         strip.text = element_text(size = 8)) +
