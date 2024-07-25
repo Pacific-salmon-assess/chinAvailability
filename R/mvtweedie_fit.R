@@ -52,6 +52,14 @@ dat <- rec_raw %>%
   mutate(sample_id_n = sum(prob)) %>% 
   ungroup()
 
+dat %>%
+  filter(stock_group %in% c("ECVI_SOMN")) %>% 
+  group_by(stock, stock_group) %>% 
+  summarize(nn = sum(prob)) %>%
+  filter(nn > 10) %>% 
+  arrange(stock_group, stock) %>% 
+  print(n = Inf)
+
 sample_key <- dat %>% 
   select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, shore_dist,
          slot_limit) %>% 
@@ -330,6 +338,47 @@ png(
 )
 hatchery_stock_bar
 dev.off()
+
+
+## MEAN pHOS -------------------------------------------------------------------
+
+# use SEP data to fit simple LM to estimate mean hatchery contribution for WCVI 
+# and ECVI systems
+phos <- readxl::read_xlsx(
+  here::here("data", "sep", "2024-07-24 annual pHOS summary.xlsx")
+) 
+
+swvi_phos <- phos %>% 
+  filter(
+    cu_acronym == "SWVI"
+  ) %>% 
+  droplevels()
+fraser_fall_phos <- phos %>% 
+  filter(
+    cu_acronym == "Chil_transp_F"
+  )
+phos_list <- list(swvi_phos, fraser_fall_phos)
+
+library(glmmTMB)
+
+# only one Fraser Fall population
+ff_fit <- glmmTMB(
+  pHOS ~ 1 + (1 | return_year), data = fraser_fall_phos,
+  family = beta_family()
+)
+swvi_fit <- glmmTMB(
+  pHOS ~ 1 + (1 | return_year) + (1 | population), data = swvi_phos,
+  family = beta_family()
+)
+# intercept is mean after accounting for interannual and among population 
+# variation
+purrr::map(
+  list(ff_fit, swvi_fit), function (x) {
+    ci <-  confint(x, parm = "(Intercept)", level = 0.95)
+    boot::inv.logit(ci)
+  }
+)
+
 
 
 ## FIT MODEL -------------------------------------------------------------------
