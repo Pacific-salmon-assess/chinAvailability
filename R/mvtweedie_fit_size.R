@@ -812,21 +812,6 @@ agg_dat_slot <- expand.grid(
   # droplevels()
 
 
-
-dd <- agg_dat %>% 
-  filter(
-    strata %in% c("Swiftsure", "Nitinat", "Renfrew")
-  ) %>% 
-  group_by(year) %>% 
-  mutate(total = sum(agg_ppn))
-dd %>% 
-  group_by(year, size_bin, strata) %>% 
-  summarize(sum(agg_ppn) / total) %>% 
-  filter(size_bin == ">85") %>% 
-  distinct() %>% 
-  arrange(strata, year)
-
-
 system.time(
   fit_slot <- gam(
     agg_prob ~ 0 + size_bin*slot_limit + 
@@ -1044,7 +1029,8 @@ new_dat <- purrr::map2(
   ) %>% 
   filter(
     week_n > 23 & week_n < 39,
-    !(model %in% c("full") & slot_limit == "yes")
+    !(model %in% c("full") & slot_limit == "yes"),
+    strata %in% c("Swiftsure", "Nitinat", "Renfrew")
   )
 
 model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +

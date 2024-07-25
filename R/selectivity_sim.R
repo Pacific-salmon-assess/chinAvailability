@@ -75,9 +75,8 @@ new_dat <- purrr::map(
       mutate(
         obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn),
         sg_year = paste(stock_group, year_n, sep = "_") %>% as.factor(),
-        slot_limit = ifelse(
-          year_n > 2018, "yes", "no"
-        )
+        # set slot limit to no under assumption SRKW behaving like unreg fishery
+        slot_limit = "no"
       )
   }
 ) %>% 
@@ -284,9 +283,10 @@ new_dat_size <- purrr::map(
       mutate(
         obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn),
         sg_year = paste(size_bin, year_n, sep = "_") %>% as.factor(),
-        slot_limit = ifelse(
-          year_n > 2018, "yes", "no"
-        )
+        slot_limit = "no"
+        # slot_limit = ifelse(
+        #   year_n > 2018, "yes", "no"
+        # )
       )
   }
 ) %>% 

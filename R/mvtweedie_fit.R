@@ -346,7 +346,10 @@ dev.off()
 # and ECVI systems
 phos <- readxl::read_xlsx(
   here::here("data", "sep", "2024-07-24 annual pHOS summary.xlsx")
-) 
+) %>% 
+  filter(
+    estimate_type %in% c("Direct", "Partial Direct")
+  )
 
 swvi_phos <- phos %>% 
   filter(
@@ -1134,94 +1137,41 @@ slot_plot
 dev.off()
 
 
-## COMBINED WITH LARGE EFFECTS BELOW
-# newdata_yr <- expand.grid(
-#   strata = unique(agg_dat_slot$strata),
-#   week_n = unique(agg_dat_slot$week_n),
-#   stock_group = levels(agg_dat_slot$stock_group),
-#   year_n = unique(dat$year),
-#   slot_limit = unique(agg_dat_slot$slot_limit)
-# ) %>%
-#   left_join(., loc_key, by = 'strata') %>% 
-#   mutate(
-#     year = as.factor(year_n),
-#     sg_year = paste(stock_group, year, sep = "_") %>% 
-#       as.factor(),
-#     strata = factor(strata, levels = levels(agg_dat$strata))
-#   )
-# 
-# newdata_slot <- newdata_yr %>% 
-#   filter(year == "2014") %>% 
-#   droplevels()
-# 
-# excl3 <- grepl("year", gratia::smooths(fit_slot))
-# yr_coefs <- gratia::smooths(fit_slot)[excl3]
-# 
-# pred_slot = pred_dummy(
-#   fit_slot,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat,
-#   newdata = newdata_slot,
-#   exclude = yr_coefs
-# )
-# data_slot = cbind(newdata_slot, fit=pred_slot$fit, se.fit=pred_slot$se.fit )
-# data_slot$lower = data_slot$fit + (qnorm(0.025)*data_slot$se.fit)
-# data_slot$upper = data_slot$fit + (qnorm(0.975)*data_slot$se.fit)
-# 
-# 
-# # focus on strata that introduced slot limits during sampling period
-# slot_pred_smooth <- ggplot(
-#   data_slot %>% filter(week_n > 24),
-#   aes(week_n, fit, colour = slot_limit, fill = slot_limit)
-# ) +
-#   # geom_point(
-#   #   data = agg_dat_slot %>%
-#   #     filter(strata %in% data_slot2$strata),
-#   #   aes(x = week_n, y = agg_ppn, size = sample_id_n, colour = slot_limit),
-#   #   alpha = 0.3, position = position_dodge(width = 0.5) 
-#   # ) +
-#   geom_line() +
-#   # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
-#   facet_grid(stock_group ~ strata, scales = "free_y") +
-#   labs(
-#     y = "Predicted Proportion of Fishery Sample",
-#     fill = "Slot\nLimit",
-#     colour = "Slot\nLimit",
-#     size = "Sample\nSize"
-#   ) +
-#   ggsidekick::theme_sleek() +
-#   scale_x_continuous(
-#     breaks = c(25, 29, 33, 37, 41),
-#     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-#   ) +
-#   theme(axis.title.x = element_blank(),
-#         strip.text = element_text(size = 8))
-# 
-# png(
-#   here::here("figs", "stock_comp_fishery", "smooth_preds_slot_limit.png"),
-#   height = 8.5, width = 5, units = "in", res = 250
-# )
-# slot_pred_smooth
-# dev.off()
-
 # year-specific predictions (average strata)
+newdata <- expand.grid(
+  strata = unique(agg_dat_slot$strata),
+  week_n = unique(agg_dat_slot$week_n),
+  stock_group = levels(agg_dat_slot$stock_group),
+  year_n = unique(agg_dat_slot$year_n),
+  slot_limit = c("yes", "no")
+) %>%
+  left_join(., loc_key, by = 'strata') %>% 
+  mutate(
+    year = as.factor(year_n),
+    sg_year = paste(stock_group, year, sep = "_") %>% 
+      as.factor(),
+    strata = factor(strata, levels = levels(agg_dat_slot$strata))
+  ) %>% 
+  filter(
+    strata %in% c("Renfrew", "Swiftsure", "Nitinat")
+  )
+
 pred_yr_slot = pred_dummy(
   fit_slot,
   se.fit = TRUE,
   category_name = "stock_group",
   origdata = agg_dat_slot,
-  newdata = newdata_yr
+  newdata = newdata
 )
 
-newdata_yr2 <- cbind( newdata_yr, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
+newdata2 <- cbind( newdata, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
   mutate(
     lower = pmax(0, fit + (qnorm(0.025)*se.fit)),
     upper = fit + (qnorm(0.975)*se.fit)
   ) 
 
 #time series of changes in July size composition
-jul_ts <- ggplot(newdata_yr2 %>% filter(week_n == "29", slot_limit == "no"),
+jul_ts <- ggplot(newdata2 %>% filter(week_n == "29", slot_limit == "no"),
                  aes(x = year, y = fit, fill = stock_group)) +
   geom_pointrange(
     aes(ymin = lower, ymax = upper),
@@ -1387,6 +1337,9 @@ model_names <- c("full", "slot", "large")
 excl <- grepl("year", gratia::smooths(fit))
 yr_coefs <- gratia::smooths(fit)[excl]
 
+newdata3 <- newdata %>% 
+  filter(year == "2014")
+
 pred_list <- purrr::map(
   fit_list, 
   ~ pred_dummy(
@@ -1394,14 +1347,14 @@ pred_list <- purrr::map(
     se.fit = TRUE,
     category_name = "stock_group",
     origdata = .x$model,
-    newdata = newdata_slot,
+    newdata = newdata3,
     exclude = yr_coefs
     )
 )
 
 new_dat <- purrr::map2(
   pred_list, model_names,
-  ~ cbind(newdata_slot, fit = .x$fit, se.fit = .x$se.fit) %>% 
+  ~ cbind(newdata3, fit = .x$fit, se.fit = .x$se.fit) %>% 
     mutate(
       model = .y,
       lower = fit + (qnorm(0.025)*se.fit),
@@ -1413,6 +1366,12 @@ new_dat <- purrr::map2(
     model = case_when(
       model == "slot" ~ paste(model, slot_limit, sep = " "),
       TRUE ~ model
+    ),
+    model = factor(
+      model,
+      levels = c("full", "slot yes", "slot no", "large"),
+      labels = c("standard", "post-2019\nmanagement", "pre-2019\nmanagement", 
+                 "large")
     )
   ) %>% 
   filter(
@@ -1420,7 +1379,14 @@ new_dat <- purrr::map2(
     !(model %in% c("full", "large") & slot_limit == "yes")
     )
 
-model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
+model_pal <- c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3")
+names(model_pal) <- levels(new_dat$model)
+
+model_comp_smooth1 <- ggplot(
+  new_dat %>% 
+    filter(!(grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
+  aes(week_n, fit, colour = model)
+) +
   geom_line() +
   facet_grid(stock_group~strata, scales = "free_y") +
   labs(y="Predicted Proportion", x = "Sampling Week") +
@@ -1428,9 +1394,29 @@ model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
   scale_size_continuous(name = "Sample\nSize") +
   scale_colour_manual(
     name = "Model",
-    values = c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3"), #model_pal,
-    labels = c("standard", "pre-2019\nmanagement", "post-2019\nmanagement",
-               "large")
+    values = model_pal
+  ) +
+  theme(legend.position = "right",
+        axis.title.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37),
+    labels = c("Jun", "Jul", "Aug", "Sep"),
+    expand = c(0, 0)
+  ) 
+model_comp_smooth2 <- ggplot(
+  new_dat %>% 
+    filter((grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
+  aes(week_n, fit, colour = model)
+) +
+  geom_line() +
+  facet_grid(stock_group~strata, scales = "free_y") +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_colour_manual(
+    name = "Model",
+    values = model_pal
   ) +
   theme(legend.position = "right",
         axis.title.x = element_blank(),
@@ -1441,9 +1427,17 @@ model_comp_smooth <- ggplot(new_dat, aes(week_n, fit, colour = model)) +
     expand = c(0, 0)
   ) 
 
+
 png(
-  here::here("figs", "stock_comp_fishery", "model_comp_stock.png"),
-  height = 8.5, width = 5, units = "in", res = 250
+  here::here("figs", "stock_comp_fishery", "model_comp_stock1.png"),
+  height = 6.5, width = 5, units = "in", res = 250
 )
-model_comp_smooth
+model_comp_smooth1
+dev.off()
+
+png(
+  here::here("figs", "stock_comp_fishery", "model_comp_stock2.png"),
+  height = 6.5, width = 5, units = "in", res = 250
+)
+model_comp_smooth2
 dev.off()
