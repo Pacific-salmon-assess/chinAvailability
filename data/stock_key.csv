@@ -1,0 +1,485 @@
+stock,regional_grouping,stock_group
+SALMON_RIVER_CA_SPRING,California Coastal,other
+HOMATHKO_RIVER,Central Coast California,other
+CHUCKWALLA,Central Coast California,other
+FEATHER_RIVER_FALL,Central Valley Fall Run,other
+STANISLAUS_RIVER,Central Valley Fall Run,other
+MERCED_RIVER,Central Valley Fall Run,other
+BATTLE_CREEK,Central Valley Fall Run,other
+BUTTE_CREEK_FALL,Central Valley Fall Run,other
+MOK R FISH INS,Central Valley Fall Run,other
+YUBA_RIVER_FALL,Central Valley Fall Run,other
+AMERICAN_RIVER,Central Valley Fall Run,other
+FEATHER R HATCHERY,Central Valley Fall Run,other
+YUBA_RIVER_SPRING,Central Valley Fall Run,other
+YUBA_RIVER._FALL,Central Valley Fall Run,other
+CLEAR_CR_H,Central Valley Fall Run,other
+NIMBUS FISH HATCHERY,Central Valley Fall Run,other
+FEATHER_H_FA,Central Valley Fall Run,other
+STANISLAUS_R,Central Valley Fall Run,other
+BATTLE_CR,Central Valley Fall Run,other
+BUTTE_F,Central Valley Fall Run,other
+FEATHER_RIVER_SPRING,Central Valley Spring Run,other
+FEATHER_H_SP,Central Valley Spring Run,other
+DUNGENESS_R,Juan de Fuca Strait,other
+TRINITY_RIVER_HATCHERY_FALL,Klamath River,other
+KLAMATH_R_FA,Klamath River,other
+SMITH_RIVER_UMPQUA,Mid-Oregon Coast,other
+SIUSLAW_RIVER,Mid-Oregon Coast,other
+UMPQUA_SPRING,Mid-Oregon Coast,other
+ELK R HATCHERY,Mid-Oregon Coast,other
+SALMON R HATCHERY,Mid-Oregon Coast,other
+SMITH_RIVER__UMPQUA,Mid-Oregon Coast,other
+SMITH_RIVER_(UMPQUA),Mid-Oregon Coast,other
+MILLICOMA_R,Mid-Oregon Coast,other
+ALSEA_R,Mid-Oregon Coast,other
+S_UMPQUA_H,Mid-Oregon Coast,other
+COOS_H,Mid-Oregon Coast,other
+UMPQUA_SP,Mid-Oregon Coast,other
+ELK_H,Mid-Oregon Coast,other
+SIXES_R,Mid-Oregon Coast,other
+KILBELLA_RIVER,Northern Mainland Inlets,other
+NUSATSUM_RIVER,Northern Mainland Inlets,other
+SALLOOMT_RIVER,Northern Mainland Inlets,other
+ATNARKO,Northern Mainland Inlets,other
+HIRSCH,Northern Mainland Inlets,other
+U_ATNARKO,Northern Mainland Inlets,other
+KITLOPE,Northern Mainland Inlets,other
+NUSATSUM,Northern Mainland Inlets,other
+KILBELLA,Northern Mainland Inlets,other
+HUNTER_CREEK,Northern California/Southern Oregon Coast,other
+PISTOL_RIVER,Northern California/Southern Oregon Coast,other
+COLE_RIVER,Northern California/Southern Oregon Coast,other
+WINCHUK_RIVER,Northern California/Southern Oregon Coast,other
+LOBSTER_CREEK,Northern California/Southern Oregon Coast,other
+NESTUCCA_RIVER_FALL,Northern Oregon Coast,other
+TRASK_HATCHERY,Northern Oregon Coast,other
+EUCHRE_CREEK,Northern Oregon Coast,other
+NEHALEM_RIVER,Northern Oregon Coast,other
+TRASK_R,Northern Oregon Coast,other
+KWINAMASS,Nass,other
+SEASKINNISH,Nass,other
+KETA CREEK COMPLEX,Southeast Alaska,other
+L_KALUM,Skeena,other
+KISPIOX,Skeena,other
+ZYMOGOTITZ_R,Skeena,other
+KITSUMKALUM_R,Skeena,other
+BEAR,Skeena,other
+OTSI_CR,Skeena,other
+TUYA_R,Stikine,other
+ANDREW_CR,Stikine,other
+HOKO FALLS HATCHERY,Washington Coast,other
+ELWHA_FALL,Washington Coast,other
+FORKS_CREEK_HATCHERY,Washington Coast,other
+SOL_DUC_RIVER,Washington Coast,other
+QUEETS_RIVER,Washington Coast,other
+QUINAULT_RIVER,Washington Coast,other
+HOH_RIVER,Washington Coast,other
+QUINAULT LK HATCHERY,Washington Coast,other
+CHEHALIS RIVER H,Washington Coast,other
+NEMAH HATCHERY,Washington Coast,other
+ELWHA HATCHERY,Washington Coast,other
+MAKAH NFH ON TSOO-YESS R,Washington Coast,other
+CHEHALIS_RIVER,Washington Coast,other
+FORKS_CR_H,Washington Coast,other
+HOH_R,Washington Coast,other
+MAKAH_H,Washington Coast,other
+YAQUINA_R,Washington Coast,other
+ELWHA_F,Washington Coast,other
+S-CHEHALIS R,Washington Coast,other
+WILLAPA_CR,Washington Coast,other
+HOKO_H_FA,Washington Coast,other
+KILCHIS_R,Washington Coast,other
+QUILAYUTE_R,Washington Coast,other
+QUEETS_R,Washington Coast,other
+SOLDUC_F,Washington Coast,other
+QUINAULT_F,Washington Coast,other
+COWLITZ_HATCHERY_SPRING,Lower Col. Spring,Col_Spr
+COWLITZ_H_SP,Lower Col. Spring,Col_Spr
+SERPENTINE_RIVER,Mid/Upper Col. Spring,Col_Spr
+NACHES_RIVER,Mid/Upper Col. Spring,Col_Spr
+SERPENTINE,Mid/Upper Col. Spring,Col_Spr
+COLUMBIA R -MID,Mid/Upper Col. Spring,Col_Spr
+CHIWAWA_SP,Mid/Upper Col. Spring,Col_Spr
+CHIWAWA_RIVER_SPRING,Mid/Upper Col. Spring,Col_Spr
+NACHES_SP,Mid/Upper Col. Spring,Col_Spr
+MINAM_CREEK,Snake Spring/Summer,Col_Spr
+OXBOW HATCHERY,Snake Spring/Summer,Col_Spr
+CLACKAMAS_RIVER,Willamette River,Col_Spr
+SANTIAM_RIVER_NORTH,Willamette River,Col_Spr
+NORTH_SANTIAM,Willamette River,Col_Spr
+CLACKAMAS_N,Willamette River,Col_Spr
+WILLAMETTE HATCHERY,Willamette River,Col_Spr
+MCKENZIE_H,Willamette River,Col_Spr
+N_SANTIAM_H,Willamette River,Col_Spr
+ABERNATHY_RIVER,Lower Col. Fall,Col_Sum/Fall
+SANDY_RIVER,Lower Col. Fall,Col_Sum/Fall
+COWEEMAN,Lower Col. Fall,Col_Sum/Fall
+BIG CR HATCHERY,Lower Col. Fall,Col_Sum/Fall
+KALAMA CR HATCHERY,Lower Col. Fall,Col_Sum/Fall
+SANDY COVE SEAPEN,Lower Col. Fall,Col_Sum/Fall
+FALLERT CR HATCHERY,Lower Col. Fall,Col_Sum/Fall
+ABERNATHY_CR_FA,Lower Col. Fall,Col_Sum/Fall
+WASHOUGAL_R_FA,Lower Col. Fall,Col_Sum/Fall
+BIG_CR_H_COL,Lower Col. Fall,Col_Sum/Fall
+LEWIS_R_F,Lower Col. Fall,Col_Sum/Fall
+ABERNATHY_NFH_F,Lower Col. Fall,Col_Sum/Fall
+LEWIS_R_LSU,Lower Col. Fall,Col_Sum/Fall
+COWEEMAN_R_FA,Lower Col. Fall,Col_Sum/Fall
+ABERNATHY_F,Lower Col. Fall,Col_Sum/Fall
+SANDY,Lower Col. Fall,Col_Sum/Fall
+COWLITZ_H_FA,Lower Col. Fall,Col_Sum/Fall
+LEWIS_R_SU,Lower Col. Fall,Col_Sum/Fall
+SANDY_R,Lower Col. Fall,Col_Sum/Fall
+ELOCHOMAN_R_FA,Lower Col. Fall,Col_Sum/Fall
+KALAMA_H_SP,Lower Col. Fall,Col_Sum/Fall
+SPRING CR NFH,Mid-Col. Tule,Col_Sum/Fall
+SPRING_CREEK_HATCHERY,Mid-Col. Tule,Col_Sum/Fall
+SPRING_CR_COL,Mid-Col. Tule,Col_Sum/Fall
+ELOCHOMAN_H,Mid-Col. Tule,Col_Sum/Fall
+SPRING_CR_H,Mid-Col. Tule,Col_Sum/Fall
+LYON'S_FERRY,Snake Fall,Col_Sum/Fall
+LYONS FERRY HATCHERY,Snake Fall,Col_Sum/Fall
+IRRIGON HATCHERY,Snake Fall,Col_Sum/Fall
+LYONS_FERRY_H,Snake Fall,Col_Sum/Fall
+NEZ_PERCET_H,Snake Fall,Col_Sum/Fall
+CLEARWATERRFA,Snake Fall,Col_Sum/Fall
+LYON'S_FERRY_F,Snake Fall,Col_Sum/Fall
+SALMON_R_F,Snake Fall,Col_Sum/Fall
+WENAHA_RIVER,Snake Fall,Col_Sum/Fall
+UMATILLA HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+HANFORD_REACH,Upper Col. Summer/Fall,Col_Sum/Fall
+SIMILKAMEEN,Upper Col. Summer/Fall,Col_Sum/Fall
+DESCHUTES_RIVER,Upper Col. Summer/Fall,Col_Sum/Fall
+OKANAGAN_RIVER,Upper Col. Summer/Fall,Col_Sum/Fall
+CHIEF JOSEPH HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+CHELAN FALLS HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+WENATCHEE_RIVER,Upper Col. Summer/Fall,Col_Sum/Fall
+KLICKITAT HATCHERY (YKFP),Upper Col. Summer/Fall,Col_Sum/Fall
+PRIEST RAPIDS HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+NPT HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+WELLS HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+HANFORD_REACH_,Upper Col. Summer/Fall,Col_Sum/Fall
+PRIEST_RAPID_H,Upper Col. Summer/Fall,Col_Sum/Fall
+UMATILLA_H_FA,Upper Col. Summer/Fall,Col_Sum/Fall
+METHOW_R,Upper Col. Summer/Fall,Col_Sum/Fall
+U_DESCHUTES_R,Upper Col. Summer/Fall,Col_Sum/Fall
+WELLS_H,Upper Col. Summer/Fall,Col_Sum/Fall
+L_WH_SAL_H_SF,Upper Col. Summer/Fall,Col_Sum/Fall
+UMATILLA_H,Upper Col. Summer/Fall,Col_Sum/Fall
+SILMILKAMEEN_S,Upper Col. Summer/Fall,Col_Sum/Fall
+WENATCHEE_SU,Upper Col. Summer/Fall,Col_Sum/Fall
+OKANAGAN,Upper Col. Summer/Fall,Col_Sum/Fall
+SIMILKAMEEN HATCHERY,Upper Col. Summer/Fall,Col_Sum/Fall
+DESCHUTES-F,Upper Col. Summer/Fall,Col_Sum/Fall
+PRIEST_RAPIDS_H,Upper Col. Summer/Fall,Col_Sum/Fall
+L_DESCHUTES_R,Upper Col. Summer/Fall,Col_Sum/Fall
+MARION_DRAIN_FA,Upper Col. Summer/Fall,Col_Sum/Fall
+WALLACE R HATCHERY,Central Puget Sound,PSD
+WHITE_RIVER,Central Puget Sound,PSD
+LTL WHITE SALMON NFH,Central Puget Sound,PSD
+CEDAR_R_SUFA,Central Puget Sound,PSD
+BEAR_CR_SUFA,Central Puget Sound,PSD
+WHITE_H,Central Puget Sound,PSD
+WHITE_F,Central Puget Sound,PSD
+GEORGE ADAMS HATCHERY,Hood Canal,PSD
+HOODSPORT HATCHERY,Hood Canal,PSD
+HAMMA_HAMMA_R,Hood Canal,PSD
+NF_SKOKOMISH_F,Hood Canal,PSD
+GEORGE_ADAMS_H,Hood Canal,PSD
+MARBLEMOUNT HATCHERY,North Puget Sound,PSD
+SNOHOMISH_RIVER,North Puget Sound,PSD
+SKYKOMISH_RIVER,North Puget Sound,PSD
+STILLAGUAMISH_RIVER,North Puget Sound,PSD
+SKAGIT_RIVER,North Puget Sound,PSD
+NOOKSACK_RIVER,North Puget Sound,PSD
+GLENWOOD SPRINGS,North Puget Sound,PSD
+SKOOKUM CR HATCHERY,North Puget Sound,PSD
+SAMISH HATCHERY,North Puget Sound,PSD
+SKAGIT_SU,North Puget Sound,PSD
+NOOKSACK_SP@KE,North Puget Sound,PSD
+SNOHOMISH_R,North Puget Sound,PSD
+SKYKOMISH_SU,North Puget Sound,PSD
+STILLAGUAMISHS,North Puget Sound,PSD
+SAMISH_H,North Puget Sound,PSD
+MARBLEMOUNT_HSU,North Puget Sound,PSD
+U_SKAGIT_R,North Puget Sound,PSD
+SKAGIT_R,North Puget Sound,PSD
+U_SAUK_R_SPSU,North Puget Sound,PSD
+NF_NOOKSACK_H,North Puget Sound,PSD
+L_SKAGIT_R_FA,North Puget Sound,PSD
+L_SAUK_R,North Puget Sound,PSD
+U_SAUK_R,North Puget Sound,PSD
+GORST CR REARING PND,North Puget Sound,PSD
+GROVERS CR HATCHERY,North Puget Sound,PSD
+SOOS_CREEK,North Puget Sound,PSD
+GREEN_RIVER,North Puget Sound,PSD
+GREEN_RIVER-KENDAL,North Puget Sound,PSD
+PALMER HATCHERY,North Puget Sound,PSD
+KENDALL CR HATCHERY,North Puget Sound,PSD
+TUMWATER FALLS HATCHERY,North Puget Sound,PSD
+CLEAR CREEK HATCHERY,North Puget Sound,PSD
+BERNIE GOBIN HATCH,North Puget Sound,PSD
+ICY CR HATCHERY,North Puget Sound,PSD
+MINTER CR HATCHERY,North Puget Sound,PSD
+SOOS CREEK HATCHERY,North Puget Sound,PSD
+HUPP SPRINGS REARING,North Puget Sound,PSD
+CLARKS CRK HATCHERY,North Puget Sound,PSD
+VOIGHTS CR HATCHERY,North Puget Sound,PSD
+GREEN_F@SOOS,North Puget Sound,PSD
+GREEN@KENDAL_F,North Puget Sound,PSD
+SOOS_CR_H,North Puget Sound,PSD
+SOOS_H,North Puget Sound,PSD
+S_PRAIRIE_CR,North Puget Sound,PSD
+GROVERS_CR_H,North Puget Sound,PSD
+VOIGHTS_H,North Puget Sound,PSD
+GREEN_R_FA,North Puget Sound,PSD
+UW_H_SUFA,North Puget Sound,PSD
+H-NITINAT RIVER H,WCVI,WCVI
+S-NITINAT R,WCVI,WCVI
+S-ROBERTSON CR,WCVI,WCVI
+THORNTON_CREEK,WCVI,WCVI
+ALBERNI INLET SEAPEN,WCVI,WCVI
+S-SARITA R,WCVI,WCVI
+SAN_JUAN_RIVER,WCVI,WCVI
+ROBERTSON_CREEK,WCVI,WCVI
+GOLD_RIVER,WCVI,WCVI
+NAHMINT_RIVER,WCVI,WCVI
+ROBERTSON CREEK H,WCVI,WCVI
+SARITA_RIVER,WCVI,WCVI
+NITINAT_RIVER,WCVI,WCVI
+STAMP_RIVER-ABOVE_FALLS,WCVI,WCVI
+SOOKE_RIVER,WCVI,WCVI
+CYPRE_RIVER,WCVI,WCVI
+TOQUART_RIVER,WCVI,WCVI
+S-CONUMA R,WCVI,WCVI
+MOYEHA_RIVER,WCVI,WCVI
+KENNEDY_RIVER-LOWER,WCVI,WCVI
+TRANQUIL_CREEK,WCVI,WCVI
+BEDWELL_RIVER,WCVI,WCVI
+CONUMA_RIVER,WCVI,WCVI
+LEINER_RIVER,WCVI,WCVI
+MARBLE_RIVER,WCVI,WCVI
+PORT RENFREW SEAPEN,WCVI,WCVI
+S-SAN JUAN R,WCVI,WCVI
+S-GOLD R,WCVI,WCVI
+TAHSISH_RIVER,WCVI,WCVI
+ZEBALLOS_RIVER,WCVI,WCVI
+MEGIN_RIVER,WCVI,WCVI
+OMEGA PACIFIC H,WCVI,WCVI
+TAHSIS_RIVER,WCVI,WCVI
+S-BURMAN R,WCVI,WCVI
+BURMAN_RIVER,WCVI,WCVI
+KAOUK_RIVER,WCVI,WCVI
+TLUPANA_RIVER,WCVI,WCVI
+GORDON_RIVER,WCVI,WCVI
+S-SUCWOA/TLUPANA R,WCVI,WCVI
+NITINAT,WCVI,WCVI
+SOOKE,WCVI,WCVI
+ROBERTSON,WCVI,WCVI
+THORNTON,WCVI,WCVI
+SARITA,WCVI,WCVI
+GOLD_R,WCVI,WCVI
+KENNEDY,WCVI,WCVI
+TAHSIS,WCVI,WCVI
+SAN_JUAN,WCVI,WCVI
+NAHMINT,WCVI,WCVI
+CONUMA,WCVI,WCVI
+TOQUART,WCVI,WCVI
+TRANQUIL,WCVI,WCVI
+MEGIN_R,WCVI,WCVI
+ZEBALLOS,WCVI,WCVI
+KAOUK_R,WCVI,WCVI
+GORDON_R,WCVI,WCVI
+BURMAN,WCVI,WCVI
+MOYEHA_R,WCVI,WCVI
+TLUPANA,WCVI,WCVI
+S-SUCWOA R,WCVI,WCVI
+8702GOLD,WCVI,WCVI
+QUALICUM_RIVER,ECVI,ECVI_SOMN
+COWICHAN_RIVER,ECVI,ECVI_SOMN
+LITTLE_QUALICUM_RIVER,ECVI,ECVI_SOMN
+PUNTLEDGE_RIVER_FALL,ECVI,ECVI_SOMN
+NANAIMO_RIVER_FALL,ECVI,ECVI_SOMN
+NANAIMO_RIVER_SUMMER,ECVI,ECVI_SOMN
+CHEMAINUS_RIVER,ECVI,ECVI_SOMN
+COWICHAN RIVER H,ECVI,ECVI_SOMN
+S-FIRST LK/GSVI,ECVI,ECVI_SOMN
+OYSTER_RIVER,ECVI,ECVI_SOMN
+S-NANAIMO R,ECVI,ECVI_SOMN
+BIG QUALICUM RIVER H,ECVI,ECVI_SOMN
+NANAIMO_RIVER_F,ECVI,ECVI_SOMN
+PUNTLEDGE_RIVER(FALL),ECVI,ECVI_SOMN
+PUNTLEDGE_RIVER,ECVI,ECVI_SOMN
+NANAIMO_RIVER_S,ECVI,ECVI_SOMN
+S-COWICHAN R,ECVI,ECVI_SOMN
+PUNTLEDGE_F,ECVI,ECVI_SOMN
+COWICHAN,ECVI,ECVI_SOMN
+NANAIMO_F,ECVI,ECVI_SOMN
+PUNTLEDGE_BACKX,ECVI,ECVI_SOMN
+BIG_QUALICUM,ECVI,ECVI_SOMN
+L_QUALICUM,ECVI,ECVI_SOMN
+NANAIMO_SP,ECVI,ECVI_SOMN
+SNOQUALMIE_R,ECVI,ECVI_SOMN
+NANAIMO_SU,ECVI,ECVI_SOMN
+PUNTLEDGE_SU,ECVI,ECVI_SOMN
+PUNTLEDGESUM,ECVI,ECVI_SOMN
+WOSS_LAKE,ECVI,ECVI_SOMN
+DISCOVERY PASSAGE SEAPENS,ECVI,ECVI_SOMN
+NANAIMOUPPER,ECVI,ECVI_SOMN
+CHEMAINUS,ECVI,ECVI_SOMN
+QUINSAM RIVER H,Northeast Van. Island,ECVI_SOMN
+QUINSAM_RIVER,Northeast Van. Island,ECVI_SOMN
+QUATSE_RIVER,Northeast Van. Island,ECVI_SOMN
+S-QUINSAM R,Northeast Van. Island,ECVI_SOMN
+QUATSE,Northeast Van. Island,ECVI_SOMN
+QUINSAM,Northeast Van. Island,ECVI_SOMN
+CAPILANO_RIVER,Southern Mainland Inlet,ECVI_SOMN
+SOUTHGATE_RIVER,Southern Mainland Inlet,ECVI_SOMN
+S-SALMON R/JNST,Southern Mainland Inlet,ECVI_SOMN
+PHILLIPS_RIVER,Southern Mainland Inlet,ECVI_SOMN
+SHOVEL_CREEK,Southern Mainland Inlet,ECVI_SOMN
+CHEAKAMUS_RIVER_FALL,Southern Mainland Inlet,ECVI_SOMN
+CAPILANO RIVER H,Southern Mainland Inlet,ECVI_SOMN
+ASHLULM,Southern Mainland Inlet,ECVI_SOMN
+PHILLIPS,Southern Mainland Inlet,ECVI_SOMN
+CHEAKAMUS_SU,Southern Mainland Inlet,ECVI_SOMN
+SQUAMISH,Southern Mainland Inlet,ECVI_SOMN
+CAPILANO,Southern Mainland Inlet,ECVI_SOMN
+CHEAKAMUS,Southern Mainland Inlet,ECVI_SOMN
+BESSETTE_CREEK,Fraser Spring 4.2,FR_Spr_4.2
+DUTEAU_CREEK,Fraser Spring 4.2,FR_Spr_4.2
+NICOLA_RIVER,Fraser Spring 4.2,FR_Spr_4.2
+DEADMAN_RIVER,Fraser Spring 4.2,FR_Spr_4.2
+SPIUS_CREEK,Fraser Spring 4.2,FR_Spr_4.2
+COLDWATER_RIVER-UPPER,Fraser Spring 4.2,FR_Spr_4.2
+COLDWATER_RIVER,Fraser Spring 4.2,FR_Spr_4.2
+BONAPARTE_RIVER,Fraser Spring 4.2,FR_Spr_4.2
+BESSETTE,Fraser Spring 4.2,FR_Spr_4.2
+DEADMAN,Fraser Spring 4.2,FR_Spr_4.2
+NICOLA,Fraser Spring 4.2,FR_Spr_4.2
+U_COLDWAT_SP,Fraser Spring 4.2,FR_Spr_4.2
+COLDWATER,Fraser Spring 4.2,FR_Spr_4.2
+SPIUS CREEK H,Fraser Spring 4.2,FR_Spr_4.2
+BONAPARTE,Fraser Spring 4.2,FR_Spr_4.2
+SPIUS,Fraser Spring 4.2,FR_Spr_4.2
+DUTEAU_CR,Fraser Spring 4.2,FR_Spr_4.2
+EAGLE_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+CARIBOO_RIVER-UPPER,Fraser Spring 5.2,FR_Spr_5.2
+WEST_ROAD_BLACKWATER_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+CARIBOO_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+BONNEVILLE HATCHERY,Fraser Spring 5.2,FR_Spr_5.2
+FINN_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+ENDAKO_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+MCGREGOR_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+BOWRON_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+WILLOW_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+TORPY_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+BLUE_CREEK_CA,Fraser Spring 5.2,FR_Spr_5.2
+BRENNER HATCHERY,Fraser Spring 5.2,FR_Spr_5.2
+SEYMOUR_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+CHILCOTIN_RIVER-LOWER,Fraser Spring 5.2,FR_Spr_5.2
+BLUE_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+BLUE_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+PITT_RIVER-UPPER,Fraser Spring 5.2,FR_Spr_5.2
+WHITEHORSE POND,Fraser Spring 5.2,FR_Spr_5.2
+SLIM_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+INDIANPOINT_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+WEST_ROAD_(BLACKWATER)_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+BRIDGE_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+TETE_JAUNE,Fraser Spring 5.2,FR_Spr_5.2
+HORSEFLY_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+CHILCOTIN_RIVER-UPPER,Fraser Spring 5.2,FR_Spr_5.2
+BAKER_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+SWIFT_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+SALMON_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+UPPER_PITT,Fraser Spring 5.2,FR_Spr_5.2
+BOWRON,Fraser Spring 5.2,FR_Spr_5.2
+NAZKO,Fraser Spring 5.2,FR_Spr_5.2
+NECHAKO,Fraser Spring 5.2,FR_Spr_5.2
+BLUE,Fraser Spring 5.2,FR_Spr_5.2
+U_CARIBOO,Fraser Spring 5.2,FR_Spr_5.2
+ENDAKO,Fraser Spring 5.2,FR_Spr_5.2
+HOLMES,Fraser Spring 5.2,FR_Spr_5.2
+EAGLE_R,Fraser Spring 5.2,FR_Spr_5.2
+DOME,Fraser Spring 5.2,FR_Spr_5.2
+TORPY,Fraser Spring 5.2,FR_Spr_5.2
+SLIM_C,Fraser Spring 5.2,FR_Spr_5.2
+WEST_ROAD__BLACKWATER_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+SEYMOUR@THOMP,Fraser Spring 5.2,FR_Spr_5.2
+HOLMES_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+MORKILL_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+COTTONWOOD,Fraser Spring 5.2,FR_Spr_5.2
+BAEZAEKO,Fraser Spring 5.2,FR_Spr_5.2
+WESTROAD,Fraser Spring 5.2,FR_Spr_5.2
+MCGREGOR,Fraser Spring 5.2,FR_Spr_5.2
+FONTONIKO,Fraser Spring 5.2,FR_Spr_5.2
+MORKILL,Fraser Spring 5.2,FR_Spr_5.2
+L_CHILCOTI,Fraser Spring 5.2,FR_Spr_5.2
+JAMES,Fraser Spring 5.2,FR_Spr_5.2
+COTTONWOOD_RIVER_LOWER,Fraser Spring 5.2,FR_Spr_5.2
+KENNETH_CR,Fraser Spring 5.2,FR_Spr_5.2
+BRIDGE,Fraser Spring 5.2,FR_Spr_5.2
+TASEKO,Fraser Spring 5.2,FR_Spr_5.2
+WILLOW_R,Fraser Spring 5.2,FR_Spr_5.2
+CHILAKO,Fraser Spring 5.2,FR_Spr_5.2
+SALMON@PG,Fraser Spring 5.2,FR_Spr_5.2
+GOAT_RIVER,Fraser Spring 5.2,FR_Spr_5.2
+FONTONIKO_CREEK,Fraser Spring 5.2,FR_Spr_5.2
+SALMON_RIVER_SOTH,Fraser Spring 5.2,FR_Spr_5.2
+HORSEY,Fraser Spring 5.2,FR_Spr_5.2
+HORSEFLY,Fraser Spring 5.2,FR_Spr_5.2
+INDIANPOINT,Fraser Spring 5.2,FR_Spr_5.2
+CHILKO_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+NECHAKO_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+STUART_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+QUESNEL_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+KUZKWA_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+CLEARWATER_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+NORTH_THOMPSON_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+LEMIEUX_CREEK,Fraser Summer 5.2,FR_Sum_5.2
+PORTAGE_CREEK,Fraser Summer 5.2,FR_Sum_5.2
+RAFT_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+BIG_SILVER_CREEK,Fraser Summer 5.2,FR_Sum_5.2
+SLOQUET_CREEK,Fraser Summer 5.2,FR_Sum_5.2
+BARRIERE_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+TASEKO_RIVER,Fraser Summer 5.2,FR_Sum_5.2
+ELKIN_CREEK,Fraser Summer 5.2,FR_Sum_5.2
+RAFT_R,Fraser Summer 5.2,FR_Sum_5.2
+CLEARWATER,Fraser Summer 5.2,FR_Sum_5.2
+N_THOM@MAIN,Fraser Summer 5.2,FR_Sum_5.2
+QUESNEL,Fraser Summer 5.2,FR_Sum_5.2
+LEMIEUX_CR,Fraser Summer 5.2,FR_Sum_5.2
+CHILKO,Fraser Summer 5.2,FR_Sum_5.2
+STUART,Fraser Summer 5.2,FR_Sum_5.2
+L_CARIBOO,Fraser Summer 5.2,FR_Sum_5.2
+ELKIN_R,Fraser Summer 5.2,FR_Sum_5.2
+BARRIERE,Fraser Summer 5.2,FR_Sum_5.2
+KUZKWA_CR,Fraser Summer 5.2,FR_Sum_5.2
+LITTLE_RIVER,Fraser Summer 4.1,FR_Sum_4.1
+THOMPSON_RIVER_BELOW_KAMLOOPS_LAKE,Fraser Summer 4.1,FR_Sum_4.1
+ADAMS_RIVER,Fraser Summer 4.1,FR_Sum_4.1
+SOOKE HARBOUR SEAPEN,Fraser Summer 4.1,FR_Sum_4.1
+SHUSWAP_RIVER-LOWER,Fraser Summer 4.1,FR_Sum_4.1
+SHUSWAP_RIVER-MIDDLE,Fraser Summer 4.1,FR_Sum_4.1
+MARIA_SLOUGH,Fraser Summer 4.1,FR_Sum_4.1
+"SHUSWAP RIVER, MIDDLE, H",Fraser Summer 4.1,FR_Sum_4.1
+SOUTH_THOMPSON_RIVER,Fraser Summer 4.1,FR_Sum_4.1
+SOUTH_THOM,Fraser Summer 4.1,FR_Sum_4.1
+LITTLE_R,Fraser Summer 4.1,FR_Sum_4.1
+L_SHUSWAP,Fraser Summer 4.1,FR_Sum_4.1
+L_THOMPSON,Fraser Summer 4.1,FR_Sum_4.1
+L_ADAMS,Fraser Summer 4.1,FR_Sum_4.1
+M_SHUSWAP,Fraser Summer 4.1,FR_Sum_4.1
+SALMON@SA,Fraser Summer 4.1,FR_Sum_4.1
+LITTLE,Fraser Summer 4.1,FR_Sum_4.1
+CHILLIWACK RIVER H,Fraser Fall,FR_Fall
+S-CHILLIWACK R,Fraser Fall,FR_Fall
+CHILLIWACK_RIVER_SUMMER,Fraser Fall,FR_Fall
+CHILLIWACK_RIVER_FALL,Fraser Fall,FR_Fall
+HARRISON_RIVER,Fraser Fall,FR_Fall
+STAVE_RIVER,Fraser Fall,FR_Fall
+CHILLIWACK_VEDDER_RIVER,Fraser Fall,FR_Fall
+HARRISON,Fraser Fall,FR_Fall
+CHILLIWACK_F,Fraser Fall,FR_Fall
+CHILLIWAC@STAV,Fraser Fall,FR_Fall

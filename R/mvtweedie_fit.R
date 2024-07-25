@@ -52,13 +52,14 @@ dat <- rec_raw %>%
   mutate(sample_id_n = sum(prob)) %>% 
   ungroup()
 
-dat %>%
-  filter(stock_group %in% c("ECVI_SOMN")) %>% 
-  group_by(stock, stock_group) %>% 
-  summarize(nn = sum(prob)) %>%
-  filter(nn > 10) %>% 
-  arrange(stock_group, stock) %>% 
-  print(n = Inf)
+
+## export stock key
+stks <- dat %>%
+  select(stock, region1name, stock_group) %>%
+  distinct() %>%
+  arrange(stock_group, region1name)
+write.csv(stks, here::here("data", "stock_key.csv"), row.names = FALSE)
+
 
 sample_key <- dat %>% 
   select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, shore_dist,
