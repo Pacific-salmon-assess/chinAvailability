@@ -346,43 +346,74 @@ dev.off()
 # use SEP data to fit simple LM to estimate mean hatchery contribution for WCVI 
 # and ECVI systems
 phos <- readxl::read_xlsx(
-  here::here("data", "sep", "2024-07-24 annual pHOS summary.xlsx")
+  here::here("data", "sep", "2024-08-20 annual pHOS summary.xlsx")
 ) %>% 
   filter(
-    estimate_type %in% c("Direct", "Partial Direct")
-  )
-
-swvi_phos <- phos %>% 
-  filter(
-    cu_acronym == "SWVI"
+    estimate_type %in% c("Direct", "Partial Direct"),
+    cu_acronym %in% c("SWVI", "Chil_transp_F", "QP-fall", "MFR-summer",
+                      "CWCH-KOK", "LFR-fall", "EVI-fall", "EVIGStr-sum",
+                      "LTh", "NEVI", "STh-1.3", "STh-SHUR", "NEVI")
   ) %>% 
-  droplevels()
-fraser_fall_phos <- phos %>% 
-  filter(
-    cu_acronym == "Chil_transp_F"
-  )
-phos_list <- list(swvi_phos, fraser_fall_phos)
+  mutate(
+   stock_group = case_when(
+    cu_acronym == "SWVI" ~ "WCVI",
+    cu_acronym %in% c("Chil_transp_F", "LFR-fall") ~ "FR_Fall",
+    grepl("EVI", cu_acronym) | cu_acronym %in% c("CWCH-KOK", "QP-fall") ~ 
+      "ECVI_SOMN",
+    cu_acronym == "MFR-summer" ~ "FR_Sum_5.2",
+    cu_acronym == "LTh" ~ "FR_Spr_4.2",
+    cu_acronym == "STh-1.3" ~ "FR_Spr_5.2",
+    cu_acronym == "STh-SHUR" ~ "FR_Sum_4.1"
+   ),
+   stock_group = factor(stock_group, levels = levels(dat$stock_group)),
+   population = gsub(" River", "", population),
+   population = gsub(" Creek", "", population),
+   population = fct_reorder(population, as.numeric(stock_group)),
+   pHOS = ifelse(pHOS == "1", 0.999, pHOS),
+   pHOS = ifelse(pHOS == "0", 0.001, pHOS)
+  ) 
 
+phos_box <- ggplot(phos) +
+  geom_boxplot(aes(x = population, y = pHOS, fill = stock_group)) +
+  scale_fill_manual(values = smu_colour_pal) +
+  labs(y = "Proportion Hatchery Origin Spawners", fill = NULL) +
+  ggsidekick::theme_sleek() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top")
+
+
+# swvi_phos <- phos %>% 
+#   filter(
+#     cu_acronym == "SWVI"
+#   ) %>% 
+#   droplevels()
+# fraser_fall_phos <- phos %>% 
+#   filter(
+#     cu_acronym == "Chil_transp_F"
+#   )
+# phos_list <- list(swvi_phos, fraser_fall_phos)
+# 
 library(glmmTMB)
-
-# only one Fraser Fall population
-ff_fit <- glmmTMB(
-  pHOS ~ 1 + (1 | return_year), data = fraser_fall_phos,
+# 
+# # only one Fraser Fall population
+fit <- glmmTMB(
+  pHOS ~ 0 + stock_group + (1 | population), data = phos,
   family = beta_family()
 )
-swvi_fit <- glmmTMB(
-  pHOS ~ 1 + (1 | return_year) + (1 | population), data = swvi_phos,
-  family = beta_family()
-)
-# intercept is mean after accounting for interannual and among population 
-# variation
-purrr::map(
-  list(ff_fit, swvi_fit), function (x) {
-    ci <-  confint(x, parm = "(Intercept)", level = 0.95)
-    boot::inv.logit(ci)
-  }
-)
 
+# # intercept is mean after accounting for interannual and among population 
+# # variation
+dd <- summary(fit)
+ci <-  confint(fit, parm = dd$coefficients$cond %>% rownames(), level = 0.95)
+boot::inv.logit(ci)
+
+png(
+  here::here("figs", "stock_comp_fishery", "phos_box.png"),
+  height = 5, width = 8.25, units = "in", res = 250
+)
+phos_box
+dev.off()
 
 
 ## FIT MODEL -------------------------------------------------------------------
