@@ -445,11 +445,11 @@ dev.off()
 # Includes year/stock as RE; remove global smooth after sdmTMB v fails to 
 # converge
 system.time(
-  fit2 <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 10, bs = "cc") +
+  fit3 <- gam(
+    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 15, bs = "cc") +
       # s(shore_dist, by = stock_group, k = 4, bs = "tp") +
       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 30) +
       s(sg_year, bs = "re"),
     data = agg_dat, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
@@ -528,10 +528,10 @@ ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
-fit_sdmTMB2 <- sdmTMB(
-  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 10, bs = "cc") +
+fit_sdmTMB <- sdmTMB(
+  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 15, bs = "cc") +
     # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 15) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 30) +
     (1 | sg_year)
   ,
   data = agg_dat,
@@ -551,7 +551,7 @@ fit_sdmTMB <- readRDS(
 
 # ppn zeros
 sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
-s_sdmTMB <- simulate(fit_sdmTMB2, nsim = 500)
+s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
 
 # pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
@@ -587,6 +587,11 @@ week_key <- data.frame(
     month = cut(
       week_n, breaks = 5, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
   )
+
+colnames(s_sdmTMB) <- paste("sim", seq(1:500), sep = "_")
+sim_comp <- cbind(agg_dat, s_sdmTMB) %>% 
+  pivot_longer(cols = starts_with("sim_"), names_to = "sim_number", 
+               values_to = "conc") 
 
 avg_sim_comp1 <- sim_comp %>% 
   group_by(sim_number, sample_id) %>% 
