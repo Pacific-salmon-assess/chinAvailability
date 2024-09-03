@@ -445,14 +445,14 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
 
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Jul2024.rds")) %>%
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Sep2024.rds")) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
-      pst_agg %in% c("CR-lower_sp", "CR-upper_sp") | 
-        region1name == "Willamette_R" ~ "Col_Spring",
-      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") ~ 
+      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
+        region1name == "Willamette_R" ~ 
         "Col_Summer_Fall",
+      pst_agg %in% c("CR-lower_sp", "CR-upper_sp")  ~ "Col_Spring",
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
         "ECVI_SOMN",
       pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~

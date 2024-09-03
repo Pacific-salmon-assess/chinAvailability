@@ -267,16 +267,16 @@ rec_samp_bar_summer_h <- dat %>%
 
 
 # proportion hatchery within each stock group
-hatchery_stock_dat <- dat %>% 
-  group_by(stock_group, origin2) %>% 
-  summarize(
-    sum_prob = sum(prob), #/ total_n,
-    .groups = "drop"
-  ) %>% 
-  group_by(stock_group) %>% 
-  mutate(
-    ppn = sum_prob / sum(sum_prob)
-  )
+# hatchery_stock_dat <- dat %>% 
+#   group_by(stock_group, origin2) %>% 
+#   summarize(
+#     sum_prob = sum(prob), #/ total_n,
+#     .groups = "drop"
+#   ) %>% 
+#   group_by(stock_group) %>% 
+#   mutate(
+#     ppn = sum_prob / sum(sum_prob)
+#   )
 # export to estimate hatchery comp of diet
 # saveRDS(hatchery_stock_dat, here::here("data", "rec", "hatchery_stock_df.rds"))
 
@@ -526,12 +526,30 @@ fit2 <- readRDS(
 ppn_zero_obs <- sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 
 
+# predictions from equivalent models are identical in both families
+# fit_m <- gam(
+#   agg_prob ~ 0 + stock_group + s(week_n, k = 4, bs = "cc") +
+#     s(sg_year, bs = "re"),
+#   data = agg_dat, family = "tw", method = "REML")
+# fit_s <- sdmTMB(
+#   agg_prob ~ 0 + stock_group +  s(week_n, k = 4, bs = "cc") + 
+#     (1 | sg_year),
+#   data = agg_dat,
+#   spatial = "off",
+#   spatiotemporal = "off",
+#   family = tweedie(link = "log"))
+# p_m <- predict(fit_m)
+# p_s <- predict(fit_s)
+# plot(p_m ~ p_s$est)
+# abline(0, 1)
+
+
 # simulate by fitting sdmTMB equivalent of univariate Tweedie
 library(sdmTMB)
 fit_sdmTMB <- sdmTMB(
-  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 15, bs = "cc") +
+  agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 20, bs = "cc") +
     # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 15) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 30) +
+    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
     (1 | sg_year)
   ,
   data = agg_dat,
@@ -540,6 +558,7 @@ fit_sdmTMB <- sdmTMB(
   family = tweedie(link = "log"),
   knots = list(week_n = c(0, 52))
 )
+
 saveRDS(
   fit_sdmTMB,
   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")

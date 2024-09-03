@@ -28,13 +28,13 @@ stock_key <- readRDS(
   mutate(
     # adjust stock groups to match priorities
     stock_group = case_when(
-      pst_agg == "CR-upper_sp" | region1name == "Willamette_R" ~ "Col_Spring",
-      pst_agg %in% c("CR-lower_fa", "CR-lower_sp", "CR-upper_su/fa") ~ 
-        "Col_Summer_Fall",
+      pst_agg %in% c("CR-lower_sp", "CR-upper_sp")  ~ "Col_Spring",
+      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
+        region1name == "Willamette_R" ~  "Col_Summer_Fall",
       stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
         "ECVI_SOMN",
-      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", 
-                     "Yukon") ~ "other",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~
+        "other",
       grepl("Fraser", region1name) ~ region1name,
       TRUE ~ pst_agg
     ) %>% 
@@ -103,7 +103,7 @@ dat <- raw_dat %>%
     id, sample_id, sample_id_pooled,
     fw_year, sw_age, total_year, age_f = total_year,
     era, year, month, week_n = week, strata, utm_y = Y, utm_x = X,
-    stock, stock_prob, stock_group, age_stock_group,
+    stock, stock_prob, stock_group, age_stock_group, stock_id_method,
     lat = latitude, lon = longitude
   )
 
@@ -166,19 +166,6 @@ ppn_dat_pooled <- dat %>%
 # saveRDS(
 #   ppn_dat_pooled, here::here("data", "rkw_diet", "cleaned_ppn_dat_pooled.rds")
 # )
-
-
-# calculate hatchery contribution by stock (uses mean values from 
-# mvtweedie_fit.R)
-# hatchery_dat <- readRDS(here::here("data", "rec", "hatchery_stock_df.rds")) %>% 
-#   select(stock_group, origin2, ppn) %>% 
-#   ungroup() %>% 
-#   full_join(., 
-#             dat %>% select(month, stock_prob, stock_group, era, strata),
-#             by = "stock_group",
-#             relationship = "many-to-many") %>% 
-#   arrange(month, strata) %>% 
-#   mutate(scaled_prob = stock_prob * ppn)
 
 
 
@@ -420,361 +407,82 @@ dev.off()
 # dev.off()
 
 
-## FIT MODEL -------------------------------------------------------------------
+## CHECK PBT COVERAGE ----------------------------------------------------------
 
-# add zero observations
-agg_dat <- expand.grid(
-  sample_id = unique(dat$sample_id),
-  stock_group = unique(dat$stock_group)
+# import PBT estimates to estimate coverage 
+pbt_rate <- readRDS(
+  here::here("data", "mean_pbt_rate.rds")
 ) %>% 
-  # add n_samples separately to ensure missing stocks represented
-  left_join(., 
-            ppn_dat %>% 
-              select(sample_id:strata, utm_y, utm_x, n_samples) %>% 
-              distinct(), 
-            by = "sample_id") %>%
-  left_join(., 
-            ppn_dat %>% 
-              select(sample_id, stock_group, agg_count, agg_prob), 
-            by = c("sample_id", "stock_group")) %>%
   mutate(
-    month_f = as.factor(month),
-    agg_count = ifelse(is.na(agg_prob), 0, agg_count),
-    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
-    era = ifelse(year < 2015, "early", "current") %>% 
-      as.factor(),
-    year_n = year,
-    year = as.factor(year),
-    stock_group = as.factor(stock_group)
-  ) %>% 
-  droplevels()
-
-# fails to converge
-# fit <- gam(
-#   agg_count ~ 0 + stock_group * era * strata +
-#     s(week_n, by = stock_group, k = 7),
-#     # s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-#   data = agg_dat, family = "tw"
-# )
-# fit2 <- gam(
-#   agg_count ~ 0 + stock_group * era  +#* strata +
-#     s(week_n, by = stock_group, k = 7) +
-#     s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-#   data = agg_dat, family = "tw"
-# )
-# class(fit) = c( "mvtweedie", class(fit) )
-# saveRDS(
-#   fit,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
-# )
-# fit <- readRDS(
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_diet_mvtw.rds")
-# )
-
-
-## parameter estimates plot
-
-# era_pars <- broom::tidy(fit, parametric = TRUE, conf.int = TRUE) %>% 
-#   filter(grepl("era", term)) %>% 
-#   mutate(
-#     stock_group = levels(agg_dat$stock_group) %>% 
-#       factor(., levels = levels(agg_dat$stock_group))
-#   ) 
-# 
-# era_plot <- ggplot(era_pars) +
-#   geom_pointrange(
-#     aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high, 
-#         fill = stock_group), 
-#     shape = 21) +
-#   scale_fill_manual(values = smu_colour_pal) +
-#   geom_hline(aes(yintercept = 0), lty = 2) +
-#   ggsidekick::theme_sleek() +
-#   labs(y = "Sampling Period Effect Size") +
-#   theme(
-#     legend.position = "none",
-#     axis.title.x = element_blank(),
-#     axis.text.x = element_text(angle = 45, hjust = 1)
-#   )
-#   
-#   
-# png(
-#   here::here("figs", "rkw_diet", "sampling_period_effect.png"),
-#   height = 3.5, width = 5, units = "in", res = 250
-# )
-# era_plot
-# dev.off()
-
-
-## CHECK -----------------------------------------------------------------------
-
-ppn_zero_obs <- sum(agg_dat$agg_count == 0) / nrow(agg_dat)
-
-
-# simulate by fitting sdmTMB equivalent of univariate Tweedie
-library(sdmTMB)
-fit_sdmTMB <- sdmTMB(
-  agg_count ~ 0 + stock_group +#*era +
-    s(week_n, by = stock_group, k = 6) +
-    s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-  data = agg_dat,
-  spatial = "off",
-  spatiotemporal = "off",
-  family = tweedie(link = "log")
-)
-saveRDS(
-  fit_sdmTMB,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
-)
-fit_sdmTMB <- readRDS(
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
-)
-
-
-
-# fit spatial model
-mesh <- make_mesh(agg_dat, c("utm_x", "utm_y"), n_knots = 50)
-
-fit_sdmTMB2 <-  sdmTMB(
-  agg_count ~ 0 + stock_group*era #+
-    # s(week_n, by = stock_group, k = 6)
-    ,
-  data = agg_dat,
-  mesh = mesh,
-  spatial = "on",
-  groups = "stock_group",
-  spatiotemporal = "off",
-  family = tweedie(link = "log"),
-  control = sdmTMBcontrol(
-    map = list(
-      ln_tau_Z = factor(
-        rep(1, times = length(unique(agg_dat$stock_group)))
-      )
+    pbt_stock = ifelse(
+      collection_extract == "SHUSWAP_RIVER-LOWER (includes Kingfisher)",
+      "SHUSWAP_RIVER_LOWER",
+      gsub("-", "_", collection_extract) %>% 
+        toupper()
     )
-  ),
-  silent = FALSE,
-  do_fit = FALSE
-)
-
-
-
-## PREDICT ---------------------------------------------------------------------
-
-# import location key made in sampling_maps.R with representative locations
-# for each strata
-loc_key <- readRDS(
-  here::here("data", "spatial", "strata_key.rds")
-) %>% 
-  # match scale of fitted model
-  mutate(
-    utm_x = utm_x_m / 1000,
-    utm_y = utm_y_m / 1000
-  )
-
-
-newdata <- expand.grid(
-  strata = levels(agg_dat$strata),
-  week_n = seq(25, 38, by = 0.25),
-  stock_group = levels(agg_dat$stock_group),
-  # era = unique(agg_dat$era),
-  year = levels(agg_dat$year)[1]
-) %>%
-  left_join(., loc_key, by = 'strata') %>% 
-  mutate(
-    strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
-  filter(
-    !strata == "sooke",
-  )
-
-pred = predict(
-  fit,
-  se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata
-)
-newdata = cbind( newdata, fit=pred$fit, se.fit=pred$se.fit )
-newdata$lower = newdata$fit + (qnorm(0.025)*newdata$se.fit)
-newdata$upper = newdata$fit + (qnorm(0.975)*newdata$se.fit)
-
-# pred2 = predict(
-#   fit2,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat,
-#   newdata = newdata
-# )
-# newdata = cbind( newdata, fit2=pred2$fit, se.fit2=pred2$se.fit )
-# newdata$lower2 = newdata$fit2 + (qnorm(0.025)*newdata$se.fit2)
-# newdata$upper2 = newdata$fit2 + (qnorm(0.975)*newdata$se.fit2)
-# newdata2 <- newdata %>% filter(era == "current")
-
-# remove datalimited strata
-newdata_trim <- newdata %>% 
-  filter(
-    # remove strata that are sparsely sampled
-    !strata %in% c("Sooke/\nVictoria", "cJDF", "San Juan\nIslands")
-  )
-
-diet_pred_smooth <- ggplot(newdata_trim,
-       aes(week_n, fit
-           #, colour = era, fill = era
-           )) +
-  geom_point(
-    data = agg_dat %>%
-      filter(strata %in% newdata_trim$strata),
-    aes(x = week_n, y = agg_prob, size = n_samples),
-    alpha = 0.3
-  ) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5) +
-  facet_grid(stock_group ~ strata) +
-  coord_cartesian(ylim = c(0,1), xlim = c(25, 38)) +
-  labs(
-    y = "Predicted Proportion of Diet Sample",
-    # fill = "Sampling\nEra",
-    # colour = "Sampling\nEra",
-    size = "Sample\nSize"
-  ) +
-  ggsidekick::theme_sleek() +
-  # scale_size_continuous(name = "Sample\nSize") +
-  scale_x_continuous(
-    breaks = c(25, 29, 33, 37, 41),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-  ) 
-
-## NOTE RENFREW ECVI/SOMN ESTIAMTES UNRELIABLE
-diet_pred_stacked <- ggplot(data = newdata_trim, 
-       aes(x = week_n)) +
-  geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
-            stat = "identity") +
-  scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
-  scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
-  labs(y = "Predicted Mean Composition of Diet Sample", x = "Week") +
-  ggsidekick::theme_sleek() +
-  theme(
-    legend.position = "top",
-    axis.text = element_text(size=9),
-    plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points"),
-    axis.title.x = element_blank()
-  ) +
-  coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
-  facet_wrap(~strata) +
-  scale_x_continuous(
-    breaks = c(25, 29, 33, 37, 41),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+  select(
+    pbt_stock, pbt_brood_year_n = year, tag_rate
   )
 
 
-## export 
-png(
-  here::here("figs", "rkw_diet", "smooth_preds.png"),
-  height = 8, width = 6.5, units = "in", res = 250
-)
-diet_pred_smooth
-dev.off()
-
-png(
-  here::here("figs", "rkw_diet", "stacked_pred.png"),
-  height = 4, width = 6.5, units = "in", res = 250
-)
-diet_pred_stacked
-dev.off()
-
-
-## SIDE BY SIDE ---------------------------------------------------------------
-
-
-# generate monthly predictions using both models to compare expected comp
-# Given high uncertainty for era-specific model, use simplified version then
-# check again when more samples added
-fit2 <- gam(
-  agg_count ~ 0 + strata + s(week_n, by = stock_group, k = 6) +
-  s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 15),
-  data = agg_dat, family = "tw"
-)
-class(fit2) = c( "mvtweedie", class(fit2) )
-
-
-newdata_both1 <- expand.grid(
-  strata = levels(agg_dat$strata),
-  # exclude Sep/Oct samples due to small sample size
-  week_n = c(25, 29, 33),
-  stock_group = levels(agg_dat$stock_group),
-  era = unique(agg_dat$era),
-  year_n = max(agg_dat$year_n)
-) %>%
-  left_join(., loc_key, by = 'strata') %>%
+dat_pbt <- dat %>% 
   mutate(
-    strata = factor(strata, levels = levels(agg_dat$strata)),
-    month = factor(week_n, labels = c("Jun", "Jul", "Aug"))
+    pbt_stock = gsub("-", "_", stock) %>% 
+      gsub(" H", "", .) %>% 
+      gsub(" ", "_", .) %>% 
+      toupper(),
+    # replace stocks with mismatched names
+    pbt_stock = case_when(
+      pbt_stock %in% c("CHILLIWACK_RIVER", "CHILLIWACK_VEDDER_RIVER",
+                       "H_CHILLIWACK_RIVER", "S_CHILLIWACK_R") ~ 
+        "CHILLIWACK_RIVER_FALL",
+      pbt_stock == "COLDWATER_RIVER_UPPER" ~ "COLWDWATER_RIVER",
+      pbt_stock == "SHUSWAP_RIVER,_MIDDLE," ~ "SHUSWAP_RIVER_MIDDLE",
+      pbt_stock == "CHEHALIS_RIVER" ~ "CHEHALIS_RIVER_SUMMER",
+      pbt_stock == "BIG_QUALICUM_RIVER" ~ "QUALICUM_RIVER",
+      pbt_stock == "ATNARKO_RIVER_UPPER" ~ "ATNARKO_RIVER",
+      pbt_stock == "H_NITINAT_RIVER" ~ "NITINAT_RIVER",
+      pbt_stock == "S_BURMAN_R" ~ "BURMAN_RIVER",        
+      pbt_stock %in% c("S_CONUMA_R", "H_CONUMA_R") ~ "CONUMA_RIVER",        
+      pbt_stock == "S_COWICHAN_R" ~ "COWICHAN_RIVER",
+      pbt_stock %in%  c("S_FIRST_LK/GSVI", "S_NANAIMO_R", 
+                        "NANAIMO_RIVER_FALL")   ~ "NANAIMO_RIVER_FALL", 
+      pbt_stock == "S_GOLD_R" ~ "GOLD_RIVER",
+      pbt_stock == "NANAIMO_RIVER_S" ~ "NANAIMO_RIVER_SUMMER",       
+      pbt_stock == "S_NITINAT_R" ~ "NITINAT_RIVER",       
+      pbt_stock %in% c("S_ROBERTSON_CR", "H_ROBERTSON_CR", 
+                       "ROVERTSON_CREEK") ~ "ROBERTSON_CREEK",    
+      grepl("TAHSIS", pbt_stock) ~ "TAHSIS_RIVER",
+      grepl("TAHSISH", pbt_stock) ~ "TAHSIS_RIVER",
+      grepl("PUNTLEDGE", pbt_stock) ~ "PUNTLEDGE_RIVER_FALL",
+      pbt_stock == "H_SOOKE_RIVER" ~ "SOOKE_RIVER",
+      pbt_stock == "S_SALMON_R/JNST" ~ "SALMON_RIVER_JNST",
+      pbt_stock == "S_SARITA_R" ~ "SARITA_RIVER",        
+      pbt_stock == "S_SUCWOA/TLUPANA_R" ~ "TLUPANA_RIVER",
+      pbt_stock == "CARIBOO_RIVER" ~ "CARIBOO",
+      pbt_stock == "S_LEINER_R" ~ "LEINER_RIVER",
+      pbt_stock == "S_MARBLE_R" ~ "MARBLE_RIVER",
+      pbt_stock == "S_NAHMINT_R" ~ "NAHMINT_RIVER",
+      pbt_stock == "S_QUINSAM_R" ~ "QUINSAM_RIVER",
+      pbt_stock == "S_SAN_JUAN_R" ~ "SAN_JUAN_RIVER",
+      pbt_stock == "WOSS_LAKE"~ "WOSS_RIVER",
+      TRUE ~ pbt_stock
+    ),
+    pbt_brood_year_n = year - as.numeric(as.character(age_f))
   ) %>% 
-  filter(
-    strata %in% c("Swiftsure", "Nitinat", "Renfrew"),
-    era == "current"
+  left_join(
+    ., pbt_rate, by = c("pbt_brood_year_n", "pbt_stock")
   )
 
-pred_rkw = predict(
-  fit2,
-  se.fit = TRUE,
-  category_name = "stock_group",
-  origdata = agg_dat,
-  newdata = newdata_both1
-)
-newdata1 = cbind( newdata_both1, fit=pred_rkw$fit, se.fit=pred_rkw$se.fit )
-newdata1$lower = newdata1$fit + (qnorm(0.025)*newdata1$se.fit)
-newdata1$upper = newdata1$fit + (qnorm(0.975)*newdata1$se.fit)
-newdata1$model <- "srkw"
-
-
-# import fishery model fit in mvtweedie_fit.R
-rec_fit <- readRDS(
-  here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
-  )
-)
-
-# modified prediction function that allows for exclude 
-source(here::here("R", "functions", "pred_mvtweedie2.R"))
-
-# integrate out year smooths
-excl <- grepl("year_n", gratia::smooths(rec_fit))
-yr_coefs <- gratia::smooths(rec_fit)[excl]
-pred_rec = pred_dummy(
-  rec_fit,
-  se.fit = TRUE,
-  category_name = "stock_group",
-  # original dataset used to fit fishery model
-  origdata = rec_fit$model,
-  newdata = newdata_both1,
-  exclude = yr_coefs
-)
-
-newdata2 = cbind( newdata_both1, fit=pred_rec$fit, se.fit=pred_rec$se.fit )
-newdata2$lower = newdata2$fit + (qnorm(0.025)*newdata2$se.fit)
-newdata2$upper = newdata2$fit + (qnorm(0.975)*newdata2$se.fit)
-newdata2$model <- "rec"
-
-newdata_both <- rbind(newdata1, newdata2)
-
-png(
-  here::here("figs", "ms_figs", "paired_predictions.png"),
-  height = 8, width = 6.5, units = "in", res = 250
-)
-ggplot(newdata_both) +
-  geom_pointrange(
-    aes(x = month, y = fit, ymin = lower, ymax = upper, fill = model),
-    shape = 21,
-    position = position_dodge(width = 0.5)
-  ) +
-  facet_grid(stock_group ~ strata, scales =  "free_y") +
-  coord_cartesian(ylim = c(0,1)) +
-  labs(
-    y = "Predicted Proportion of Sample",
-    fill = "Data Source"
-  ) +
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.title.x = element_blank()
-  )
-dev.off()
+dat_pbt %>% 
+  mutate(
+    high_phos = ifelse(
+      grepl("ROBERT", stock) | grepl("NITINAT", stock) | grepl("SARITA", stock) |
+        grepl("SOOKE", stock) | grepl("QUALIC", stock) | 
+        grepl("NANAIMO", stock) | grepl("PUNTLE", stock) | 
+        grepl("QUINS", stock),
+      TRUE, FALSE
+    )
+  ) %>% 
+  filter(high_phos == TRUE)
