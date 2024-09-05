@@ -59,39 +59,20 @@ pred_dummy <- function( x,
       if ("mvtweedie" %in% class(x)) {
         class(x) = setdiff( class(x), "mvtweedie" )
       }
-      #class(x) = original_class
-      
-      # Apply predict.original_class
-      # if( "fit_model" %in% class(x) ){
-        # if using VAST
-        # pred_ic[,cI] = predict(x,
-      #                          what="D_i",
-      #                          Lat_i=x$data_frame[,'Lat_i'],
-      #                          Lon_i=x$data_frame[,'Lon_i'],
-      #                          t_i=x$data_frame[,'t_i'],
-      #                          a_i=x$data_frame[,'a_i'],
-      #                          c_iz=rep(cI-1,nrow(x$data_frame)),
-      #                          v_i=x$data_frame[,'v_i'] )
-      # }else{
-        pred = predict(x,
-                       newdata = data,
-                       type="response",
-                       se.fit = se.fit,
-                       exclude = exclude)
-        # pred2 = predict(x,
-        #                newdata = data,
-        #                type="response",
-        #                se.fit = se.fit,
-        #                exclude = "s(year)")
-        if( se.fit==TRUE ){
-          pred_ic[,cI] = pred$fit
-          # pred2_ic[,cI] = pred2$fit
-          se_pred_ic[,cI] = pred$se.fit
-        }else{
-          pred_ic[,cI] = pred
-        }
+      # simulate to generate predictions from sdmTMB
+      pred = predict(x,
+                     newdata = data,
+                     type="response",
+                     se.fit = se.fit,
+                     exclude = exclude)
+      if( se.fit==TRUE ){
+        pred_ic[,cI] = pred$fit
+        se_pred_ic[,cI] = pred$se.fit
+      }else{
+        pred_ic[,cI] = pred
       }
-    # }
+    }
+    
     
     # Normalize probability for each observation and class
     rowsum_pred_ic = outer( rowSums(pred_ic), rep(1,ncol(pred_ic)) )
@@ -110,5 +91,6 @@ pred_dummy <- function( x,
     }else{
       out = prob_i
     }
+
     return(out)
   }
