@@ -1139,9 +1139,9 @@ agg_dat_slot <- expand.grid(
 system.time(
   fit_slot <- gam(
     agg_prob ~ 0 + stock_group*slot_limit + 
-      s(week_n, by = stock_group, k = 7, bs = "cc") +
+      s(week_n, by = stock_group, k = 20, bs = "cc") +
       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
       s(sg_year, bs = "re"),
     data = agg_dat_slot, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
