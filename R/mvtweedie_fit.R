@@ -1291,8 +1291,8 @@ agg_dat_large <- expand.grid(
 system.time(
   fit_large <- gam(
     agg_prob ~ 0 + stock_group + 
-      s(week_n, by = stock_group, k = 10, bs = "cc") +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(week_n, by = stock_group, k = 20, bs = "cc") +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
       s(sg_year, bs = "re"),
     data = agg_dat_large, family = "tw", method = "REML",
     knots = list(week_n = c(0, 52))
@@ -1305,68 +1305,6 @@ saveRDS(
     "data", "model_fits", "mvtweedie", "fit_large.rds"
   )
 )
-
-
-## COMBINED WITH SLOT EFFECTS BELOW
-# newdata_lg <- expand.grid(
-#   strata = unique(agg_dat_large$strata),
-#   week_n = unique(agg_dat_large$week_n),
-#   stock_group = levels(agg_dat_large$stock_group),
-#   year_n = unique(dat$year)
-#   ) %>%
-#   left_join(., loc_key, by = 'strata') %>% 
-#   mutate(
-#     year = as.factor(year_n),
-#     sg_year = paste(stock_group, year, sep = "_") %>% 
-#       as.factor(),
-#     strata = factor(strata, levels = levels(agg_dat$strata))
-#   ) %>% 
-#   filter(year == "2014") %>% 
-#   droplevels()
-# 
-# excl <- grepl("year", gratia::smooths(fit_large))
-# yr_coefs <- gratia::smooths(fit_large)[excl]
-# pred_large = pred_dummy(
-#   fit_large,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat_large,
-#   newdata = newdata_lg,
-#   exclude = yr_coefs
-# )
-# 
-# newdata_large <- cbind( newdata_lg, fit=pred_large$fit, se.fit=pred_large$se.fit ) %>%
-#   mutate(
-#     lower = fit + (qnorm(0.025)*se.fit),
-#     upper = fit + (qnorm(0.975)*se.fit)
-#   ) %>% 
-#   filter(
-#     !strata == "Saanich"
-#   )
-# 
-# large_pred_smooth <- ggplot(newdata_large, aes(week_n, fit)) +
-#   # geom_point(
-#   #   data = agg_dat_large %>% 
-#   #     filter(week_n %in% newdata_large$week_n,
-#   #            !strata == "Saanich"),
-#   #   aes(x = week_n, y = agg_ppn, size = sample_id_n),
-#   #   alpha = 0.3
-#   # ) +
-#   geom_line(colour = "red") +
-#   # geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
-#   facet_grid(stock_group~strata) +
-#   coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
-#   labs(y="Predicted Proportion", x = "Sampling Week") +
-#   ggsidekick::theme_sleek() +
-#   scale_size_continuous(name = "Sample\nSize") +
-#   theme(legend.position = "top")
-
-# png(
-#   here::here("figs", "stock_comp_fishery", "smooth_preds_large.png"),
-#   height = 5, width = 5, units = "in", res = 250
-# )
-# large_pred_smooth
-# dev.off()
 
 
 ## compare predictions from all 3 models

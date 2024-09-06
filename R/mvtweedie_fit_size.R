@@ -216,9 +216,9 @@ dev.off()
 
 system.time(
   fit <- gam(
-    agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 10, bs = "cc") +
+    agg_prob ~ 0 + size_bin + s(week_n, by = size_bin, k = 20, bs = "cc") +
       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-      s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 25) +
+      s(utm_y, utm_x, by = size_bin, m = c(0.5, 1), bs = "ds", k = 35) +
       s(sg_year, bs = "re"),
     data = agg_dat, family = nb(), method = "REML",
     knots = list(week_n = c(0, 52))
