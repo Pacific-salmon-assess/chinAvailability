@@ -390,7 +390,7 @@ newdata1 <- expand.grid(
   left_join(., loc_key, by = 'strata') %>% 
   mutate(
     # year = as.factor(year_n),
-    year = year_n,
+    year = as.factor(year_n),
     sg_year = paste(size_bin, year, sep = "_") %>% 
       as.factor(),
     strata = factor(strata, levels = levels(agg_dat$strata)),
@@ -419,13 +419,17 @@ newdata_yr <- cbind( newdata1, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
   mutate(
     lower = fit + (qnorm(0.025)*se.fit),
     upper = fit + (qnorm(0.975)*se.fit)
-  ) 
+  ) %>% 
+  filter(
+    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
+    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)
+  )
 
 year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
   facet_grid(size_bin~strata, scales = "free_y") +
   scale_colour_discrete() +
-  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
+  coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
   ) +
   labs(y="Predicted Proportion") +
   ggsidekick::theme_sleek() +
@@ -433,8 +437,8 @@ year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   theme(legend.position = "top",
         axis.title.x = element_blank()) +
   scale_x_continuous(
-    breaks = c(25, 29.25, 33.5, 38),
-    labels = c("Jun", "Jul", "Aug", "Sep")
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
 
 
@@ -468,15 +472,15 @@ season_preds <- ggplot(newdata_season2, aes(week_n, fit)) +
   facet_wrap(~size_bin, scales = "free_y") +
   scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
   scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
-  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
-  ) +
+  coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
+                  ) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
-  theme(legend.position = "top") +
+  theme(legend.position = "top")  +
   scale_x_continuous(
-    breaks = c(25, 29.25, 33.5, 38),
-    labels = c("Jun", "Jul", "Aug", "Sep")
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
 
 season_preds_fullx <- season_preds +
@@ -514,14 +518,14 @@ summer_preds <- ggplot(newdata_full, aes(week_n, fit)) +
   geom_line(colour = "red") +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
   facet_grid(size_bin~strata) +
-  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+  coord_cartesian(xlim = c(20, 43), ylim = c(0, 1)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top") +
   scale_x_continuous(
-    breaks = c(25, 29.25, 33.5, 38),
-    labels = c("Jun", "Jul", "Aug", "Sep")
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
 
 summer_preds_fullx <- summer_preds +
@@ -532,7 +536,11 @@ summer_preds_fullx <- summer_preds +
 ## stacked ribbon predictions
 summer_pred_stacked <- ggplot(
   data = newdata_full %>% 
-    filter(week_n > 21 & week_n < 39), 
+    filter(
+      week_n > 19 & week_n < 44,
+      !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
+      !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)
+    ), 
   aes(x = week_n)
 ) +
   geom_area(aes(y = fit, colour = size_bin, fill = size_bin), 
@@ -548,11 +556,12 @@ summer_pred_stacked <- ggplot(
     axis.title.x = element_blank()
   ) +
   coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
-  facet_wrap(~strata) +
+  facet_wrap(~strata)  +
   scale_x_continuous(
-    breaks = c(25, 29, 33, 37),
-    labels = c("Jun", "Jul", "Aug", "Sep")
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
+
 
 
 png(
@@ -619,7 +628,7 @@ pred_grid <- readRDS(
 
 
 new_dat_sp <- expand.grid(
-  week_n = c(20, 25, 29, 33, 36),
+  week_n = c(20, 25, 29, 33, 36, 40),
   size_bin = levels(agg_dat$size_bin)
 ) %>%
   mutate(
@@ -882,46 +891,46 @@ newdata_yr1 <- expand.grid(
 
 
 # year-specific predictions (average strata)
-pred_yr_slot = pred_dummy(
-  fit_slot,
-  se.fit = TRUE,
-  category_name = "size_bin",
-  origdata = agg_dat_slot,
-  newdata = newdata_yr
-)
-
-newdata_yr <- cbind( newdata_yr1, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
-  mutate(
-    lower = fit + (qnorm(0.025)*se.fit),
-    upper = fit + (qnorm(0.975)*se.fit)
-  ) 
-
-#time series of changes in July size composition
-jul_ts <- ggplot(newdata_yr %>% 
-                   filter(week_n == "29", slot_limit == "no",
-                          strata %in% c("Swiftsure", "Nitinat", "Renfrew")),
-                 aes(x = year, y = fit, fill = size_bin)) +
-  geom_pointrange(
-    aes(ymin = lower, ymax = upper),
-    shape = 21#, position = position_dodge(width = 0.9)
-  ) +
-  facet_grid(size_bin~strata, scales = "free_y") +
-  scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
-  ggsidekick::theme_sleek() +
-  labs(y = "Predicted Mean Composition") +
-  scale_x_discrete(
-    breaks = seq(2014, 2022, by = 2)
-  ) +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
-
-png(
-  here::here("figs", "size_comp_fishery", "time_series_size.png"),
-  height = 6.5, width = 5, units = "in", res = 250
-)
-jul_ts  
-dev.off()
+# pred_yr_slot = pred_dummy(
+#   fit_slot,
+#   se.fit = TRUE,
+#   category_name = "size_bin",
+#   origdata = agg_dat_slot,
+#   newdata = newdata_yr
+# )
+# 
+# newdata_yr <- cbind( newdata_yr1, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
+#   mutate(
+#     lower = fit + (qnorm(0.025)*se.fit),
+#     upper = fit + (qnorm(0.975)*se.fit)
+#   ) 
+# 
+# #time series of changes in July size composition
+# jul_ts <- ggplot(newdata_yr %>% 
+#                    filter(week_n == "29", slot_limit == "no",
+#                           strata %in% c("Swiftsure", "Nitinat", "Renfrew")),
+#                  aes(x = year, y = fit, fill = size_bin)) +
+#   geom_pointrange(
+#     aes(ymin = lower, ymax = upper),
+#     shape = 21#, position = position_dodge(width = 0.9)
+#   ) +
+#   facet_grid(size_bin~strata, scales = "free_y") +
+#   scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
+#   ggsidekick::theme_sleek() +
+#   labs(y = "Predicted Mean Composition") +
+#   scale_x_discrete(
+#     breaks = seq(2014, 2022, by = 2)
+#   ) +
+#   theme(legend.position = "none",
+#         axis.text.x = element_text(angle = 45, hjust = 1),
+#         axis.title.x = element_blank())
+# 
+# png(
+#   here::here("figs", "size_comp_fishery", "time_series_size.png"),
+#   height = 6.5, width = 5, units = "in", res = 250
+# )
+# jul_ts  
+# dev.off()
 
 ## COMBINED WITH ORIGINAL MODEL BELOW
  
