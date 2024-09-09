@@ -728,13 +728,17 @@ newdata_yr <- cbind( newdata, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
     lower = fit + (qnorm(0.025)*se.fit),
     upper = fit + (qnorm(0.975)*se.fit),
     stock_group2 = gsub("_", "\n", stock_group)
-  ) 
+  ) %>% 
+  filter(
+    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
+    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)
+  )
 
 year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
   facet_grid(stock_group2~strata, scales = "free_y") +
   scale_colour_discrete() +
-  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
+  coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
   ) +
   labs(y="Predicted Proportion") +
   ggsidekick::theme_sleek() +
@@ -742,8 +746,8 @@ year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   theme(legend.position = "top",
         axis.title.x = element_blank()) +
   scale_x_continuous(
-    breaks = c(25, 29.25, 33.5, 38),
-    labels = c("Jun", "Jul", "Aug", "Sep")
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
 
 
@@ -779,15 +783,15 @@ season_preds <- ggplot(newdata3a, aes(week_n, fit)) +
   facet_wrap(~stock_group, scales = "free_y") +
   scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
   scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
-  coord_cartesian(xlim = c(24, 40)#, ylim = c(0, 1)
+  coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
                   ) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top") +
   scale_x_continuous(
-    breaks = c(25, 29.25, 33.5, 38),
-    labels = c("Jun", "Jul", "Aug", "Sep")
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
 
 season_preds_fullx <- season_preds +
@@ -826,16 +830,16 @@ summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
   geom_line(colour = "red") +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
   facet_grid(stock_group~strata) +
-  coord_cartesian(xlim = c(24, 40), ylim = c(0, 1)) +
+  coord_cartesian(xlim = c(20, 43), ylim = c(0, 1)) +
   labs(y="Predicted Proportion", x = "Sampling Week") +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top",
         strip.text = element_text(size = 7)) +
   scale_x_continuous(
-    breaks = c(25, 29.25, 33.5, 38),
-    labels = c("Jun", "Jul", "Aug", "Sep")
-  )
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+  ) 
 
 summer_preds_fullx <- summer_preds +
   coord_cartesian(xlim = c(0, 52)) +
@@ -845,7 +849,9 @@ summer_preds_fullx <- summer_preds +
 ## stacked ribbon predictions
 summer_pred_stacked <- ggplot(
   data = newdata3b %>% 
-    filter(week_n > 21 & week_n < 39), 
+    filter(week_n > 19 & week_n < 44,
+           !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
+           !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)), 
   aes(x = week_n)
 ) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
@@ -855,7 +861,7 @@ summer_pred_stacked <- ggplot(
   labs(y = "Predicted Mean Composition of Fishery Sample", x = "Week") +
   ggsidekick::theme_sleek() +
   theme(
-    legend.position = "top",
+    legend.position = "none",
     axis.text = element_text(size=9),
     plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points"),
     axis.title.x = element_blank()
@@ -863,9 +869,20 @@ summer_pred_stacked <- ggplot(
   coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
   facet_wrap(~strata) +
   scale_x_continuous(
-    breaks = c(25, 29, 33, 37),
-    labels = c("Jun", "Jul", "Aug", "Sep")
-  )
+    breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+  ) 
+summer_pred_legend <- cowplot::get_legend(
+  ggplot(
+    data = newdata3b %>% filter(strata== "Swiftsure"), aes(x = week_n)
+  ) +
+    geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
+              stat = "identity") +
+    scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
+    scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
+    guides(fill = guide_legend(ncol = 2),
+           colour = guide_legend(ncol = 2))
+)
 
 
 
@@ -899,9 +916,12 @@ dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_stacked.png"),
-  height = 6.5, width = 6.5, units = "in", res = 250
+  height = 6.5, width = 8.5, units = "in", res = 250
 )
-summer_pred_stacked
+cowplot::ggdraw() +
+  cowplot::draw_plot(summer_pred_stacked) +
+  cowplot::draw_plot(summer_pred_legend,
+                     height = 0.33, x = 0.33, y = 0.08)
 dev.off()
 
 
@@ -935,7 +955,7 @@ pred_grid <- readRDS(
 
 
 new_dat_sp <- expand.grid(
-  week_n = c(20, 25, 29, 33, 36),
+  week_n = c(20, 25, 29, 33, 36, 40),
   stock_group = levels(agg_dat$stock_group)
 ) %>%
   mutate(
@@ -1018,7 +1038,7 @@ spatial_pred <- ggplot() +
               aes(x = X, y = Y, fill = fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
   facet_wrap(
-    ~ stock_group
+    ~ stock_group, ncol = 3
   ) +
   scale_fill_viridis_c(
     name = "Predicted Proportion\nof Rec Catch"
@@ -1028,9 +1048,23 @@ spatial_pred <- ggplot() +
     axis.title = element_blank(),
     axis.text = element_blank(), 
     axis.ticks = element_blank(),
-    legend.position = "top",
+    legend.position = "none",
     strip.text = element_text(size = 5)
   ) 
+spatial_legend <- cowplot::get_legend(
+  ggplot() +
+    geom_raster(data = new_dat_sp_plot, 
+                aes(x = X, y = Y, fill = fit)) +
+    geom_sf(data = coast, color = "black", fill = "grey") +
+    scale_fill_viridis_c(
+      name = "Predicted Proportion\nof Rec Catch"
+    ) +
+    guides(fill = guide_legend(nrow = 1)) +
+    theme(
+      legend.key.size = unit(0.5, "lines"),  # Adjust the size of the legend keys
+      legend.text = element_text(size = 8)   # Adjust the text size of the legend
+    )
+)
 
 
 spatial_pred_scaled <- ggplot() +
@@ -1038,7 +1072,7 @@ spatial_pred_scaled <- ggplot() +
               aes(x = X, y = Y, fill = scaled_fit)) +
   geom_sf(data = coast, color = "black", fill = "grey") +
   facet_wrap(
-    ~ stock_group
+    ~ stock_group, ncol = 3
   ) +
   scale_fill_viridis_c(
     option = "A",
@@ -1049,10 +1083,24 @@ spatial_pred_scaled <- ggplot() +
     axis.title = element_blank(),
     axis.text = element_blank(), 
     axis.ticks = element_blank(),
-    legend.position = "top",
+    legend.position = "none",
     strip.text = element_text(size = 5)
   ) 
-
+spatial_scaled_legend <- cowplot::get_legend(
+  ggplot() +
+    geom_raster(data = new_dat_sp_plot, 
+                aes(x = X, y = Y, fill = scaled_fit)) +
+    geom_sf(data = coast, color = "black", fill = "grey") +
+    scale_fill_viridis_c(
+      option = "A",
+      name = "Predicted Scaled Proportion\nof Rec Catch"
+    ) +
+    guides(fill = guide_legend(nrow = 1)) +
+    theme(
+      legend.key.size = unit(0.5, "lines"),  # Adjust the size of the legend keys
+      legend.text = element_text(size = 8)   # Adjust the text size of the legend
+    )
+)
 
 # spatial_pred_se <- ggplot() +
 #   geom_raster(data = new_dat_sp_plot, 
@@ -1076,16 +1124,22 @@ spatial_pred_scaled <- ggplot() +
 
 png(
   here::here("figs", "stock_comp_fishery", "spatial_preds.png"),
-  height = 4, width = 6, units = "in", res = 250
+  height = 4.5, width = 7.5, units = "in", res = 250
 )
-spatial_pred
+cowplot::ggdraw() +
+  cowplot::draw_plot(spatial_pred) +
+  cowplot::draw_plot(spatial_legend,
+                     height = 0.17, x = 0.33, y = 0.05)
 dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "spatial_preds_scaled.png"),
-  height = 4, width = 6, units = "in", res = 250
+  height = 4.5, width = 7.5, units = "in", res = 250
 )
-spatial_pred_scaled
+cowplot::ggdraw(spatial_pred_scaled) +
+  cowplot::draw_plot(spatial_scaled_legend,
+                     height = 0.17, x = 0.33, y = 0.05
+                     )
 dev.off()
 
 # png(
@@ -1225,30 +1279,30 @@ newdata2 <- cbind( newdata, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %
   ) 
 
 #time series of changes in July size composition
-jul_ts <- ggplot(newdata2 %>% filter(week_n == "29", slot_limit == "no"),
-                 aes(x = year, y = fit, fill = stock_group)) +
-  geom_pointrange(
-    aes(ymin = lower, ymax = upper),
-    shape = 21
-  ) +
-  facet_grid(stock_group~strata, scales = "free_y") +
-  scale_fill_manual(values = smu_colour_pal) +
-  ggsidekick::theme_sleek() +
-  labs(y = "Predicted Mean Composition") +
-  scale_x_discrete(
-    breaks = seq(2014, 2022, by = 2)
-  ) +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank(),
-        strip.text = element_text(size = 8))
-
-png(
-  here::here("figs", "stock_comp_fishery", "time_series_stock.png"),
-  height = 8.5, width = 5, units = "in", res = 250
-)
-jul_ts  
-dev.off()
+# jul_ts <- ggplot(newdata2 %>% filter(week_n == "29", slot_limit == "no"),
+#                  aes(x = year, y = fit, fill = stock_group)) +
+#   geom_pointrange(
+#     aes(ymin = lower, ymax = upper),
+#     shape = 21
+#   ) +
+#   facet_grid(stock_group~strata, scales = "free_y") +
+#   scale_fill_manual(values = smu_colour_pal) +
+#   ggsidekick::theme_sleek() +
+#   labs(y = "Predicted Mean Composition") +
+#   scale_x_discrete(
+#     breaks = seq(2014, 2022, by = 2)
+#   ) +
+#   theme(legend.position = "none",
+#         axis.text.x = element_text(angle = 45, hjust = 1),
+#         axis.title.x = element_blank(),
+#         strip.text = element_text(size = 8))
+# 
+# png(
+#   here::here("figs", "stock_comp_fishery", "time_series_stock.png"),
+#   height = 8.5, width = 5, units = "in", res = 250
+# )
+# jul_ts  
+# dev.off()
 
 
 ## Size analysis
