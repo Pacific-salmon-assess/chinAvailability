@@ -221,9 +221,9 @@ ppn_dat_size <- dat2 %>%
   mutate(
     agg_prob = agg_count / n_samples
   ) 
-saveRDS(
-  ppn_dat_size, here::here("data", "rkw_diet", "cleaned_ppn_dat_size.rds")
-)
+# saveRDS(
+#   ppn_dat_size, here::here("data", "rkw_diet", "cleaned_ppn_dat_size.rds")
+# )
 
 
 ## PALETTES --------------------------------------------------------------------
