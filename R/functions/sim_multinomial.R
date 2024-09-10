@@ -44,6 +44,8 @@ sim_foo <- function(pred_dat_in, category_name = "stock_group",  nsim = 50) {
     
     # for simulation calculate total counts then test whether obs differences
     # greater than null differences
+    # NOTE: test is for all observed samples total, not individual sampling
+    # events
     cat_name <- sym(category_name)
     sim_dat_agg <- sim_dat %>% 
       group_by(
@@ -55,6 +57,7 @@ sim_foo <- function(pred_dat_in, category_name = "stock_group",  nsim = 50) {
         obs_count = sum(sample_obs),
         null_diff = abs(sample1_count - sample2_count),
         obs_diff = abs(sample1_count - obs_count),
+        obs_diff_raw = obs_count - sample1_count,
         test_stat = ifelse(null_diff >= obs_diff, 1, 0)
       ) %>% 
       mutate(

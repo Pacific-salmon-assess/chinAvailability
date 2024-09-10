@@ -545,12 +545,12 @@ summer_pred_stacked <- ggplot(
 ) +
   geom_area(aes(y = fit, colour = size_bin, fill = size_bin), 
             stat = "identity") +
-  scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
-  scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
+  scale_fill_manual(values = size_colour_pal) +
+  scale_colour_manual(values = size_colour_pal) +
   labs(y = "Predicted Mean Composition of Fishery Sample", x = "Week") +
   ggsidekick::theme_sleek() +
   theme(
-    legend.position = "top",
+    legend.position = "off",
     axis.text = element_text(size=9),
     plot.margin = unit(c(2.5, 11.5, 5.5, 5.5), "points"),
     axis.title.x = element_blank()
@@ -561,7 +561,20 @@ summer_pred_stacked <- ggplot(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
     labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   )
-
+summer_pred_legend <- cowplot::get_legend(
+  ggplot(
+    data = newdata_full, aes(x = week_n)
+  ) +
+    geom_area(aes(y = fit, colour = size_bin, fill = size_bin), 
+              stat = "identity") +
+    scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
+    scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
+    theme(
+      legend.title = element_text(size = 15),
+      legend.key.size = unit(1.4, "lines"),  # Adjust the size of the legend keys
+      legend.text = element_text(size = 14)   # Adjust the text size of the legend
+    )
+)
 
 
 png(
@@ -594,9 +607,11 @@ dev.off()
 
 png(
   here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_stacked.png"),
-  height = 6.5, width = 6.5, units = "in", res = 250
+  height = 6.5, width = 8.5, units = "in", res = 250
 )
-summer_pred_stacked
+cowplot::ggdraw(summer_pred_stacked) +
+  cowplot::draw_plot(summer_pred_legend,
+                     height = 0.33, x = 0.33, y = 0.08)
 dev.off()
 
 

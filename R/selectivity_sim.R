@@ -137,7 +137,8 @@ sim_ppn_dat <- pred_tbl %>%
       ~ .x %>% 
         group_by(sim_i) %>% 
         mutate(
-          pred_sim_ppn = sample1_count / sum(sample1_count)
+          pred_sim_ppn = sample1_count / sum(sample1_count),
+          diff_ppn = obs_diff_raw / sum(sample1_count)
         )
     )
   ) %>% 
@@ -146,81 +147,143 @@ sim_ppn_dat <- pred_tbl %>%
     cols = sim_ppn
   )
 
-# calculate observed proportions
-obs_ppn_dat <- rkw_dat %>% 
-  group_by(stock_group) %>% 
-  summarize(
-    sum_obs = sum(agg_prob)
-  ) %>% 
-  ungroup() %>% 
-  mutate(
-    obs_ppn = sum_obs / sum(sum_obs),
-    se_obs_ppn = sqrt(obs_ppn * (1 - obs_ppn) / sum(sum_obs)),
-    lo = pmax(0, obs_ppn - (1.96 * se_obs_ppn)),
-    up = pmin(1, obs_ppn + (1.96 * se_obs_ppn))
-  )
 
-sel_boxplot <- ggplot() +
-  geom_boxplot(
-    data = sim_ppn_dat %>% filter(dataset == "standard"),
-    aes(x = stock_group, y = pred_sim_ppn)
-    ) +
+dd <- sim_ppn_dat %>%
+  group_by(stock_group, dataset) %>% 
+  summarize(
+    med_dif = median(diff_ppn),
+    up_dif = quantile(diff_ppn, 0.975),
+    lo_dif = quantile(diff_ppn, 0.025)
+  ) 
+
+
+sel_bean <- ggplot() +
   geom_pointrange(
-    data = obs_ppn_dat, 
-    aes(x = stock_group, y = obs_ppn, ymin = lo, ymax = up), 
-    colour = "red",
-    position = position_nudge(x = 0.1)
-    ) +
+    data = dd %>% filter(dataset == "standard"),
+    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group)
+  ) +
   geom_text(
     data = p_val_sig %>% filter(dataset == "standard"),
-    aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
-    label = "*", size = 7.5
+    aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
+    label = "*", size = 7.5, colour = "red"
   ) +
-  lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.1))) +
-  labs(y = "Sample Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "none",
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1))
+        axis.title.y = element_blank()) +
+  geom_vline(xintercept = 0, lty = 2)
 
-sel_boxplot2 <- ggplot() +
-  geom_boxplot(
-    data = sim_ppn_dat,
-    aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
-  ) +
+sel_bean2 <- ggplot() +
   geom_pointrange(
-    data = obs_ppn_dat, 
-    aes(x = stock_group, y = obs_ppn, ymin = lo, ymax = up), 
-    colour = "red",
-    position = position_nudge(x = 0.1)
+    data = dd,
+    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group, 
+        fill = dataset),
+    shape = 21
   ) +
   geom_text(
     data = p_val_sig,
-    aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
-    label = "*", size = 7.5
+    aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
+    label = "*", size = 7.5, colour = "red"
   ) +
-  lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.13))) +
-  labs(y = "Sample Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition") +
   facet_wrap(~dataset, ncol = 1) +
   scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "none",
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1))
+        axis.title.y = element_blank()) +
+  geom_vline(xintercept = 0, lty = 2)
 
 png(
-  here::here("figs", "selectivity", "selectivity_boxplot_stock.png"),
-  height = 4.5, width = 7.5, units = "in", res = 250
+  here::here("figs", "selectivity", "selectivity_bean_stock.png"),
+  height = 5, width = 5, units = "in", res = 250
 )
-sel_boxplot
+sel_bean
 dev.off()
 
 png(
-  here::here("figs", "selectivity", "selectivity_boxplot_stock_comp.png"),
-  height = 7.5, width = 7.5, units = "in", res = 250
+  here::here("figs", "selectivity", "selectivity_bean_stock_comp.png"),
+  height = 9.5, width = 5, units = "in", res = 250
 )
-sel_boxplot2
+sel_bean2
 dev.off()
+
+
+# calculate observed proportions
+# obs_ppn_dat <- rkw_dat %>% 
+#   group_by(stock_group) %>% 
+#   summarize(
+#     sum_obs = sum(agg_prob)
+#   ) %>% 
+#   ungroup() %>% 
+#   mutate(
+#     obs_ppn = sum_obs / sum(sum_obs),
+#     se_obs_ppn = sqrt(obs_ppn * (1 - obs_ppn) / sum(sum_obs)),
+#     lo = pmax(0, obs_ppn - (1.96 * se_obs_ppn)),
+#     up = pmin(1, obs_ppn + (1.96 * se_obs_ppn))
+#   )
+# 
+# sel_boxplot <- ggplot() +
+#   geom_boxplot(
+#     data = sim_ppn_dat %>% filter(dataset == "standard"),
+#     aes(x = stock_group, y = pred_sim_ppn)
+#     ) +
+#   geom_pointrange(
+#     data = obs_ppn_dat, 
+#     aes(x = stock_group, y = obs_ppn, ymin = lo, ymax = up), 
+#     colour = "red",
+#     position = position_nudge(x = 0.1)
+#     ) +
+#   geom_text(
+#     data = p_val_sig %>% filter(dataset == "standard"),
+#     aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
+#     label = "*", size = 7.5
+#   ) +
+#   lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.1))) +
+#   labs(y = "Sample Composition") +
+#   ggsidekick::theme_sleek() +
+#   theme(legend.position = "none",
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_text(angle = 45, hjust = 1))
+# 
+# sel_boxplot2 <- ggplot() +
+#   geom_boxplot(
+#     data = sim_ppn_dat,
+#     aes(x = stock_group, y = pred_sim_ppn, fill = dataset)
+#   ) +
+#   geom_pointrange(
+#     data = obs_ppn_dat, 
+#     aes(x = stock_group, y = obs_ppn, ymin = lo, ymax = up), 
+#     colour = "red",
+#     position = position_nudge(x = 0.1)
+#   ) +
+#   geom_text(
+#     data = p_val_sig,
+#     aes(x = stock_group, y = max(sim_ppn_dat$pred_sim_ppn + 0.1)), 
+#     label = "*", size = 7.5
+#   ) +
+#   lims(y = c(0, max(sim_ppn_dat$pred_sim_ppn + 0.13))) +
+#   labs(y = "Sample Composition") +
+#   facet_wrap(~dataset, ncol = 1) +
+#   scale_fill_manual(values = dataset_pal, name = "Model") +
+#   ggsidekick::theme_sleek() +
+#   theme(legend.position = "none",
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_text(angle = 45, hjust = 1))
+# 
+# png(
+#   here::here("figs", "selectivity", "selectivity_boxplot_stock.png"),
+#   height = 4.5, width = 7.5, units = "in", res = 250
+# )
+# sel_boxplot
+# dev.off()
+# 
+# png(
+#   here::here("figs", "selectivity", "selectivity_boxplot_stock_comp.png"),
+#   height = 7.5, width = 7.5, units = "in", res = 250
+# )
+# sel_boxplot2
+# dev.off()
+
 
 
 ## SIZE SELECTIVITY ------------------------------------------------------------
@@ -284,9 +347,6 @@ new_dat_size <- purrr::map(
         obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn),
         sg_year = paste(size_bin, year_n, sep = "_") %>% as.factor(),
         slot_limit = "no"
-        # slot_limit = ifelse(
-        #   year_n > 2018, "yes", "no"
-        # )
       )
   }
 ) %>% 
@@ -347,7 +407,8 @@ sim_ppn_dat_size <- pred_tbl_size %>%
       ~ .x %>% 
         group_by(sim_i) %>% 
         mutate(
-          pred_sim_ppn = sample1_count / sum(sample1_count)
+          pred_sim_ppn = sample1_count / sum(sample1_count),
+          diff_ppn = obs_diff_raw / sum(sample1_count)
         )
     )
   ) %>% 
@@ -357,85 +418,146 @@ sim_ppn_dat_size <- pred_tbl_size %>%
   )
 
 
-# calculate observed proportions
-obs_ppn_dat_size <- rkw_dat_size %>% 
-  group_by(size_bin) %>% 
+diff_quantile <- sim_ppn_dat_size %>%
+  group_by(size_bin, dataset) %>% 
   summarize(
-    sum_obs = sum(agg_prob)
-  ) %>% 
-  ungroup() %>% 
-  # no smallest sizes observed so add manually as zero
-  rbind(
-    .,
-    data.frame(
-      size_bin = "55-65", sum_obs = 0
-    )
-  ) %>% 
-  mutate(
-    obs_ppn = ifelse(sum_obs == "0", 0, sum_obs / sum(sum_obs)),
-    se_obs_ppn = sqrt(obs_ppn * (1 - obs_ppn) / sum(sum_obs)),
-    lo = pmax(0, obs_ppn - (1.96 * se_obs_ppn)),
-    up = pmin(1, obs_ppn + (1.96 * se_obs_ppn))
-  )
+    med_dif = median(diff_ppn),
+    up_dif = quantile(diff_ppn, 0.975),
+    lo_dif = quantile(diff_ppn, 0.025)
+  ) 
 
-sel_boxplot_size <- ggplot() +
-  geom_boxplot(
-    data = sim_ppn_dat_size %>% filter(dataset == "standard"),
-    aes(x = size_bin, y = pred_sim_ppn)
-  ) +
+
+sel_bean_size <- ggplot() +
   geom_pointrange(
-    data = obs_ppn_dat_size, 
-    aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
-    colour = "red",
-    position = position_nudge(x = 0.1)
+    data = diff_quantile %>% filter(dataset == "standard"),
+    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin)
   ) +
   geom_text(
     data = p_val_sig_size %>% filter(dataset == "standard"),
-    aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
-    label = "*", size = 7.5
+    aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
+    label = "*", size = 7.5, colour = "red"
   ) +
-  lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
-  labs(y = "Sample Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "none",
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1))
+        axis.title.y = element_blank()) +
+  geom_vline(xintercept = 0, lty = 2)
 
-sel_boxplot_size2 <- ggplot() +
-  geom_boxplot(
-    data = sim_ppn_dat_size,
-    aes(x = size_bin, y = pred_sim_ppn, fill = dataset)
-  ) +
+sel_bean2_size <- ggplot() +
   geom_pointrange(
-    data = obs_ppn_dat_size, 
-    aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
-    colour = "red",
-    position = position_nudge(x = 0.1)
+    data = diff_quantile,
+    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin, 
+        fill = dataset),
+    shape = 21
   ) +
   geom_text(
     data = p_val_sig_size,
-    aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
-    label = "*", size = 7.5
+    aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
+    label = "*", size = 7.5, colour = "red"
   ) +
-  lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
-  labs(y = "Sample Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition") +
   facet_wrap(~dataset, ncol = 1) +
   scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "none",
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1))
+        axis.title.y = element_blank()) +
+  geom_vline(xintercept = 0, lty = 2)
 
 png(
-  here::here("figs", "selectivity", "selectivity_boxplot_size.png"),
-  height = 4.5, width = 5.5, units = "in", res = 250
+  here::here("figs", "selectivity", "selectivity_bean_size.png"),
+  height = 4, width = 5, units = "in", res = 250
 )
-sel_boxplot_size
+sel_bean_size
 dev.off()
 
 png(
-  here::here("figs", "selectivity", "selectivity_boxplot_size_comp.png"),
-  height = 6, width = 5.5, units = "in", res = 250
+  here::here("figs", "selectivity", "selectivity_bean_size_comp.png"),
+  height = 6.5, width = 5, units = "in", res = 250
 )
-sel_boxplot_size2
+sel_bean2_size
 dev.off()
+
+
+
+# # calculate observed proportions
+# obs_ppn_dat_size <- rkw_dat_size %>% 
+#   group_by(size_bin) %>% 
+#   summarize(
+#     sum_obs = sum(agg_prob)
+#   ) %>% 
+#   ungroup() %>% 
+#   # no smallest sizes observed so add manually as zero
+#   rbind(
+#     .,
+#     data.frame(
+#       size_bin = "55-65", sum_obs = 0
+#     )
+#   ) %>% 
+#   mutate(
+#     obs_ppn = ifelse(sum_obs == "0", 0, sum_obs / sum(sum_obs)),
+#     se_obs_ppn = sqrt(obs_ppn * (1 - obs_ppn) / sum(sum_obs)),
+#     lo = pmax(0, obs_ppn - (1.96 * se_obs_ppn)),
+#     up = pmin(1, obs_ppn + (1.96 * se_obs_ppn))
+#   )
+# 
+# sel_boxplot_size <- ggplot() +
+#   geom_boxplot(
+#     data = sim_ppn_dat_size %>% filter(dataset == "standard"),
+#     aes(x = size_bin, y = pred_sim_ppn)
+#   ) +
+#   geom_pointrange(
+#     data = obs_ppn_dat_size, 
+#     aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
+#     colour = "red",
+#     position = position_nudge(x = 0.1)
+#   ) +
+#   geom_text(
+#     data = p_val_sig_size %>% filter(dataset == "standard"),
+#     aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
+#     label = "*", size = 7.5
+#   ) +
+#   lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
+#   labs(y = "Sample Composition") +
+#   ggsidekick::theme_sleek() +
+#   theme(legend.position = "none",
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_text(angle = 45, hjust = 1))
+# 
+# sel_boxplot_size2 <- ggplot() +
+#   geom_boxplot(
+#     data = sim_ppn_dat_size,
+#     aes(x = size_bin, y = pred_sim_ppn, fill = dataset)
+#   ) +
+#   geom_pointrange(
+#     data = obs_ppn_dat_size, 
+#     aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
+#     colour = "red",
+#     position = position_nudge(x = 0.1)
+#   ) +
+#   geom_text(
+#     data = p_val_sig_size,
+#     aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
+#     label = "*", size = 7.5
+#   ) +
+#   lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
+#   labs(y = "Sample Composition") +
+#   facet_wrap(~dataset, ncol = 1) +
+#   scale_fill_manual(values = dataset_pal, name = "Model") +
+#   ggsidekick::theme_sleek() +
+#   theme(legend.position = "none",
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_text(angle = 45, hjust = 1))
+# 
+# png(
+#   here::here("figs", "selectivity", "selectivity_boxplot_size.png"),
+#   height = 4.5, width = 5.5, units = "in", res = 250
+# )
+# sel_boxplot_size
+# dev.off()
+# 
+# png(
+#   here::here("figs", "selectivity", "selectivity_boxplot_size_comp.png"),
+#   height = 6, width = 5.5, units = "in", res = 250
+# )
+# sel_boxplot_size2
+# dev.off()
