@@ -270,7 +270,7 @@ wide_all <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
     id = biokey, date, week_n, month_n, year, area, 
     fishing_site = fishing_location,
     subarea, lat, lon, #shore_dist,
-    fl, ad = adipose_fin_clipped, 
+    fl, ad = adipose_fin_clipped, disposition,
     pbt, pbt_brood_year_n,
     age, age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
@@ -338,6 +338,22 @@ wide_rec4 <- wide_all %>%
     )
   )
 
+
+#check disposition
+# wide_rec4 %>% 
+#   filter(!strata == "other") %>% 
+#   group_by(year, strata, month_n) %>% 
+#   mutate(count = length(unique(id)),
+#          released = ifelse(disposition == "Released", 1, 0)) %>% 
+#   group_by(year, strata, month_n, released, count) %>% 
+#   summarize(
+#     ppn_rel = sum(released) / count
+#   ) %>% 
+#   distinct() %>% 
+#   ggplot(.) +
+#   geom_jitter(aes(x = as.factor(month_n), ppn_rel)) +
+#   facet_wrap(~strata)
+  
 
 #checks for mapping locations 
 # coast <- readRDS(

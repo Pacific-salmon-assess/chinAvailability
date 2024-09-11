@@ -36,18 +36,17 @@ model_fit <- readRDS(
     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds"
   )
 )
-slot_fit <- readRDS(
-  here::here(
-    "data", "model_fits", "mvtweedie", "fit_slot.rds"
-  )
-)
+# slot_fit <- readRDS(
+#   here::here(
+#     "data", "model_fits", "mvtweedie", "fit_slot.rds"
+#   )
+# )
 large_fit <- readRDS(
   here::here(
     "data", "model_fits", "mvtweedie", "fit_large.rds"
   )
 )
-# exclude slot model for now because no 2023 data
-fit_list <- list(model_fit, slot_fit, large_fit)
+fit_list <- list(model_fit, large_fit)
 
 
 # infill rkw data to ensure each stock group present for each sampling event
@@ -85,7 +84,7 @@ new_dat <- purrr::map(
 
 # generate predictions based on each fitted model and store as tibble
 pred_tbl <- tibble(
-  dataset = c("standard", "management", "large")
+  dataset = c("standard", "large")
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -202,7 +201,7 @@ dev.off()
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_stock_comp.png"),
-  height = 9.5, width = 5, units = "in", res = 250
+  height = 6.5, width = 5, units = "in", res = 250
 )
 sel_bean2
 dev.off()
@@ -306,13 +305,14 @@ fit_size <- readRDS(
     "data", "model_fits", "mvtweedie", "fit_size_mvtw.rds"
   )
 )
-slot_fit_size <- readRDS(
-  here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_slot.rds"
-  )
-)
-
-fit_list <- list(fit_size, slot_fit_size)
+# slot_fit_size <- readRDS(
+#   here::here(
+#     "data", "model_fits", "mvtweedie", "fit_size_slot.rds"
+#   )
+# )
+# 
+fit_list <- list(fit_size#, slot_fit_size
+                 )
 
 
 # ensure size bins the same
@@ -394,14 +394,16 @@ p_val_size <- purrr::map2(
 p_val_sig_size <- p_val_size %>% 
   filter(p_value < 0.05) %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", "management"))
+    dataset = factor(dataset, levels = c("standard"#, "management"
+                                         ))
   )
 
 
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat_size <- pred_tbl_size %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", "management")),
+    dataset = factor(dataset, levels = c("standard"#, "management"
+                                         )),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
@@ -443,25 +445,25 @@ sel_bean_size <- ggplot() +
         axis.title.y = element_blank()) +
   geom_vline(xintercept = 0, lty = 2)
 
-sel_bean2_size <- ggplot() +
-  geom_pointrange(
-    data = diff_quantile,
-    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin, 
-        fill = dataset),
-    shape = 21
-  ) +
-  geom_text(
-    data = p_val_sig_size,
-    aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
-    label = "*", size = 7.5, colour = "red"
-  ) +
-  labs(x = "Difference Between Observed and Predicted Composition") +
-  facet_wrap(~dataset, ncol = 1) +
-  scale_fill_manual(values = dataset_pal, name = "Model") +
-  ggsidekick::theme_sleek() +
-  theme(legend.position = "none",
-        axis.title.y = element_blank()) +
-  geom_vline(xintercept = 0, lty = 2)
+# sel_bean2_size <- ggplot() +
+#   geom_pointrange(
+#     data = diff_quantile,
+#     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin, 
+#         fill = dataset),
+#     shape = 21
+#   ) +
+#   geom_text(
+#     data = p_val_sig_size,
+#     aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
+#     label = "*", size = 7.5, colour = "red"
+#   ) +
+#   labs(x = "Difference Between Observed and Predicted Composition") +
+#   facet_wrap(~dataset, ncol = 1) +
+#   scale_fill_manual(values = dataset_pal, name = "Model") +
+#   ggsidekick::theme_sleek() +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank()) +
+#   geom_vline(xintercept = 0, lty = 2)
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_size.png"),
@@ -470,12 +472,12 @@ png(
 sel_bean_size
 dev.off()
 
-png(
-  here::here("figs", "selectivity", "selectivity_bean_size_comp.png"),
-  height = 6.5, width = 5, units = "in", res = 250
-)
-sel_bean2_size
-dev.off()
+# png(
+#   here::here("figs", "selectivity", "selectivity_bean_size_comp.png"),
+#   height = 6.5, width = 5, units = "in", res = 250
+# )
+# sel_bean2_size
+# dev.off()
 
 
 
