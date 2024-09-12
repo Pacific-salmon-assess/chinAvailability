@@ -134,6 +134,7 @@ hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
 names(hatchery_colour_pal) <- levels(dat$origin2)
 
 
+
 ## DATA FIGURES ----------------------------------------------------------------
 
 # sample sizes
@@ -143,7 +144,7 @@ full_samp_size <- dat %>%
     n = length(unique(id))
   )
 summer_samp_size <- dat %>% 
-  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
   group_by(strata) %>% 
   summarize(
     n = length(unique(id))
@@ -193,7 +194,7 @@ rec_samp_bar <- ggplot(dat) +
 
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer <- dat %>% 
-  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
@@ -204,8 +205,8 @@ rec_samp_bar_summer <- dat %>%
     y = "Recreational Fishery\nComposition"
   ) +
   scale_x_continuous(
-    breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    breaks = c(5, 6, 7, 8, 9, 10),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   ) +
   theme(
     legend.position = "top",
@@ -242,7 +243,7 @@ rec_samp_bar_h <- ggplot(dat) +
 
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer_h <- dat %>%
-  filter(month_n %in% c("6", "7", "8", "9", "10")) %>%
+  filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
@@ -253,8 +254,8 @@ rec_samp_bar_summer_h <- dat %>%
     y = "Recreational Fishery\nComposition"
   ) +
   scale_x_continuous(
-    breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    breaks = c(5, 6, 7, 8, 9, 10),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   ) +
   theme(
     legend.position = "top",
@@ -295,6 +296,38 @@ hatchery_stock_bar <- ggplot(hatchery_stock_dat) +
     axis.title.x = element_blank(),
     axis.text.x = element_text(size = 9, angle = 45, hjust = 1)
   ) 
+
+
+# stock-specific size
+median_size <- dat %>% 
+  group_by(stock_group) %>% 
+  summarise(
+    median_value = median(fl),
+    lower_quantile = quantile(fl, 0.1),
+    upper_quantile = quantile(fl, 0.9),
+    cv = sd(fl) / mean(fl)
+  )
+
+size_density <- ggplot() +
+  geom_density(data = dat %>%
+                 filter(month_n %in% c("5", "6", "7", "8", "9", "10")), 
+               aes(x=fl, group=stock_group, fill=stock_group),
+               adjust=1.5) +
+  geom_vline(data = median_size, aes(xintercept = median_value), lty = 2) +
+  geom_vline(data = median_size, aes(xintercept = lower_quantile), lty = 3) +
+  geom_vline(data = median_size, aes(xintercept = upper_quantile), lty = 3) +
+  facet_wrap(~stock_group) +
+  scale_fill_manual(values = smu_colour_pal) +
+  ggsidekick::theme_sleek() +
+  labs(x = "Fork Length") +
+  theme(
+    legend.position="none",
+    panel.spacing = unit(0.1, "lines"),
+    axis.ticks=element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.y = element_blank()
+  )
+
 
 
 ## export
@@ -340,6 +373,13 @@ png(
   height = 5, width = 8.25, units = "in", res = 250
 )
 hatchery_stock_bar
+dev.off()
+
+png(
+  here::here("figs", "stock_comp_fishery", "size_density.png"),
+  height = 5, width = 8.25, units = "in", res = 250
+)
+size_density
 dev.off()
 
 

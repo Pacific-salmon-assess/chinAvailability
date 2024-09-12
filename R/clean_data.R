@@ -340,19 +340,19 @@ wide_rec4 <- wide_all %>%
 
 
 #check disposition
-# wide_rec4 %>% 
-#   filter(!strata == "other") %>% 
-#   group_by(year, strata, month_n) %>% 
-#   mutate(count = length(unique(id)),
-#          released = ifelse(disposition == "Released", 1, 0)) %>% 
-#   group_by(year, strata, month_n, released, count) %>% 
-#   summarize(
-#     ppn_rel = sum(released) / count
-#   ) %>% 
-#   distinct() %>% 
-#   ggplot(.) +
-#   geom_jitter(aes(x = as.factor(month_n), ppn_rel)) +
-#   facet_wrap(~strata)
+wide_rec4 %>%
+  filter(!strata == "other") %>%
+  group_by(year, strata2, week_n, month_n) %>%
+  mutate(count = length(unique(id)),
+         released = ifelse(disposition == "Released", 1, 0)) %>%
+  group_by(year, strata2, week_n, month_n, released, count) %>%
+  summarize(
+    ppn_rel = sum(released) / count
+  ) %>%
+  distinct() %>%
+  ggplot(.) +
+  geom_jitter(aes(x = as.factor(month_n), ppn_rel)) +
+  facet_wrap(~strata2)
   
 
 #checks for mapping locations 

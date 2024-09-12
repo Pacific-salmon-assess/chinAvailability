@@ -116,7 +116,7 @@ full_samp_size <- dat %>%
     n = length(unique(id))
   )
 summer_samp_size <- dat %>% 
-  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
   group_by(strata) %>% 
   summarize(
     n = length(unique(id))
@@ -167,7 +167,7 @@ rec_size_bar <- ggplot(dat) +
 
 # subset of monthly samples that matches RKW diet
 rec_size_bar_summer <- dat %>% 
-  filter(month_n %in% c("6", "7", "8", "9", "10")) %>% 
+  filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
   ggplot(.) +
   geom_bar(aes(x = month_n, fill = size_bin)) +
   facet_wrap(~strata, scales = "free_y") +
@@ -177,8 +177,8 @@ rec_size_bar_summer <- dat %>%
     y = "Recreational Fishery\nComposition"
   ) +
   scale_x_continuous(
-    breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    breaks = c(5, 6, 7, 8, 9, 10),
+    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
   ) +
   theme(
     legend.position = "top",
