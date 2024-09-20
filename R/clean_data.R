@@ -337,6 +337,11 @@ wide_rec4 <- wide_all %>%
     )
   )
 
+# fix issue with specific samples collected in same location but assigned to 
+# different strata
+wide_rec4$strata <- ifelse(wide_rec4$fishing_site == "Cape Kepple",
+                           "saanich",
+                           wide_rec4$strata)
 
 #check disposition
 wide_rec4 %>%
