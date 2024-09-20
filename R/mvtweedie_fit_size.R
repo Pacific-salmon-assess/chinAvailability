@@ -227,12 +227,12 @@ system.time(
 saveRDS(
   fit,
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_mvtw.rds"
+    "data", "model_fits", "fit_size_mvtw.rds"
   )
 )
 fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_mvtw.rds"
+    "data", "model_fits", "fit_size_mvtw.rds"
   )
 )
 
@@ -259,10 +259,10 @@ fit_sdmTMB <- sdmTMB(
 )
 saveRDS(
   fit_sdmTMB,
-  here::here("data", "model_fits", "mvtweedie", "fit_size_sdmTMB.rds")
+  here::here("data", "model_fits", "fit_size_sdmTMB.rds")
 )
 fit_sdmTMB <- readRDS(
-  here::here("data", "model_fits", "mvtweedie", "fit_size_sdmTMB.rds")
+  here::here("data", "model_fits", "fit_size_sdmTMB.rds")
 )
 
 
@@ -852,7 +852,7 @@ system.time(
 saveRDS(
   fit_slot,
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_slot.rds"
+    "data", "model_fits", "fit_size_slot.rds"
   )
 )
 
@@ -1003,12 +1003,12 @@ newdata_yr1 <- expand.grid(
 ## compare predictions from all 3 models
 fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_mvtw.rds"
+    "data", "model_fits", "fit_size_mvtw.rds"
   )
 )
 fit_slot <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_slot.rds"
+    "data", "model_fits", "fit_size_slot.rds"
   )
 )
 fit_list <- list(fit, fit_slot)

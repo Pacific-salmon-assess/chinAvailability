@@ -474,13 +474,13 @@ dev.off()
 # # ~850 seconds to converge
 # saveRDS(
 #   fit,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds")
+#   here::here("data", "model_fits", "fit_spatial_fishery_tw.rds")
 # )
 # 
 # class(fit) = c( "mvtweedie", class(fit) )
 # saveRDS(
 #   fit,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
+#   here::here("data", "model_fits", "fit_spatial_fishery_mvtw.rds")
 # )
 
 
@@ -498,7 +498,7 @@ system.time(
 class(fit2) = c( "mvtweedie", class(fit2) )
 saveRDS(
   fit2,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
+  here::here("data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds")
 )
 
 # NOTE: experimented with distance to shore covariate, but sdmTMB equivalent
@@ -517,7 +517,7 @@ saveRDS(
 # class(fit3) = c( "mvtweedie", class(fit2) )
 # saveRDS(
 #   fit3,
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery2_ri_mvtw.rds")
+#   here::here("data", "model_fits", "fit_spatial_fishery2_ri_mvtw.rds")
 # )
 
 
@@ -536,7 +536,7 @@ saveRDS(
 # saveRDS(
 #   fit3,
 #   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+#     "data", "model_fits", "fit_spatial_fishery_yr_s_mvtw.rds"
 #   )
 # )
 
@@ -545,10 +545,10 @@ saveRDS(
 ## favor third model since it generates year-specific estimates and appears
 # to converge well; UPDATE -- does not converge with sdmTMB switch to RIs
 # fit_raw <- readRDS(
-#   here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_tw.rds"))
+#   here::here("data", "model_fits", "fit_spatial_fishery_tw.rds"))
 # fit <- readRDS(
 #     here::here(
-#       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_mvtw.rds")
+#       "data", "model_fits", "fit_spatial_fishery_mvtw.rds")
 #     )
 fit2 <- readRDS(
   here::here(
@@ -556,7 +556,7 @@ fit2 <- readRDS(
 )
 # fit3 <- readRDS(
 #   here::here(
-#       "data", "model_fits", "mvtweedie", "fit_spatial_fishery_yr_s_mvtw.rds"
+#       "data", "model_fits", "fit_spatial_fishery_yr_s_mvtw.rds"
 #     )
 # )
   
@@ -601,10 +601,10 @@ fit_sdmTMB <- sdmTMB(
 
 saveRDS(
   fit_sdmTMB,
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+  here::here("data", "model_fits", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
 fit_sdmTMB <- readRDS(
-  here::here("data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_sdmTMB.rds")
+  here::here("data", "model_fits", "fit_spatial_fishery_ri_sdmTMB.rds")
 )
 
 
@@ -1265,7 +1265,7 @@ newdata <- expand.grid(
 # saveRDS(
 #   fit_slot,
 #   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_slot.rds"
+#     "data", "model_fits", "fit_slot.rds"
 #   )
 # )
 # 
@@ -1399,7 +1399,7 @@ class(fit_large) = c( "mvtweedie", class(fit_large) )
 saveRDS(
   fit_large,
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_large.rds"
+    "data", "model_fits", "fit_large.rds"
   )
 )
 
@@ -1407,17 +1407,17 @@ saveRDS(
 ## compare predictions from all 3 models
 fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds"
+    "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds"
   )
 )
 # fit_slot <- readRDS(
 #   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_slot.rds"
+#     "data", "model_fits", "fit_slot.rds"
 #   )
 # )
 fit_large <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_large.rds"
+    "data", "model_fits", "fit_large.rds"
   )
 )
 fit_list <- list(fit, fit_large)
