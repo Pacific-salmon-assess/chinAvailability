@@ -82,7 +82,6 @@ pfma_areas$rkw_overlap <- ifelse(
 # clean recreational composition data through 2022 (clean to match rec_raw)
 rec_raw_new <- read_csv(
   here::here("data", "rec", "sc_biodata_aug_23.csv"),
-  # here::here("data", "rec", "sc_biodata_jan_23.csv"),
   na = c("","NA"),
   # remove header
   skip = 6
@@ -124,7 +123,7 @@ site_ll <- rec_raw_new %>%
 
 rec_raw_new <- left_join(
   rec_raw_new, 
-  site_ll %>% select(fishing_location, area#, shore_dist
+  site_ll %>% select(fishing_location, area
                      ),
   by = c("fishing_location", "area")
 )
@@ -650,121 +649,3 @@ wide_size <- wide_rec4 %>%
 
 saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
-
-## CLEAN CATCH -----------------------------------------------------------------
-
-rec_creel_raw <- read.csv(
-  here::here("data", "rec", "rec_creel_aug10_21.csv"),
-  stringsAsFactors = FALSE,
-  na.strings=c("","NA")#,
-  # header = FALSE
-)
-# rec_catch1 <- rec_creel_raw[5:nrow(rec_creel_raw), ] 
-# names(rec_catch1) <- rec_creel_raw[4, ]
-rec_creel_raw <- janitor::clean_names(rec_creel_raw) %>% 
-  #focus only on chinook and effort estimates
-  filter(
-    species %in% c("BOAT TRIPS", "CHINOOK SALMON")
-  )
-
-# note that subarea-specific estimates are not always available 
-# (e.g. in 2014 estimates for 125A and 125G available for Jul/Aug,
-# 125 total (?) estimates for June/Sep)
-rec_creel <- rec_creel_raw %>% 
-  mutate(
-    month = as.factor(month),
-    month_n = match(month, month.name),
-    area_n = as.numeric(str_replace_all(pfma, "[:letter:]", "")),
-    year = as.numeric(year),
-    region = case_when(
-      creel_sub_area %in% c("13M", "13N") ~ "N. Strait of Georgia",
-      area_n > 124 ~ "NWVI",
-      area_n < 28 & area_n > 24 ~ "NWVI",
-      area_n %in% c("20", "21", "22", "121") | 
-        creel_sub_area %in% c("Area 19 (JDF)", "19D", "19E", "19C") ~ 
-        "Juan de Fuca Strait",
-      area_n < 125 & area_n > 120 ~ "SWVI",
-      area_n < 25 & area_n > 20 ~ "SWVI",
-      area_n %in% c("14", "15", "16") ~ "N. Strait of Georgia",
-      area_n %in% c("17", "18", "28", "29") | 
-        creel_sub_area %in% c("19A", "19B", "Area 19 (GS)") ~ 
-        "S. Strait of Georgia",
-      area_n %in% c("10", "11", "111") ~ "Queen Charlotte Sound",
-      area_n %in% c("12", "13") ~ "Queen Charlotte and\nJohnstone Straits"
-    ),
-    reg_f = as.factor(abbreviate(region, 4)),
-    area = ifelse(
-      area_n %in% c("13", "19"),
-      paste(area_n, reg_f, sep = "_"),
-      as.character(area_n)
-    ),
-    #is a subarea specific estimate available
-    subarea_est = ifelse(grepl("Area", creel_sub_area), "n", "y")
-  ) 
-
-
-# separate catch/effort and rejoin
-effort_subarea <- rec_creel %>% 
-  filter(species == "BOAT TRIPS",
-         !is.na(estimate)) %>% 
-  mutate(effort = as.numeric(estimate)) %>%
-  select(month, year, subarea = creel_sub_area, area, effort)
-
-catch_subarea <- rec_creel %>% 
-  filter(species == "CHINOOK SALMON") %>% 
-  mutate(
-    legal = ifelse(
-      disposition == "Kept" | disposition == "Released Legal",
-      "legal",
-      "sublegal"
-    ),
-    kept_legal = case_when(
-      disposition == "Kept" ~ "y",
-      disposition == "Released Legal" ~ "n",
-      legal == "sublegal" ~ NA_character_
-    ),
-    catch = as.numeric(estimate)
-  ) %>% 
-  select(month, month_n, year, area_n, area, subarea = creel_sub_area, region,
-         subarea_est, legal, kept_legal, adipose_mark, catch) %>% 
-  left_join(., effort_subarea, by = c("month", "year", "subarea", "area"))
-
-
-# check no duplicates
-catch_subarea %>% 
-  group_by(kept_legal, legal, adipose_mark, subarea, month, year) %>% 
-  tally() %>% 
-  filter(n > 1)
-
-
-# calculate area totals; effort replicated among catch categories so sum 
-# separately then rejoin
-# NOTE pools adipose marked and kept/released LEGAL fish
-effort_area <- effort_subarea %>% 
-  group_by(month, year, area) %>% 
-  summarize(
-    effort = sum(effort, na.rm = T),
-    .groups = "drop"
-  )
-sum(effort_area$effort) == sum(effort_subarea$effort)
-
-catch_area <- catch_subarea %>% 
-  mutate(reg = abbreviate(region, 4)) %>% 
-  group_by(month, month_n, year, area, reg, region, legal) %>% 
-  summarize(
-    catch = sum(catch, na.rm = T),
-    .groups = "drop"
-  ) %>% 
-  left_join(., effort_area, by = c("month", "year", "area"))
-sum(catch_subarea$catch, na.rm = T) == sum(catch_area$catch, na.rm = T)
-
-
-# check to ensure one estimate per month
-catch_area %>% 
-  group_by(legal, area, month, year) %>% 
-  tally() %>% 
-  filter(n > 1)
-
-
-saveRDS(catch_subarea, here::here("data", "rec", "rec_creel_subarea.rds"))
-saveRDS(catch_area, here::here("data", "rec", "rec_creel_area.rds"))
