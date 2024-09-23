@@ -62,7 +62,7 @@ stks <- dat %>%
 
 
 sample_key <- dat %>% 
-  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x, shore_dist,
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x,
          slot_limit) %>% 
   distinct()
 
@@ -93,7 +93,7 @@ agg_dat <- expand.grid(
   sample_id = unique(dat$sample_id),
   stock_group = unique(dat$stock_group)
 ) %>% 
-  left_join(., sample_key, by = "sample_id", relationship = "many-to-many") %>% 
+  left_join(., sample_key, by = "sample_id") %>% 
   left_join(
     ., 
     dat %>% 
@@ -114,8 +114,7 @@ agg_dat <- expand.grid(
     utm_y_m = utm_y * 1000,
     sg_year = paste(stock_group, year, sep = "_") %>% 
       as.factor(),
-    week_z = scale(week_n) %>% as.numeric(),
-    shore_dist_z = scale(shore_dist) %>% as.numeric()
+    week_z = scale(week_n) %>% as.numeric()
   ) 
 # saveRDS(
 #   agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
@@ -134,9 +133,6 @@ hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
 names(hatchery_colour_pal) <- levels(dat$origin2)
 
 
-
-## DATA FIGURES ----------------------------------------------------------------
-
 # sample sizes
 full_samp_size <- dat %>% 
   group_by(strata) %>% 
@@ -150,6 +146,9 @@ summer_samp_size <- dat %>%
     n = length(unique(id))
   )
 
+
+
+## DATA FIGURES ----------------------------------------------------------------
 
 # sampling coverage 
 rec_samp_cov <- ggplot(sample_key) +
@@ -552,7 +551,7 @@ saveRDS(
 #     )
 fit2 <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds")
+    "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds")
 )
 # fit3 <- readRDS(
 #   here::here(
@@ -1199,6 +1198,9 @@ dev.off()
 # 2) Evaluate impact of size preference of SRKW by fitting model only to samples
 # greater than 750 mm fl
 
+# Kept model converges but so few samples that predictions are functionally 
+# identical
+
 newdata <- expand.grid(
   strata = unique(agg_dat$strata),
   week_n = unique(agg_dat$week_n),
@@ -1213,11 +1215,255 @@ newdata <- expand.grid(
       as.factor(),
     strata = factor(strata, levels = levels(agg_dat$strata))
   ) #%>%
-  # NOTE: no need to stratify since slot limit effects uniformly applied
   # filter(
   #   strata %in% c("Renfrew", "Swiftsure", "Nitinat")
   # )
 
+## Exclude released individuals 
+kept_dat <- dat %>%
+  filter(disposition == "Kept") %>%
+  group_by(sample_id) %>%
+  mutate(sample_id_n = sum(prob)) %>%
+  ungroup()
+sample_key_kept <- kept_dat %>%
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>%
+  distinct()
+
+agg_dat_kept <- expand.grid(
+  sample_id = unique(kept_dat$sample_id),
+  stock_group = unique(kept_dat$stock_group)
+) %>% 
+  left_join(., sample_key_kept, by = "sample_id") %>% 
+  left_join(
+    ., 
+    kept_dat %>% 
+      group_by(sample_id, stock_group) %>% 
+      summarize(
+        agg_prob = sum(prob)
+      ) %>% 
+      ungroup(),
+    by = c("sample_id", "stock_group")
+  ) %>% 
+  mutate(
+    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
+    agg_ppn = agg_prob / sample_id_n,
+    year_n = as.numeric(year),
+    year = as.factor(year),
+    stock_group = as.factor(stock_group),
+    utm_x_m = utm_x * 1000,
+    utm_y_m = utm_y * 1000,
+    sg_year = paste(stock_group, year, sep = "_") %>% as.factor()
+  ) 
+
+# Includes smooth for year by stock group
+system.time(
+  fit_kept <- gam(
+    agg_prob ~ 0 + stock_group + 
+      s(week_n, by = stock_group, k = 20, bs = "cc") +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
+      s(sg_year, bs = "re"),
+    data = agg_dat_kept, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit_kept) = c( "mvtweedie", class(fit_kept) )
+saveRDS(
+  fit_kept,
+  here::here(
+    "data", "model_fits", "fit_kept.rds"
+  )
+)
+
+
+
+## Size analysis
+large_dat <- dat %>%
+  filter(fl >= 750) %>%
+  group_by(sample_id) %>%
+  mutate(sample_id_n = sum(prob)) %>%
+  ungroup()
+sample_key_large <- large_dat %>%
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>%
+  distinct()
+
+agg_dat_large <- expand.grid(
+  sample_id = unique(large_dat$sample_id),
+  stock_group = unique(large_dat$stock_group)
+) %>% 
+  left_join(., sample_key_large, by = "sample_id") %>% 
+  left_join(
+    ., 
+    large_dat %>% 
+      group_by(sample_id, stock_group) %>% 
+      summarize(
+        agg_prob = sum(prob)
+      ) %>% 
+      ungroup(),
+    by = c("sample_id", "stock_group")
+  ) %>% 
+  mutate(
+    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
+    agg_ppn = agg_prob / sample_id_n,
+    year_n = as.numeric(year),
+    year = as.factor(year),
+    stock_group = as.factor(stock_group),
+    utm_x_m = utm_x * 1000,
+    utm_y_m = utm_y * 1000,
+    sg_year = paste(stock_group, year, sep = "_") %>% as.factor()
+  ) 
+
+# Includes smooth for year by stock group
+system.time(
+  fit_large <- gam(
+    agg_prob ~ 0 + stock_group + 
+      s(week_n, by = stock_group, k = 20, bs = "cc") +
+      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
+      s(sg_year, bs = "re"),
+    data = agg_dat_large, family = "tw", method = "REML",
+    knots = list(week_n = c(0, 52))
+  )
+)
+class(fit_large) = c( "mvtweedie", class(fit_large) )
+saveRDS(
+  fit_large,
+  here::here(
+    "data", "model_fits", "fit_large.rds"
+  )
+)
+
+
+## compare predictions from all 3 models
+fit <- readRDS(
+  here::here(
+    "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds"
+  )
+)
+fit_kept <- readRDS(
+  here::here(
+    "data", "model_fits", "fit_kept.rds"
+  )
+)
+fit_large <- readRDS(
+  here::here(
+    "data", "model_fits", "fit_large.rds"
+  )
+)
+fit_list <- list(fit, fit_large, fit_kept)
+model_names <- c("full", "large", "kept")
+
+excl <- grepl("year", gratia::smooths(fit))
+yr_coefs <- gratia::smooths(fit)[excl]
+
+newdata3 <- newdata %>% 
+  filter(year == "2014")
+
+pred_list <- purrr::map(
+  fit_list, 
+  ~ pred_dummy(
+    .x,
+    se.fit = TRUE,
+    category_name = "stock_group",
+    origdata = .x$model,
+    newdata = newdata3,
+    exclude = yr_coefs
+    )
+)
+
+new_dat <- purrr::map2(
+  pred_list, model_names,
+  ~ cbind(newdata3, fit = .x$fit, se.fit = .x$se.fit) %>% 
+    mutate(
+      model = .y,
+      lower = fit + (qnorm(0.025)*se.fit),
+      upper = fit + (qnorm(0.975)*se.fit)
+    ) 
+) %>% 
+  bind_rows() %>% 
+  mutate(
+    # model = case_when(
+    #   model == "slot" ~ paste(model, slot_limit, sep = " "),
+    #   TRUE ~ model
+    # ),
+    model = factor(
+      model,
+      levels = c("full", #"slot yes", "slot no", 
+                 "large", "kept"),
+      labels = c("standard",# "post-2019\nmanagement", "pre-2019\nmanagement", 
+                 "large", "kept")
+    )
+  ) %>% 
+  filter(
+    week_n > 23 & week_n < 39,
+    !strata == "Saanich"
+    # !(model %in% c("full", "large") & slot_limit == "yes")
+    )
+
+model_pal <- c("#e41a1c", "#377eb8", "#984ea3")#, "#4daf4a", "#984ea3")
+names(model_pal) <- levels(new_dat$model)
+
+model_comp_smooth1 <- ggplot(
+  new_dat %>% 
+    filter(!(grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
+  aes(week_n, fit, colour = model)
+) +
+  geom_line() +
+  facet_grid(stock_group~strata, scales = "free_y") +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_colour_manual(
+    name = "Model",
+    values = model_pal
+  ) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37),
+    labels = c("Jun", "Jul", "Aug", "Sep"),
+    expand = c(0, 0)
+  ) 
+model_comp_smooth2 <- ggplot(
+  new_dat %>% 
+    filter((grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
+  aes(week_n, fit, colour = model)
+) +
+  geom_line() +
+  facet_grid(stock_group~strata, scales = "free_y") +
+  labs(y="Predicted Proportion", x = "Sampling Week") +
+  ggsidekick::theme_sleek() +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_colour_manual(
+    name = "Model",
+    values = model_pal
+  ) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  scale_x_continuous(
+    breaks = c(25, 29, 33, 37),
+    labels = c("Jun", "Jul", "Aug", "Sep"),
+    expand = c(0, 0)
+  ) 
+
+
+png(
+  here::here("figs", "stock_comp_fishery", "model_comp_stock1.png"),
+  height = 6.5, width = 5.5, units = "in", res = 250
+)
+model_comp_smooth1
+dev.off()
+
+png(
+  here::here("figs", "stock_comp_fishery", "model_comp_stock2.png"),
+  height = 6.5, width = 5.5, units = "in", res = 250
+)
+model_comp_smooth2
+dev.off()
+
+
+
+### OLD 
 ## Slot limit analysis
 # agg_dat_slot <- expand.grid(
 #   sample_id = unique(dat$sample_id),
@@ -1347,188 +1593,3 @@ newdata <- expand.grid(
 # jul_ts  
 # dev.off()
 
-
-## Size analysis
-large_dat <- dat %>%
-  filter(fl >= 750) %>%
-  group_by(sample_id) %>%
-  mutate(sample_id_n = sum(prob)) %>%
-  ungroup()
-sample_key_large <- large_dat %>%
-  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>%
-  distinct()
-
-agg_dat_large <- expand.grid(
-  sample_id = unique(large_dat$sample_id),
-  stock_group = unique(large_dat$stock_group)
-) %>% 
-  left_join(., sample_key_large, by = "sample_id") %>% 
-  left_join(
-    ., 
-    large_dat %>% 
-      group_by(sample_id, stock_group) %>% 
-      summarize(
-        agg_prob = sum(prob)
-      ) %>% 
-      ungroup(),
-    by = c("sample_id", "stock_group")
-  ) %>% 
-  mutate(
-    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
-    agg_ppn = agg_prob / sample_id_n,
-    year_n = as.numeric(year),
-    year = as.factor(year),
-    stock_group = as.factor(stock_group),
-    utm_x_m = utm_x * 1000,
-    utm_y_m = utm_y * 1000,
-    sg_year = paste(stock_group, year, sep = "_") %>% as.factor()
-  ) 
-
-# Includes smooth for year by stock group
-system.time(
-  fit_large <- gam(
-    agg_prob ~ 0 + stock_group + 
-      s(week_n, by = stock_group, k = 20, bs = "cc") +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
-      s(sg_year, bs = "re"),
-    data = agg_dat_large, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
-class(fit_large) = c( "mvtweedie", class(fit_large) )
-saveRDS(
-  fit_large,
-  here::here(
-    "data", "model_fits", "fit_large.rds"
-  )
-)
-
-
-## compare predictions from all 3 models
-fit <- readRDS(
-  here::here(
-    "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds"
-  )
-)
-# fit_slot <- readRDS(
-#   here::here(
-#     "data", "model_fits", "fit_slot.rds"
-#   )
-# )
-fit_large <- readRDS(
-  here::here(
-    "data", "model_fits", "fit_large.rds"
-  )
-)
-fit_list <- list(fit, fit_large)
-model_names <- c("full", "large")
-
-excl <- grepl("year", gratia::smooths(fit))
-yr_coefs <- gratia::smooths(fit)[excl]
-
-newdata3 <- newdata %>% 
-  filter(year == "2014")
-
-pred_list <- purrr::map(
-  fit_list, 
-  ~ pred_dummy(
-    .x,
-    se.fit = TRUE,
-    category_name = "stock_group",
-    origdata = .x$model,
-    newdata = newdata3,
-    exclude = yr_coefs
-    )
-)
-
-new_dat <- purrr::map2(
-  pred_list, model_names,
-  ~ cbind(newdata3, fit = .x$fit, se.fit = .x$se.fit) %>% 
-    mutate(
-      model = .y,
-      lower = fit + (qnorm(0.025)*se.fit),
-      upper = fit + (qnorm(0.975)*se.fit)
-    ) 
-) %>% 
-  bind_rows() %>% 
-  mutate(
-    # model = case_when(
-    #   model == "slot" ~ paste(model, slot_limit, sep = " "),
-    #   TRUE ~ model
-    # ),
-    model = factor(
-      model,
-      levels = c("full", #"slot yes", "slot no", 
-                 "large"),
-      labels = c("standard",# "post-2019\nmanagement", "pre-2019\nmanagement", 
-                 "large")
-    )
-  ) %>% 
-  filter(
-    week_n > 23 & week_n < 39,
-    !strata == "Saanich"
-    # !(model %in% c("full", "large") & slot_limit == "yes")
-    )
-
-model_pal <- c("#e41a1c", "#377eb8")#, "#4daf4a", "#984ea3")
-names(model_pal) <- levels(new_dat$model)
-
-model_comp_smooth1 <- ggplot(
-  new_dat %>% 
-    filter(!(grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
-  aes(week_n, fit, colour = model)
-) +
-  geom_line() +
-  facet_grid(stock_group~strata, scales = "free_y") +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
-  ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
-  scale_colour_manual(
-    name = "Model",
-    values = model_pal
-  ) +
-  theme(legend.position = "none",
-        axis.title.x = element_blank(),
-        strip.text = element_text(size = 8)) +
-  scale_x_continuous(
-    breaks = c(25, 29, 33, 37),
-    labels = c("Jun", "Jul", "Aug", "Sep"),
-    expand = c(0, 0)
-  ) 
-model_comp_smooth2 <- ggplot(
-  new_dat %>% 
-    filter((grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
-  aes(week_n, fit, colour = model)
-) +
-  geom_line() +
-  facet_grid(stock_group~strata, scales = "free_y") +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
-  ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
-  scale_colour_manual(
-    name = "Model",
-    values = model_pal
-  ) +
-  theme(legend.position = "none",
-        axis.title.x = element_blank(),
-        strip.text = element_text(size = 8)) +
-  scale_x_continuous(
-    breaks = c(25, 29, 33, 37),
-    labels = c("Jun", "Jul", "Aug", "Sep"),
-    expand = c(0, 0)
-  ) 
-
-
-png(
-  here::here("figs", "stock_comp_fishery", "model_comp_stock1.png"),
-  height = 6.5, width = 5.5, units = "in", res = 250
-)
-model_comp_smooth1
-dev.off()
-
-png(
-  here::here("figs", "stock_comp_fishery", "model_comp_stock2.png"),
-  height = 6.5, width = 5.5, units = "in", res = 250
-)
-model_comp_smooth2
-dev.off()

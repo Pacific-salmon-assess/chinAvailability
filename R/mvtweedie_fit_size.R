@@ -271,12 +271,6 @@ sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
 
-# pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
-# qq_plot <- DHARMa::createDHARMa(
-#   simulatedResponse = s_sdmTMB,
-#   observedResponse = agg_dat$agg_prob,
-#   fittedPredictedResponse = pred_fixed
-# )
 
 samp <- sdmTMBextra::predict_mle_mcmc(fit_sdmTMB, mcmc_iter = 101, 
                                       mcmc_warmup = 100)
@@ -288,6 +282,17 @@ png(
 )
 qqnorm(mcmc_res); qqline(mcmc_res)
 dev.off()
+
+
+# check outlier
+# qq_dat <- qqnorm(mcmc_res, plot.it = FALSE)
+# qq_df <- data.frame(theoretical = qq_dat$x, residual = qq_dat$y) %>% 
+#   mutate(
+#     dev = abs(residual - qq_dat$x)
+#   ) 
+# 
+# agg_dat[order(-qq_df$dev)[1], ]
+# nothing overly unusual about the sample; large ppn of over 85 cm fish, but
 
 
 # look at average stock comp 
