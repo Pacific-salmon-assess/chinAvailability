@@ -267,16 +267,16 @@ rec_samp_bar_summer_h <- dat %>%
 
 
 # proportion hatchery within each stock group
-# hatchery_stock_dat <- dat %>% 
-#   group_by(stock_group, origin2) %>% 
-#   summarize(
-#     sum_prob = sum(prob), #/ total_n,
-#     .groups = "drop"
-#   ) %>% 
-#   group_by(stock_group) %>% 
-#   mutate(
-#     ppn = sum_prob / sum(sum_prob)
-#   )
+hatchery_stock_dat <- dat %>%
+  group_by(stock_group, origin2) %>%
+  summarize(
+    sum_prob = sum(prob), #/ total_n,
+    .groups = "drop"
+  ) %>%
+  group_by(stock_group) %>%
+  mutate(
+    ppn = sum_prob / sum(sum_prob)
+  )
 # export to estimate hatchery comp of diet
 # saveRDS(hatchery_stock_dat, here::here("data", "rec", "hatchery_stock_df.rds"))
 

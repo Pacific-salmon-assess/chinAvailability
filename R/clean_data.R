@@ -414,7 +414,6 @@ pbt_rate <- readRDS(
     pbt_stock, pbt_brood_year_n = year, tag_rate
   )
 
-
 wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>% 
   mutate(
     pbt_stock = gsub("-", "_", stock_1) %>% 
@@ -462,7 +461,6 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
   left_join(
     ., pbt_rate, by = c("pbt_brood_year_n", "pbt_stock")
   )
-
 
 # stock key
 stock_key <- readRDS(here::here("data", "rec", "finalStockList_Sep2024.rds")) %>%
