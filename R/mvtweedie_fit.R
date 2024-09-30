@@ -62,8 +62,7 @@ stks <- dat %>%
 
 
 sample_key <- dat %>% 
-  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x,
-         slot_limit) %>% 
+  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>% 
   distinct()
 
 

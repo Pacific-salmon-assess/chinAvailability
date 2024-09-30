@@ -411,9 +411,68 @@ pbt_rate <- readRDS(
     )
   ) %>% 
   select(
-    pbt_stock, pbt_brood_year_n = year, tag_rate
+    pbt_stock, brood_year = year, tag_rate
   )
 
+# ID stocks that have had > 80% in more than 5 years 
+high_rate <- pbt_rate %>% 
+  filter(tag_rate > 0.8) %>% 
+  group_by(pbt_stock) %>% 
+  mutate(n_year = length(unique(brood_year))) %>% 
+  filter(n_year > 5) %>% 
+  pull(pbt_stock) %>% 
+  unique()
+  # ggplot(., aes(x = brood_year, y = tag_rate)) +
+  # geom_point() +
+  # facet_wrap(~pbt_stock) 
+pbt_rate$high <- ifelse(pbt_rate$pbt_stock %in% high_rate, TRUE, FALSE)
+
+# make plot of PBT coverage
+pbt_fig_dat <- expand.grid(
+  pbt_stock = unique(pbt_rate$pbt_stock),
+  brood_year = unique(pbt_rate$brood_year)
+) %>% 
+  left_join(., pbt_rate %>% select(-high), by = c("pbt_stock", "brood_year")) %>%
+  mutate(
+    tag_rate = ifelse(is.na(tag_rate), 0, tag_rate),
+    high_rate = ifelse(tag_rate > 0.8, 1, 0)
+  ) %>% 
+  group_by(brood_year) %>% 
+  summarize(
+    ppn_high = sum(high_rate) / length(unique(pbt_stock))
+  ) %>% 
+  glimpse()
+
+
+# stock key
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Sep2024.rds")) %>%
+  janitor::clean_names() %>% 
+  mutate(
+    stock_group = case_when(
+      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
+        region1name == "Willamette_R" ~ 
+        "Col_Summer_Fall",
+      pst_agg %in% c("CR-lower_sp", "CR-upper_sp")  ~ "Col_Spring",
+      stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
+        "ECVI_SOMN",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~
+        "other",
+      grepl("Fraser", region1name) ~ region1name,
+      TRUE ~ pst_agg
+    ) %>% 
+      factor(
+        .,
+        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
+                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
+                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
+                   "Fraser_Fall"),
+        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
+                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
+                   "FR_Sum_4.1", "FR_Fall")
+      )
+  )
+
+# add initial PBT info
 wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>% 
   mutate(
     pbt_stock = gsub("-", "_", stock_1) %>% 
@@ -456,46 +515,13 @@ wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
       pbt_stock == "S_SAN_JUAN_R" ~ "SAN_JUAN_RIVER",
       pbt_stock == "WOSS_LAKE"~ "WOSS_RIVER",
       TRUE ~ pbt_stock
-    )
-  ) %>% 
-  left_join(
-    ., pbt_rate, by = c("pbt_brood_year_n", "pbt_stock")
-  )
-
-# stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Sep2024.rds")) %>%
-  janitor::clean_names() %>% 
-  mutate(
-    stock_group = case_when(
-      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
-        region1name == "Willamette_R" ~ 
-        "Col_Summer_Fall",
-      pst_agg %in% c("CR-lower_sp", "CR-upper_sp")  ~ "Col_Spring",
-      stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
-        "ECVI_SOMN",
-      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~
-        "other",
-      grepl("Fraser", region1name) ~ region1name,
-      TRUE ~ pst_agg
-    ) %>% 
-      factor(
-        .,
-        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
-                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                   "Fraser_Fall"),
-        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
-                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
-                   "FR_Sum_4.1", "FR_Fall")
-      )
-  )
+    ))
 
 # trim for GSI purposes
 wide_rec4_trim <- wide_rec4 %>% 
   filter(
     !is.na(stock_1)
   )
-
 
 #pivot to long (probs and stock IDs separately) and join 
 probs <- wide_rec4_trim %>% 
@@ -504,7 +530,6 @@ probs <- wide_rec4_trim %>%
                names_pattern = "prob_(.+)",
                values_to = "prob") %>%
   select(id, rank, prob)
-
 
 long_rec <- wide_rec4_trim %>% 
   select(-starts_with("prob")) %>% 
@@ -521,7 +546,9 @@ long_rec <- wide_rec4_trim %>%
          !is.na(prob)) %>% 
   left_join(., stock_key, by = "stock") %>% 
   mutate(
-    # define saltwater age based on total age relative dominant life history
+    # some estimated ages don't line up with pbt brood; assume latter correct
+    age = ifelse(!is.na(pbt_brood_year_n), year - pbt_brood_year_n, age),
+    # define saltwater age based on total age relative to dominant life history
     sw_age = case_when(
       grepl("M", age_gr) ~ stringr::str_split(age_gr, "(?<=\\d)(?=\\D)") %>% 
         unlist() %>% 
@@ -539,14 +566,36 @@ long_rec <- wide_rec4_trim %>%
         age_gr %in% c("32", "42", "52") ~ age - 2,
       TRUE ~ age - 1
     ),
+    est_age = case_when(
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
+        pst_agg %in% c("NBC_SEAK") ~ sw_age + 2,
+      # if stock group has variable life history use identified yearlings
+      (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", "CA_ORCST", "WACST", 
+                      "CR-lower_fa", "PSD") | 
+         stock_group %in% c("Fraser_Sum_4.1")) & 
+        age_gr %in% c("32", "42", "52") ~ sw_age + 2,
+      TRUE ~ sw_age + 1
+    ),
+    brood_year = year - est_age
+  ) %>% 
+  left_join(
+    ., pbt_rate, by = c("brood_year", "pbt_stock")
+  ) %>% 
+  mutate(
     #define hatchery status
     origin = case_when(
       pbt == TRUE | 
         resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
       ad == "Y" ~ "hatchery",
+      # if PBT rate for a stock is uniformly high and caught after ~2013 BY
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") & 
+        resolved_stock_source == "DNA" & year > 2016 & high == TRUE ~ "wild",
+      # if PBT rate varied or caught before widespread adoption
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
                          "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") & 
         resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
+      # stock soruce not in PBT database
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
                          "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") & 
         resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
@@ -569,15 +618,7 @@ long_rec <- wide_rec4_trim %>%
                         "unknown_USA", "wild_Can", "wild_USA"),
              labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
                         "USA Wi"))
-    ,
-    # add factor accounting for slot limits that went into place in different
-    # years depending on whether west of 20-4/-5 line
-    slot_limit = ifelse(
-      ((lon < -124 | strata == "saanich") & year < 2019) | 
-        ((lon < -124 | strata == "saanich")  & week_n > 28), "no", "yes" 
-    )
   )
-
 
 # check for missing regional assignments
 long_rec %>%
