@@ -81,7 +81,7 @@ pfma_areas$rkw_overlap <- ifelse(
 
 # clean recreational composition data through 2022 (clean to match rec_raw)
 rec_raw_new <- read_csv(
-  here::here("data", "rec", "sc_biodata_aug_23.csv"),
+  here::here("data", "rec", "raw_data", "sc_biodata_aug_23.csv"),
   na = c("","NA"),
   # remove header
   skip = 6
@@ -130,7 +130,7 @@ rec_raw_new <- left_join(
 
 # most recent push from AP, 2022 and 2023 data 
 rec_raw_new24 <- read_csv(
-  here::here("data", "rec", "sc_biodata_jun_24.csv"),
+  here::here("data", "rec", "raw_data", "sc_biodata_jun_24.csv"),
   na = c("","NA")
 ) %>% 
   janitor::clean_names(.) %>% 
@@ -400,7 +400,7 @@ saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
 
 # import PBT estimates to estimate coverage 
 pbt_rate <- readRDS(
-  here::here("data", "mean_pbt_rate.rds")
+  here::here("data", "rec", "raw_data", "mean_pbt_rate.rds")
 ) %>% 
   mutate(
     pbt_stock = ifelse(
