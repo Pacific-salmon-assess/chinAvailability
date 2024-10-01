@@ -413,6 +413,8 @@ pbt_rate <- readRDS(
   select(
     pbt_stock, brood_year = year, tag_rate
   )
+write.csv(pbt_rate %>% select(pbt_stock) %>% distinct(),
+          here::here("data", "pbt_rate.csv"), row.names = FALSE)
 
 # ID stocks that have had > 80% in more than 5 years 
 high_rate <- pbt_rate %>% 
