@@ -19,7 +19,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
   ) %>%
   # calculate the stock group level probability for each individual
   group_by(
-    id, strata, stock_group, age_stock_group, week_n, month_n, slot_limit, fl,
+    id, strata, stock_group, age_stock_group, week_n, month_n, fl,
     age, sw_age, origin, year
   ) %>% 
   summarize(

@@ -562,8 +562,8 @@ long_rec <- wide_rec4_trim %>%
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
         pst_agg %in% c("NBC_SEAK") ~ age - 2,
       # if stock group has variable life history use identified yearlings
-      (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", "CA_ORCST", "WACST", 
-                      "CR-lower_fa", "PSD") | 
+      (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", 
+                      "CA_ORCST", "WACST","CR-lower_fa", "PSD") | 
          stock_group %in% c("Fraser_Sum_4.1")) & 
         age_gr %in% c("32", "42", "52") ~ age - 2,
       TRUE ~ age - 1
@@ -572,8 +572,8 @@ long_rec <- wide_rec4_trim %>%
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
         pst_agg %in% c("NBC_SEAK") ~ sw_age + 2,
       # if stock group has variable life history use identified yearlings
-      (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", "CA_ORCST", "WACST", 
-                      "CR-lower_fa", "PSD") | 
+      (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", 
+                      "CA_ORCST", "WACST", "CR-lower_fa", "PSD") | 
          stock_group %in% c("Fraser_Sum_4.1")) & 
         age_gr %in% c("32", "42", "52") ~ sw_age + 2,
       TRUE ~ sw_age + 1
