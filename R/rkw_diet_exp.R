@@ -411,7 +411,7 @@ dev.off()
 
 # import PBT estimates to estimate coverage 
 pbt_rate <- readRDS(
-  here::here("data", "mean_pbt_rate.rds")
+  here::here("data", "sep", "mean_pbt_rate.rds")
 ) %>% 
   mutate(
     pbt_stock = ifelse(

@@ -398,9 +398,10 @@ saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
 
 # GSI CLEAN --------------------------------------------------------------------
 
+
 # import PBT estimates to estimate coverage 
 pbt_rate <- readRDS(
-  here::here("data", "rec", "raw_data", "mean_pbt_rate.rds")
+  here::here("data", "sep", "mean_pbt_rate.rds")
 ) %>% 
   mutate(
     pbt_stock = ifelse(
@@ -412,9 +413,7 @@ pbt_rate <- readRDS(
   ) %>% 
   select(
     pbt_stock, brood_year = year, tag_rate
-  )
-write.csv(pbt_rate %>% select(pbt_stock) %>% distinct(),
-          here::here("data", "pbt_rate.csv"), row.names = FALSE)
+  ) 
 
 # ID stocks that have had > 80% in more than 5 years 
 high_rate <- pbt_rate %>% 
@@ -424,30 +423,11 @@ high_rate <- pbt_rate %>%
   filter(n_year > 5) %>% 
   pull(pbt_stock) %>% 
   unique()
-  # ggplot(., aes(x = brood_year, y = tag_rate)) +
-  # geom_point() +
-  # facet_wrap(~pbt_stock) 
 pbt_rate$high <- ifelse(pbt_rate$pbt_stock %in% high_rate, TRUE, FALSE)
-
-# make plot of PBT coverage
-pbt_fig_dat <- expand.grid(
-  pbt_stock = unique(pbt_rate$pbt_stock),
-  brood_year = unique(pbt_rate$brood_year)
-) %>% 
-  left_join(., pbt_rate %>% select(-high), by = c("pbt_stock", "brood_year")) %>%
-  mutate(
-    tag_rate = ifelse(is.na(tag_rate), 0, tag_rate),
-    high_rate = ifelse(tag_rate > 0.8, 1, 0)
-  ) %>% 
-  group_by(brood_year) %>% 
-  summarize(
-    ppn_high = sum(high_rate) / length(unique(pbt_stock))
-  ) %>% 
-  glimpse()
 
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Sep2024.rds")) %>%
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Oct2024.rds")) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
@@ -635,6 +615,96 @@ long_rec %>%
 
 ## export
 saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
+
+
+## HATCHERY FIGURES ------------------------------------------------------------
+
+
+# import SEP release estimates to identify major stocks (defined as facilities
+# w/ greater than 140k average releases per year, following Brock's advice)
+sep_rel <- readxl::read_xlsx(
+  here::here("data", "sep", "2018-2022BY avg release.xlsx")
+) %>% 
+  janitor::clean_names() %>% 
+  filter(
+    avg_rel > 140000
+  ) %>% 
+  mutate(
+    #rename to match pbt_rate df
+    stock_name = case_when(
+      stock_name == "Big Qualicum R" ~ "Qualicum River",
+      stock_name == "L Qualicum R" ~ "Little Qualicum River",
+      stock_name == "Shuswap R Low" ~ "Shuswap River Lower",
+      stock_name == "Shuswap R Middle" ~ "Shuswap River Middle",
+      stock_name == "Chehalis R" ~ "Chehalis River Summer",
+      stock_name == "Kitsumkalum R" ~ "Kitsumkalum River Lower",
+      stock_name == "Chilliwack R" ~ "Chilliwack River Fall",
+      stock_name == "Nanaimo R" ~ "Nanaimo River Fall",
+      grepl(" R", stock_name) ~ paste(stock_name, "iver", sep = ""),
+      grepl(" Cr", stock_name) ~ paste(stock_name, "eek", sep = ""),
+      TRUE ~ stock_name
+    ) %>% 
+      toupper(),
+    pbt_stock = gsub(" ", "_", stock_name)
+  )
+
+
+
+smu_colour_pal <- c("grey30", "#3182bd", "#bdd7e7", "#bae4bc", "#6A51A3",
+                    "#CBC9E2", "#67000D", "#A50F15", "#EF3B2C", "#FC9272", 
+                    "#FCBBA1")
+names(smu_colour_pal) <- levels(long_rec$stock_group)
+
+
+
+
+pbt_rate_plot <- pbt_rate %>% 
+  mutate(
+    brood_year = as.factor(brood_year),
+    stock_group = case_when(
+      pbt_stock %in% 
+        c("CAPILANO_RIVER", "COWICHAN_RIVER", "LITTLE_QUALICUM_RIVER",
+          "NANAIMO_RIVER_FALL", "QUALICUM_RIVER") ~ "ECVI_SOMN",
+      pbt_stock %in% c("CHEHALIS_RIVER_SUMMER", "CHILLIWACK_RIVER_FALL",
+                       "HARRISON_RIVER") ~ "FR_Fall",
+      pbt_stock %in% c("SHUSWAP_RIVER_LOWER", "SHUSWAP_RIVER_MIDDLE") ~ 
+        "FR_Sum_4.1",
+      pbt_stock == "NICOLA_RIVER" ~ "FR_Spr_4.2",
+      TRUE ~ "WCVI"
+    ) %>% 
+      factor(., levels = levels(long_rec$stock_group)),
+    pbt_stock = fct_reorder(pbt_stock, as.numeric(stock_group))
+  ) %>% 
+  # focus on large facilities
+  filter(
+    pbt_stock %in% sep_rel$pbt_stock,
+    # remove northern stocks 
+    !pbt_stock %in% c("ATNARKO_RIVER", "BURMAN_RIVER", "CONUMA_RIVER", 
+                      "GOLD_RIVER", "KITIMAT_RIVER", "KITSUMKALUM_RIVER_LOWER",
+                      "LANG_CREEK", "LEINER_RIVER", "MARBLE_RIVER", 
+                      "NIMPKISH_RIVER", "QUINSAM_RIVER", "TAHSIS_RIVER", 
+                      "WANNOCK_RIVER", "WOSS_RIVER", "YAKOUN_RIVER")
+  )
+
+
+pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
+  geom_point(aes(fill = stock_group), shape = 21) +
+  geom_hline(aes(yintercept = 0.8), colour = "red") +
+  facet_wrap(~pbt_stock, ncol = 4) +
+  labs(y = "Proportion of Brood Stock with PBT", x = "Brood Year") +
+  scale_x_discrete(
+    breaks = seq(2013, 2021, by = 2)
+  ) +
+  scale_fill_manual(values = smu_colour_pal) +
+  ggsidekick::theme_sleek() +
+  theme(legend.position = "top")
+
+png(
+  here::here("figs", "pbt_phos", "pbt_rate.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+pbt_coverage
+dev.off()
 
 
 ## CLEAN SIZE ------------------------------------------------------------------
