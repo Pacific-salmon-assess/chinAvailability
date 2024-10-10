@@ -58,7 +58,7 @@ stks <- dat %>%
   select(stock, region1name, stock_group) %>%
   distinct() %>%
   arrange(stock_group, region1name)
-# write.csv(stks, here::here("data", "stock_key.csv"), row.names = FALSE)
+write.csv(stks, here::here("data", "stock_key.csv"), row.names = FALSE)
 
 
 sample_key <- dat %>% 
@@ -265,8 +265,9 @@ rec_samp_bar_summer_h <- dat %>%
   )
 
 
-# proportion hatchery within each stock group
-hatchery_stock_dat <- dat %>%
+# proportion hatchery within each stock group (also constrained to post2019 with
+# similar patterns)
+hatchery_stock_bar <- dat %>%
   group_by(stock_group, origin2) %>%
   summarize(
     sum_prob = sum(prob), #/ total_n,
@@ -275,12 +276,8 @@ hatchery_stock_dat <- dat %>%
   group_by(stock_group) %>%
   mutate(
     ppn = sum_prob / sum(sum_prob)
-  )
-# export to estimate hatchery comp of diet
-# saveRDS(hatchery_stock_dat, here::here("data", "rec", "hatchery_stock_df.rds"))
-
-
-hatchery_stock_bar <- ggplot(hatchery_stock_dat) +
+  ) %>% 
+  ggplot(.) +
   geom_bar(aes(x = stock_group, y = ppn, fill = origin2),
            stat = "identity") +
   # facet_wrap(~strata) +
@@ -381,106 +378,7 @@ size_density
 dev.off()
 
 
-## MEAN pHOS -------------------------------------------------------------------
-
-# use SEP data to fit simple LM to estimate mean hatchery contribution for WCVI 
-# and ECVI systems
-phos <- readxl::read_xlsx(
-  here::here("data", "sep", "2024-08-20 annual pHOS summary.xlsx")
-) %>% 
-  filter(
-    estimate_type %in% c("Direct", "Partial Direct"),
-    cu_acronym %in% c("SWVI", "Chil_transp_F", "QP-fall", "MFR-summer",
-                      "CWCH-KOK", "LFR-fall", "EVI-fall", "EVIGStr-sum",
-                      "LTh", "NEVI", "STh-1.3", "STh-SHUR", "NEVI")
-  ) %>% 
-  mutate(
-   stock_group = case_when(
-    cu_acronym == "SWVI" ~ "WCVI",
-    cu_acronym %in% c("Chil_transp_F", "LFR-fall") ~ "FR_Fall",
-    grepl("EVI", cu_acronym) | cu_acronym %in% c("CWCH-KOK", "QP-fall") ~ 
-      "ECVI_SOMN",
-    cu_acronym == "MFR-summer" ~ "FR_Sum_5.2",
-    cu_acronym == "LTh" ~ "FR_Spr_4.2",
-    cu_acronym == "STh-1.3" ~ "FR_Spr_5.2",
-    cu_acronym == "STh-SHUR" ~ "FR_Sum_4.1"
-   ),
-   stock_group = factor(stock_group, levels = levels(dat$stock_group)),
-   population = gsub(" River", "", population),
-   population = gsub(" Creek", "", population),
-   population = fct_reorder(population, as.numeric(stock_group)),
-   pHOS = ifelse(pHOS == "1", 0.999, pHOS),
-   pHOS = ifelse(pHOS == "0", 0.001, pHOS)
-  ) 
-
-phos_box <- ggplot(phos) +
-  geom_boxplot(aes(x = population, y = pHOS, fill = stock_group)) +
-  scale_fill_manual(values = smu_colour_pal) +
-  labs(y = "Proportion Hatchery Origin Spawners", fill = NULL) +
-  ggsidekick::theme_sleek() +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "top")
-
-
-# swvi_phos <- phos %>% 
-#   filter(
-#     cu_acronym == "SWVI"
-#   ) %>% 
-#   droplevels()
-# fraser_fall_phos <- phos %>% 
-#   filter(
-#     cu_acronym == "Chil_transp_F"
-#   )
-# phos_list <- list(swvi_phos, fraser_fall_phos)
-# 
-library(glmmTMB)
-# 
-# # only one Fraser Fall population
-fit <- glmmTMB(
-  pHOS ~ 0 + stock_group + (1 | population), data = phos,
-  family = beta_family()
-)
-
-# # intercept is mean after accounting for interannual and among population 
-# # variation
-dd <- summary(fit)
-ci <-  confint(fit, parm = dd$coefficients$cond %>% rownames(), level = 0.95)
-boot::inv.logit(ci)
-
-png(
-  here::here("figs", "stock_comp_fishery", "phos_box.png"),
-  height = 5, width = 8.25, units = "in", res = 250
-)
-phos_box
-dev.off()
-
-
 ## FIT MODEL -------------------------------------------------------------------
-
-
-# Does not include year effects
-# system.time(
-#   fit <- gam(
-#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) ,
-#     data = agg_dat, family = "tw", method = "REML",
-#     knots = list(week_n = c(0, 52))
-#   )
-# )
-# # ~850 seconds to converge
-# saveRDS(
-#   fit,
-#   here::here("data", "model_fits", "fit_spatial_fishery_tw.rds")
-# )
-# 
-# class(fit) = c( "mvtweedie", class(fit) )
-# saveRDS(
-#   fit,
-#   here::here("data", "model_fits", "fit_spatial_fishery_mvtw.rds")
-# )
-
 
 # Includes year/stock as RE; remove global smooth after sdmTMB v fails to 
 # converge
@@ -499,65 +397,11 @@ saveRDS(
   here::here("data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds")
 )
 
-# NOTE: experimented with distance to shore covariate, but sdmTMB equivalent
-# failed to converge
-# system.time(
-#   fit3 <- gam(
-#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-#       s(shore_dist, by = stock_group, k = 4, bs = "tp") +
-#       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(sg_year, bs = "re"),
-#     data = agg_dat, family = "tw", method = "REML",
-#     knots = list(week_n = c(0, 52))
-#   )
-# )
-# class(fit3) = c( "mvtweedie", class(fit2) )
-# saveRDS(
-#   fit3,
-#   here::here("data", "model_fits", "fit_spatial_fishery2_ri_mvtw.rds")
-# )
-
-
-# Includes smooth for year by stock group
-# system.time(
-#   fit3 <- gam(
-#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 7, bs = "cc") +
-#       s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(year_n, by = stock_group, k = 4, bs = "tp"),
-#     data = agg_dat, family = "tw", method = "REML",
-#     knots = list(week_n = c(0, 52))
-#   )
-# )
-# class(fit3) = c( "mvtweedie", class(fit3) )
-# saveRDS(
-#   fit3,
-#   here::here(
-#     "data", "model_fits", "fit_spatial_fishery_yr_s_mvtw.rds"
-#   )
-# )
-
-
-
-## favor third model since it generates year-specific estimates and appears
-# to converge well; UPDATE -- does not converge with sdmTMB switch to RIs
-# fit_raw <- readRDS(
-#   here::here("data", "model_fits", "fit_spatial_fishery_tw.rds"))
-# fit <- readRDS(
-#     here::here(
-#       "data", "model_fits", "fit_spatial_fishery_mvtw.rds")
-#     )
 fit2 <- readRDS(
   here::here(
     "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds")
 )
-# fit3 <- readRDS(
-#   here::here(
-#       "data", "model_fits", "fit_spatial_fishery_yr_s_mvtw.rds"
-#     )
-# )
-  
+
 
 ## CHECK -----------------------------------------------------------------------
 
@@ -935,21 +779,21 @@ dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "season_preds_chinook.png"),
-  height = 6.5, width = 6.5, units = "in", res = 250
+  height = 6.5, width = 7.5, units = "in", res = 250
 )
 season_preds
 dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "smooth_preds_chinook.png"),
-  height = 8.5, width = 6.5, units = "in", res = 250
+  height = 8.5, width = 7.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_xaxis.png"),
-  height = 8.5, width = 6.5, units = "in", res = 250
+  height = 8.5, width = 7.5, units = "in", res = 250
 )
 summer_preds_fullx
 dev.off()

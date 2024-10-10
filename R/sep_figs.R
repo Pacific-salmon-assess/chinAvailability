@@ -80,7 +80,7 @@ pbt_rate_plot <- pbt_rate %>%
 pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
   geom_point(aes(fill = stock_group), shape = 21) +
   geom_hline(aes(yintercept = 0.8), colour = "red") +
-  facet_wrap(~pbt_stock, ncol = 4) +
+  facet_wrap(~pbt_stock, ncol = 3) +
   labs(y = "Proportion of Brood Stock with PBT", x = "Brood Year", 
        fill = NULL) +
   scale_x_discrete(
@@ -93,7 +93,7 @@ pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
 
 png(
   here::here("figs", "pbt_phos", "pbt_rate.png"),
-  height = 5, width = 7.5, units = "in", res = 250
+  height = 6.5, width = 5.75, units = "in", res = 250
 )
 pbt_coverage
 dev.off()
