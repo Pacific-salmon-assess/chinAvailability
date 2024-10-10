@@ -15,6 +15,11 @@ diet_dat <- diet_dat_in %>%
     utm_x_m = utm_x * 1000,  
     utm_y_m = utm_y * 1000 
   ) %>% 
+  group_by(utm_x_m, utm_y_m, strata, era, dataset) %>% 
+  summarize(
+    n_samples = round(sum(n_samples), digits = 0)
+  ) %>% 
+  ungroup() %>% 
   select(utm_x_m, utm_y_m, era, strata, n_samples, dataset) %>% 
   distinct()
 
@@ -22,13 +27,15 @@ rec_dat_in <- readRDS(
   here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
 ) 
 rec_dat <- rec_dat_in %>% 
-  mutate(
+  group_by(utm_x_m, utm_y_m, strata) %>% 
+  summarize(
     era = "current",
     dataset = "fishery",
-    n_samples = round(sample_id_n, digits = 0)
+    n_samples = round(sum(agg_prob), digits = 0)
   ) %>% 
   select(utm_x_m, utm_y_m, era, strata, n_samples, dataset) %>% 
-  distinct()
+  distinct() %>% 
+  ungroup()
 
 
 # combine and trim for mapping
@@ -59,13 +66,16 @@ strata_colour_pal <- RColorBrewer::brewer.pal(
   "Paired"
 )
 names(strata_colour_pal) <- levels(dat$strata) 
-era_shape_pal <- c(15, 16)
+era_shape_pal <- c(21, 22)
 names(era_shape_pal) <- levels(dat$era) 
 
   
-coast <- rbind(rnaturalearth::ne_states( "United States of America", 
-                                           returnclass = "sf"), 
-                 rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>% 
+# coast <- rbind(rnaturalearth::ne_states( "United States of America", 
+#                                            returnclass = "sf"), 
+#                  rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>%
+coast <- readRDS(
+  here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")
+  ) %>% 
   sf::st_transform(., crs = sp::CRS("+proj=longlat +datum=WGS84")) %>%
   sf::st_transform(., crs = sf::st_crs("+proj=utm +zone=10 +units=m")) %>% 
   sf::st_crop(
@@ -77,31 +87,32 @@ coast <- rbind(rnaturalearth::ne_states( "United States of America",
   )
 
 diet_samp_map <- ggplot() +
-  geom_sf(data = coast, color = "black", fill = "grey") +
+  geom_sf(data = coast,  fill = "white", colour = "white") +
   geom_point(
     data = dat,
-    aes(x = utm_x_m, y = utm_y_m, colour = strata, shape = era, 
+    aes(x = utm_x_m, y = utm_y_m, fill = strata, shape = era, 
         size = n_samples), 
-    alpha = 0.6
+    alpha = 0.5
   ) +
   geom_point(
     data = strata_key, aes(x = utm_x_m, y = utm_y_m), 
     shape = 4
   ) +
   coord_sf(expand = FALSE) +
-  scale_colour_manual(values = strata_colour_pal, name = "Spatial\nStrata") +
-  scale_size_continuous(name = "Number\nof\nSamples") +
+  scale_fill_manual(values = strata_colour_pal, name = "Spatial\nStrata") +
+  scale_size_continuous(guide = "none") +
   scale_shape_manual(values = era_shape_pal, name = "Diet\nSampling\nEra") +
   ggsidekick::theme_sleek() +
   theme(
-    panel.background = element_rect(fill = "white"),
-    axis.title = element_blank(),
+    strip.background = element_rect(colour="white", fill="white"),
+    panel.background = element_rect(fill = "grey40"),
     legend.position = "top",
-    axis.text = element_blank()
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank()
   ) +
   facet_wrap(
-    ~dataset,
-    ncol = 1
+    ~dataset, ncol = 1
   )
 
 
