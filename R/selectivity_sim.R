@@ -33,17 +33,12 @@ rkw_dat <- readRDS(
 # import fitted models
 model_fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_spatial_fishery_ri_mvtw.rds"
+    "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds"
   )
 )
-# slot_fit <- readRDS(
-#   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_slot.rds"
-#   )
-# )
 large_fit <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_large.rds"
+    "data", "model_fits", "fit_large.rds"
   )
 )
 fit_list <- list(model_fit, large_fit)
@@ -151,8 +146,8 @@ dd <- sim_ppn_dat %>%
   group_by(stock_group, dataset) %>% 
   summarize(
     med_dif = median(diff_ppn),
-    up_dif = quantile(diff_ppn, 0.975),
-    lo_dif = quantile(diff_ppn, 0.025)
+    up_dif = rethinking::HPDI(diff_ppn, 0.95)[2],
+    lo_dif = rethinking::HPDI(diff_ppn, 0.95)[1]
   ) 
 
 

@@ -1181,18 +1181,18 @@ fit <- readRDS(
     "data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds"
   )
 )
-fit_kept <- readRDS(
-  here::here(
-    "data", "model_fits", "fit_kept.rds"
-  )
-)
+# fit_kept <- readRDS(
+#   here::here(
+#     "data", "model_fits", "fit_kept.rds"
+#   )
+# )
 fit_large <- readRDS(
   here::here(
     "data", "model_fits", "fit_large.rds"
   )
 )
-fit_list <- list(fit, fit_large, fit_kept)
-model_names <- c("full", "large", "kept")
+fit_list <- list(fit, fit_large)
+model_names <- c("full", "large")
 
 excl <- grepl("year", gratia::smooths(fit))
 yr_coefs <- gratia::smooths(fit)[excl]
@@ -1230,9 +1230,9 @@ new_dat <- purrr::map2(
     model = factor(
       model,
       levels = c("full", #"slot yes", "slot no", 
-                 "large", "kept"),
+                 "large"),
       labels = c("standard",# "post-2019\nmanagement", "pre-2019\nmanagement", 
-                 "large", "kept")
+                 "large")
     )
   ) %>% 
   filter(
@@ -1241,7 +1241,7 @@ new_dat <- purrr::map2(
     # !(model %in% c("full", "large") & slot_limit == "yes")
     )
 
-model_pal <- c("#e41a1c", "#377eb8", "#984ea3")#, "#4daf4a", "#984ea3")
+model_pal <- c("#e41a1c", "#377eb8")#, "#4daf4a", "#984ea3")
 names(model_pal) <- levels(new_dat$model)
 
 model_comp_smooth1 <- ggplot(
@@ -1292,147 +1292,14 @@ model_comp_smooth2 <- ggplot(
 
 png(
   here::here("figs", "stock_comp_fishery", "model_comp_stock1.png"),
-  height = 6.5, width = 5.5, units = "in", res = 250
+  height = 6.5, width = 6.5, units = "in", res = 250
 )
 model_comp_smooth1
 dev.off()
 
 png(
   here::here("figs", "stock_comp_fishery", "model_comp_stock2.png"),
-  height = 6.5, width = 5.5, units = "in", res = 250
+  height = 6.5, width = 6.5, units = "in", res = 250
 )
 model_comp_smooth2
 dev.off()
-
-
-
-### OLD 
-## Slot limit analysis
-# agg_dat_slot <- expand.grid(
-#   sample_id = unique(dat$sample_id),
-#   stock_group = unique(dat$stock_group)
-# ) %>% 
-#   left_join(., sample_key, by = "sample_id", relationship = "many-to-many") %>% 
-#   left_join(
-#     ., 
-#     dat %>% 
-#       group_by(sample_id, stock_group) %>% 
-#       summarize(
-#         agg_prob = sum(prob)
-#       ) %>% 
-#       ungroup(),
-#     by = c("sample_id", "stock_group")
-#   ) %>% 
-#   mutate(
-#     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
-#     agg_ppn = agg_prob / sample_id_n,
-#     year_n = as.numeric(year),
-#     year = as.factor(year),
-#     stock_group = as.factor(stock_group),
-#     sg_year = paste(stock_group, year, sep = "_") %>% as.factor(),
-#     utm_x_m = utm_x * 1000,
-#     utm_y_m = utm_y * 1000
-#   ) #%>% 
-#   # focus only on western strata
-#   # filter(
-#   #   strata %in% c("Renfrew", "Swiftsure", "Nitinat")
-#   # ) %>% 
-#   # droplevels()
-# 
-# system.time(
-#   fit_slot <- gam(
-#     agg_prob ~ 0 + stock_group*slot_limit + 
-#       s(week_n, by = stock_group, k = 20, bs = "cc") +
-#       # s(utm_y, utm_x, m = c(0.5, 1), bs = "ds", k = 25) +
-#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
-#       s(sg_year, bs = "re"),
-#     data = agg_dat_slot, family = "tw", method = "REML",
-#     knots = list(week_n = c(0, 52))
-#   )
-# )
-# class(fit_slot) = c( "mvtweedie", class(fit_slot) )
-# saveRDS(
-#   fit_slot,
-#   here::here(
-#     "data", "model_fits", "fit_slot.rds"
-#   )
-# )
-# 
-# 
-# ## estimate slot limit period effects
-# slot_pars <- broom::tidy(fit_slot, parametric = TRUE, conf.int = TRUE) %>% 
-#   filter(grepl("slot", term)) %>% 
-#   mutate(
-#     stock_group = levels(agg_dat$stock_group) %>% 
-#       factor(., levels = levels(agg_dat$stock_group))
-#   ) 
-# 
-# slot_plot <- ggplot(slot_pars) +
-#   geom_point(
-#     aes(x = stock_group, y = estimate,  
-#         fill = stock_group), 
-#     shape = 21) +
-#   geom_pointrange(
-#     aes(x = stock_group, y = estimate,  ymin = conf.low, ymax = conf.high,
-#         fill = stock_group),
-#     shape = 21) +
-#   scale_fill_manual(values = smu_colour_pal) +
-#   geom_hline(aes(yintercept = 0), lty = 2) +
-#   ggsidekick::theme_sleek() +
-#   labs(y = "Management Regime Effect Size") +
-#   theme(
-#     legend.position = "none",
-#     axis.title.x = element_blank(),
-#     axis.text.x = element_text(angle = 45, hjust = 1)
-#   )
-# 
-# png(
-#   here::here("figs", "stock_comp_fishery", "slot_limit_effect.png"),
-#   height = 3.5, width = 5, units = "in", res = 250
-# )
-# slot_plot
-# dev.off()
-# 
-# 
-# # year-specific predictions (average strata)
-# 
-# pred_yr_slot = pred_dummy(
-#   fit_slot,
-#   se.fit = TRUE,
-#   category_name = "stock_group",
-#   origdata = agg_dat_slot,
-#   newdata = newdata
-# )
-# 
-# newdata2 <- cbind( newdata, fit=pred_yr_slot$fit, se.fit=pred_yr_slot$se.fit ) %>%
-#   mutate(
-#     lower = pmax(0, fit + (qnorm(0.025)*se.fit)),
-#     upper = fit + (qnorm(0.975)*se.fit)
-#   ) 
-
-#time series of changes in July size composition
-# jul_ts <- ggplot(newdata2 %>% filter(week_n == "29", slot_limit == "no"),
-#                  aes(x = year, y = fit, fill = stock_group)) +
-#   geom_pointrange(
-#     aes(ymin = lower, ymax = upper),
-#     shape = 21
-#   ) +
-#   facet_grid(stock_group~strata, scales = "free_y") +
-#   scale_fill_manual(values = smu_colour_pal) +
-#   ggsidekick::theme_sleek() +
-#   labs(y = "Predicted Mean Composition") +
-#   scale_x_discrete(
-#     breaks = seq(2014, 2022, by = 2)
-#   ) +
-#   theme(legend.position = "none",
-#         axis.text.x = element_text(angle = 45, hjust = 1),
-#         axis.title.x = element_blank(),
-#         strip.text = element_text(size = 8))
-# 
-# png(
-#   here::here("figs", "stock_comp_fishery", "time_series_stock.png"),
-#   height = 8.5, width = 5, units = "in", res = 250
-# )
-# jul_ts  
-# dev.off()
-
