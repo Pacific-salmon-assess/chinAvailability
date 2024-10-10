@@ -18,7 +18,7 @@ sep_rel <- readxl::read_xlsx(
 ) %>% 
   janitor::clean_names() %>% 
   filter(
-    avg_rel > 140000
+    avg_rel > 140000 | stock_name %in% c("Nechako R", "Chilko R")
   ) %>% 
   mutate(
     #rename to match pbt_rate df
@@ -53,11 +53,12 @@ pbt_rate_plot <- pbt_rate %>%
     stock_group = case_when(
       pbt_stock %in% 
         c("CAPILANO_RIVER", "COWICHAN_RIVER", "LITTLE_QUALICUM_RIVER",
-          "NANAIMO_RIVER_FALL", "QUALICUM_RIVER") ~ "ECVI_SOMN",
+          "NANAIMO_RIVER_FALL", "QUALICUM_RIVER", "PUNTLEDGE_RIVER") ~ "ECVI_SOMN",
       pbt_stock %in% c("CHEHALIS_RIVER_SUMMER", "CHILLIWACK_RIVER_FALL",
                        "HARRISON_RIVER") ~ "FR_Fall",
       pbt_stock %in% c("SHUSWAP_RIVER_LOWER", "SHUSWAP_RIVER_MIDDLE") ~ 
         "FR_Sum_4.1",
+      pbt_stock %in% c("CHILKO_RIVER", "NECHAKO_RIVER") ~ "FR_Sum_5.2",
       pbt_stock == "NICOLA_RIVER" ~ "FR_Spr_4.2",
       TRUE ~ "WCVI"
     ) %>% 
@@ -68,7 +69,7 @@ pbt_rate_plot <- pbt_rate %>%
   filter(
     pbt_stock %in% sep_rel$pbt_stock,
     # remove northern stocks 
-    !pbt_stock %in% c("ATNARKO_RIVER", "BURMAN_RIVER", "CONUMA_RIVER", 
+    !pbt_stock %in% c("ATNARKO_RIVER", "BURMAN_RIVER", 
                       "GOLD_RIVER", "KITIMAT_RIVER", "KITSUMKALUM_RIVER_LOWER",
                       "LANG_CREEK", "LEINER_RIVER", "MARBLE_RIVER", 
                       "NIMPKISH_RIVER", "QUINSAM_RIVER", "TAHSIS_RIVER", 
@@ -80,7 +81,8 @@ pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
   geom_point(aes(fill = stock_group), shape = 21) +
   geom_hline(aes(yintercept = 0.8), colour = "red") +
   facet_wrap(~pbt_stock, ncol = 4) +
-  labs(y = "Proportion of Brood Stock with PBT", x = "Brood Year") +
+  labs(y = "Proportion of Brood Stock with PBT", x = "Brood Year", 
+       fill = NULL) +
   scale_x_discrete(
     breaks = seq(2013, 2021, by = 2)
   ) +
