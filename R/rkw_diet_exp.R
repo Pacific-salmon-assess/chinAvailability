@@ -22,7 +22,7 @@ raw_dat <- readRDS(
 
 
 stock_key <- readRDS(
-  here::here("data", "rec", "finalStockList_Sep2024.rds")
+  here::here("data", "rec", "finalStockList_Oct2024.rds")
   ) %>%
   janitor::clean_names() %>% 
   mutate(
@@ -410,19 +410,9 @@ dev.off()
 ## CHECK PBT COVERAGE ----------------------------------------------------------
 
 # import PBT estimates to estimate coverage 
-pbt_rate <- readRDS(
-  here::here("data", "sep", "mean_pbt_rate.rds")
-) %>% 
-  mutate(
-    pbt_stock = ifelse(
-      collection_extract == "SHUSWAP_RIVER-LOWER (includes Kingfisher)",
-      "SHUSWAP_RIVER_LOWER",
-      gsub("-", "_", collection_extract) %>% 
-        toupper()
-    )
-  ) %>% 
-  select(
-    pbt_stock, pbt_brood_year_n = year, tag_rate
+pbt_rate <- readRDS(here::here("data", "sep", "cleaned_pbt.rds")) %>%
+  rename(
+    pbt_brood_year_n = brood_year
   )
 
 
@@ -434,39 +424,82 @@ dat_pbt <- dat %>%
       toupper(),
     # replace stocks with mismatched names
     pbt_stock = case_when(
-      pbt_stock %in% c("CHILLIWACK_RIVER", "CHILLIWACK_VEDDER_RIVER",
-                       "H_CHILLIWACK_RIVER", "S_CHILLIWACK_R") ~ 
-        "CHILLIWACK_RIVER_FALL",
-      pbt_stock == "COLDWATER_RIVER_UPPER" ~ "COLWDWATER_RIVER",
-      pbt_stock == "SHUSWAP_RIVER,_MIDDLE," ~ "SHUSWAP_RIVER_MIDDLE",
-      pbt_stock == "CHEHALIS_RIVER" ~ "CHEHALIS_RIVER_SUMMER",
-      pbt_stock == "BIG_QUALICUM_RIVER" ~ "QUALICUM_RIVER",
-      pbt_stock == "ATNARKO_RIVER_UPPER" ~ "ATNARKO_RIVER",
-      pbt_stock == "H_NITINAT_RIVER" ~ "NITINAT_RIVER",
-      pbt_stock == "S_BURMAN_R" ~ "BURMAN_RIVER",        
-      pbt_stock %in% c("S_CONUMA_R", "H_CONUMA_R") ~ "CONUMA_RIVER",        
-      pbt_stock == "S_COWICHAN_R" ~ "COWICHAN_RIVER",
-      pbt_stock %in%  c("S_FIRST_LK/GSVI", "S_NANAIMO_R", 
-                        "NANAIMO_RIVER_FALL")   ~ "NANAIMO_RIVER_FALL", 
-      pbt_stock == "S_GOLD_R" ~ "GOLD_RIVER",
-      pbt_stock == "NANAIMO_RIVER_S" ~ "NANAIMO_RIVER_SUMMER",       
-      pbt_stock == "S_NITINAT_R" ~ "NITINAT_RIVER",       
-      pbt_stock %in% c("S_ROBERTSON_CR", "H_ROBERTSON_CR", 
-                       "ROVERTSON_CREEK") ~ "ROBERTSON_CREEK",    
+      grepl("CAPILANO", pbt_stock) ~ "CAPILANO_RIVER",
+      stock %in% c("CHILLIWACK_RIVER_SUMMER") ~ "CHILLIWACK_RIVER_SUMMER",
+      grepl("CHILLIWAC", pbt_stock) ~ "CHILLIWACK_RIVER_FALL",
+      grepl("HARRISON", pbt_stock) ~ "HARRISON_RIVER",
+      grepl("HORSEFLY", pbt_stock) ~ "HORSEFLY_RIVER",
+      grepl("COLDWATER", pbt_stock) ~ "COLWDWATER_RIVER",
+      grepl("INDIANPOINT", pbt_stock) ~ "INDIANPOINT_CREEK",
+      pbt_stock %in% c("SHUSWAP_RIVER,_MIDDLE,") ~ "SHUSWAP_RIVER_MIDDLE",
+      grepl("CHEAKAMUS", pbt_stock) ~ "CHEAKAMUS_RIVER",
+      grepl("CHEHALIS_RIVER", pbt_stock) ~ "CHEHALIS_RIVER_SUMMER",
+      pbt_stock %in% c("L_QUALICUM") ~ "LITTLE_QUALICUM_RIVER",
+      grepl("QUALICUM", pbt_stock) ~ "QUALICUM_RIVER",
+      grepl("ATNARKO", pbt_stock) ~ "ATNARKO_RIVER",
+      grepl("BURMAN", pbt_stock) ~ "BURMAN_RIVER",
+      grepl("MCGREGOR", pbt_stock) ~ "MCGREGOR_RIVER",
+      grepl("MORKILL", pbt_stock) ~ "MORKILL_RIVER",
+      grepl("PHILLIPS", pbt_stock) ~ "PHILLIPS_RIVER",
+      grepl("NAZKO", pbt_stock) ~ "NAZKO_RIVER",
+      grepl("CONUMA", pbt_stock) ~ "CONUMA_RIVER",
+      grepl("NECHAKO", pbt_stock) ~ "NECHAKO_RIVER",
+      grepl("NICOLA", pbt_stock) ~ "NICOLA_RIVER",
+      grepl("PORTAGE", pbt_stock) ~ "PORTAGE_CREEK",
+      grepl("COWICHAN", pbt_stock) ~ "COWICHAN_RIVER",
+      grepl("QUESNEL", pbt_stock) ~ "QUESNEL_RIVER",
+      grepl("SERPENTINE", pbt_stock) ~ "SERPENTINE_RIVER",
+      grepl("TORPY", pbt_stock) ~ "TORPY_RIVER",
+      grepl("SLIM_C", pbt_stock) ~ "SLIM_CREEK",
+      grepl("SPIUS", pbt_stock) ~ "SPIUS_CREEK",
+      grepl("SWIFT", pbt_stock) ~ "SWIFT_CREEK",
+      pbt_stock == "SALMON_RIVER(THOM)" ~ "SALMON_RIVER_SOTH",
+      pbt_stock %in% 
+        c("S_FIRST_LK/GSVI", "S_NANAIMO_R", "NANAIMO_RIVER_FALL", "NANAIMO",
+          "NANAIMO_RIVER_UPPER", "NANAIMO_RIVER_F", "NANAIMO_F", 
+          "NANAIMOUPPER") ~ 
+        "NANAIMO_RIVER_FALL", 
+      pbt_stock %in% c("NANAIMO_RIVER_S", "NANAIMO_SU", "NANAIMOSU_BACKX") ~ 
+        "NANAIMO_RIVER_SUMMER",       
+      grepl("ASHLU", pbt_stock) ~ "ASHLU_CREEK",
+      grepl("NAHMINT", pbt_stock) ~ "NAHMINT_RIVER",
+      grepl("THORNTON", pbt_stock) ~ "THORNTON_CREEK",
+      grepl("GOLD", pbt_stock) ~ "GOLD_RIVER",
+      grepl("SOOKE", pbt_stock) ~ "SOOKE_RIVER",
+      grepl("NITINAT", pbt_stock) ~ "NITINAT_RIVER",
+      grepl("MAMQUAM", pbt_stock) ~ "MAMQUAM_RIVER",
+      grepl("SHOVEL", pbt_stock) ~ "SHOVELNOSE_CREEK",
+      grepl("ROBERTSON", pbt_stock) ~ "ROBERTSON_CREEK",
       grepl("TAHSIS", pbt_stock) ~ "TAHSIS_RIVER",
       grepl("TAHSISH", pbt_stock) ~ "TAHSIS_RIVER",
+      grepl("CHEMAINUS", pbt_stock) ~ "CHEMAINUS_RIVER",
       grepl("PUNTLEDGE", pbt_stock) ~ "PUNTLEDGE_RIVER_FALL",
-      pbt_stock == "H_SOOKE_RIVER" ~ "SOOKE_RIVER",
       pbt_stock == "S_SALMON_R/JNST" ~ "SALMON_RIVER_JNST",
-      pbt_stock == "S_SARITA_R" ~ "SARITA_RIVER",        
-      pbt_stock == "S_SUCWOA/TLUPANA_R" ~ "TLUPANA_RIVER",
-      pbt_stock == "CARIBOO_RIVER" ~ "CARIBOO",
-      pbt_stock == "S_LEINER_R" ~ "LEINER_RIVER",
-      pbt_stock == "S_MARBLE_R" ~ "MARBLE_RIVER",
-      pbt_stock == "S_NAHMINT_R" ~ "NAHMINT_RIVER",
-      pbt_stock == "S_QUINSAM_R" ~ "QUINSAM_RIVER",
-      pbt_stock == "S_SAN_JUAN_R" ~ "SAN_JUAN_RIVER",
-      pbt_stock == "WOSS_LAKE"~ "WOSS_RIVER",
+      grepl("SARITA", pbt_stock) ~ "SARITA_RIVER",
+      grepl("TLUPANA", pbt_stock) ~ "TLUPANA_RIVER",
+      grepl("COLDWATER", stock) ~ "COLDWATER_RIVER",
+      grepl("DEADMAN", stock) ~ "DEADMAN_RIVER",
+      pbt_stock == "COTTONWOOD_RIVER_LOWER" ~ "COTTONWOOD_RIVER_(LOWER)",
+      grepl("CARIBOO", pbt_stock) ~ "CARIBOO",
+      grepl("ENDAKO", pbt_stock) ~ "ENDAKO_RIVER",
+      grepl("LEINER", pbt_stock) ~ "LEINER_RIVER",
+      grepl("WILLOW", pbt_stock) ~ "WILLOW_RIVER",
+      grepl("MARBLE", pbt_stock) ~ "MARBLE_RIVER",
+      grepl("QUINSAM", pbt_stock) ~ "QUINSAM_RIVER",
+      grepl("WOSS", pbt_stock) ~ "WOSS_RIVER",
+      grepl("KENNEDY", pbt_stock) ~ "KENNEDY_RIVER_LOWER",
+      grepl("NIMPKISH", pbt_stock) ~ "NIMPKISH_RIVER",
+      grepl("TRANQUIL", pbt_stock) ~ "TRANQUIL_CREEK",
+      grepl("TOQUART", pbt_stock) ~ "TOQUART_RIVER",
+      grepl("BEDWELL", pbt_stock) ~ "BEDWELL_RIVER",
+      grepl("SAN_JUAN", pbt_stock) ~ "SAN_JUAN_RIVER",
+      grepl("BOWRON", pbt_stock) ~ "BOWRON_RIVER",
+      grepl("BRIDGE", pbt_stock) ~ "BRIDGE_RIVER",
+      stock %in% c("CARIBOO_RIVER-UPPER", "U_CARIBOO") ~ 
+        "CARIBOO_RIVER_UPPER",
+      grepl("CHILAKO", pbt_stock) ~ "CHILAKO_RIVER",
+      grepl("CHILCOTIN", pbt_stock) ~ "CHILCOTIN_RIVER_UPPER",
+      grepl("CHILKO", pbt_stock) ~ "CHILKO_RIVER",
       TRUE ~ pbt_stock
     ),
     pbt_brood_year_n = year - as.numeric(as.character(age_f))
@@ -476,13 +509,22 @@ dat_pbt <- dat %>%
   )
 
 dat_pbt %>% 
+  filter(high == TRUE) %>% 
+  group_by(id) %>% 
+  summarize(sum(stock_prob))
+
+dat_pbt %>% 
   mutate(
     high_phos = ifelse(
       grepl("ROBERT", stock) | grepl("NITINAT", stock) | grepl("SARITA", stock) |
         grepl("SOOKE", stock) | grepl("QUALIC", stock) | 
         grepl("NANAIMO", stock) | grepl("PUNTLE", stock) | 
-        grepl("QUINS", stock),
+        grepl("QUINS", stock)  | grepl("JUAN", stock),
       TRUE, FALSE
     )
   ) %>% 
-  filter(high_phos == TRUE)
+  filter(high_phos == TRUE) %>% 
+  group_by(id, stock, stock_id_method, pbt_brood_year_n) %>% 
+  summarize(sum_prob = sum(stock_prob)) %>% 
+  print(n = Inf)
+
