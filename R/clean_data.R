@@ -7,6 +7,37 @@ library(sf)
 library(ggplot2)
 
 
+# IMPORT STOCK KEY AND PREP ----------------------------------------------------
+
+# stock key
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Oct2024.rds")) %>%
+  janitor::clean_names() %>% 
+  mutate(
+    stock_group = case_when(
+      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
+        region1name == "Willamette_R" ~ 
+        "Col_Summer_Fall",
+      pst_agg %in% c("CR-lower_sp", "CR-upper_sp")  ~ "Col_Spring",
+      stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
+        "ECVI_SOMN",
+      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~
+        "other",
+      grepl("Fraser", region1name) ~ region1name,
+      TRUE ~ pst_agg
+    ) %>% 
+      factor(
+        .,
+        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
+                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
+                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
+                   "Fraser_Fall"),
+        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
+                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
+                   "FR_Sum_4.1", "FR_Fall")
+      )
+  )
+
+
 # CRITICAL HABITAT CLEAN -------------------------------------------------------
 
 if (Sys.info()['sysname'] == "Windows") {
@@ -426,34 +457,6 @@ pbt_rate$high <- ifelse(pbt_rate$pbt_stock %in% high_rate, TRUE, FALSE)
 
 # saveRDS(pbt_rate, here::here("data", "sep", "cleaned_pbt.rds"))
 
-# stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Oct2024.rds")) %>%
-  janitor::clean_names() %>% 
-  mutate(
-    stock_group = case_when(
-      pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
-        region1name == "Willamette_R" ~ 
-        "Col_Summer_Fall",
-      pst_agg %in% c("CR-lower_sp", "CR-upper_sp")  ~ "Col_Spring",
-      stock == "Capilano" | region1name %in% c("ECVI", "SOMN", "NEVI") ~
-        "ECVI_SOMN",
-      pst_agg %in% c("CA_ORCST", "WACST", "Russia", "NBC_SEAK", "Yukon") ~
-        "other",
-      grepl("Fraser", region1name) ~ region1name,
-      TRUE ~ pst_agg
-    ) %>% 
-      factor(
-        .,
-        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
-                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                   "Fraser_Fall"),
-        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
-                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
-                   "FR_Sum_4.1", "FR_Fall")
-      )
-  )
-
 wide_rec4_trim <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>% 
   filter(
     !is.na(stock_1)
@@ -714,3 +717,68 @@ wide_size <- wide_rec4 %>%
 
 saveRDS(wide_size, here::here("data", "rec", "rec_size.rds"))
 
+
+## CLEAN RKW DIET DATA ---------------------------------------------------------
+
+
+raw_dat <- readRDS(
+  here::here(
+    "data", "rkw_diet", "raw_data", "RKW predation_chin samples_long_filtered.RDS"
+  )
+)
+
+
+rkw_dat <- raw_dat %>% 
+  # correct weird stock 
+  mutate(
+    stock = ifelse(stock == "BIGQUL@LANG", "BIG_QUALICUM", stock)
+  ) %>% 
+  left_join(., stock_key, by = "stock") %>%
+  mutate(
+    strata = ifelse(is.na(strata), "swiftsure", as.character(strata)) %>%
+      factor(
+        .,
+        levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "cJDF",
+                   "sooke", "vic"),
+        labels = c("Swiftsure", "Nitinat", "Renfrew", "cJDF",
+                   "Sooke/\nVictoria", "San Juan\nIslands")
+      ),
+    month = lubridate::month(date),
+    # in-fill missing ages based on dominant life history strategy
+    total_year = case_when(
+      grepl("M", gr_age) & grepl(".2", smu) ~ sw_year + 2,
+      grepl("M", gr_age) & !grepl(".2", smu) ~ sw_year + 1,
+      TRUE ~ total_year
+    ) %>% 
+      as.factor(),
+    era = ifelse(year < 2015, "early", "current") %>% 
+      fct_relevel(., "current", after = Inf),
+    # sampling event = all samples collected in a given strata-year-month
+    # week not feasible given sample sizes
+    sample_id = paste(year, week, strata, sep = "_"),
+    sw_age = as.factor(sw_year),
+    age_stock_group = case_when(
+      grepl("Fraser", smu) ~ smu,
+      stock == "CAPILANO" ~ "Fraser_Fall",
+      agg == "SOG" ~ "ECVI_SOMN",
+      TRUE ~ agg
+    ) %>% 
+      as.factor()
+  ) %>% 
+  # since weeks may span multiple months, calculate median month for each week
+  group_by(sample_id) %>% 
+  mutate(month = median(month)) %>% 
+  ungroup() %>% 
+  mutate(sample_id_pooled = paste(era, month, strata, sep = "_")) %>% 
+  sdmTMB::add_utm_columns(
+    ., ll_names = c("longitude", "latitude"), ll_crs = 4326, units = "km"
+  ) %>% 
+  select(
+    id, sample_id, sample_id_pooled,
+    fw_year, sw_age, total_year, age_f = total_year,
+    era, year, month, week_n = week, strata, utm_y = Y, utm_x = X,
+    stock, stock_prob, stock_group, age_stock_group, stock_id_method,
+    lat = latitude, lon = longitude
+  )
+
+saveRDS(rkw_dat, here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))

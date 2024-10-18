@@ -18,7 +18,8 @@ knitr-cache
 *.laccdb
 *.mdb
 data/sep/
-data/raw_data/
+data/rkw_diet/raw_data/
+data/rec/raw_data/
 #data/run_size/
 
 # History files
