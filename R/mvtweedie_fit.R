@@ -149,10 +149,17 @@ summer_samp_size <- dat %>%
 
 ## DATA FIGURES ----------------------------------------------------------------
 
+sample_gap_poly <- data.frame(
+  x = c(1, 1, 52, 52),
+  y = c(2014, 2016, 2016, 2014)
+)
+
 # sampling coverage 
 rec_samp_cov <- ggplot(sample_key) +
-  geom_jitter(aes(x = week_n, y = year, size = sample_id_n, fill = slot_limit),
-              alpha = 0.4, shape = 21
+  geom_polygon(data = sample_gap_poly, aes(x = x, y = y), 
+               fill = "red", alpha = 0.3) +
+  geom_jitter(aes(x = week_n, y = year, size = sample_id_n),
+              alpha = 0.4
   ) +
   facet_wrap(~strata) +
   scale_size_continuous(name = "Sample\nSize") +
@@ -161,7 +168,6 @@ rec_samp_cov <- ggplot(sample_key) +
     labels = c("Jan", "May", "Sep", "Dec")
   ) + 
   lims(y = c(2003, 2023.5)) +
-  geom_hline(aes(yintercept = 2013), col = "red", lty = 2) +
   ggsidekick::theme_sleek() +
   theme(
     axis.title = element_blank()
@@ -175,7 +181,7 @@ rec_samp_bar <- ggplot(dat) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -200,7 +206,7 @@ rec_samp_bar_summer <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
@@ -224,7 +230,7 @@ rec_samp_bar_h <- ggplot(dat) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -249,7 +255,7 @@ rec_samp_bar_summer_h <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
@@ -280,11 +286,10 @@ hatchery_stock_bar <- dat %>%
   ggplot(.) +
   geom_bar(aes(x = stock_group, y = ppn, fill = origin2),
            stat = "identity") +
-  # facet_wrap(~strata) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Proportion of Individual Samples)"
   ) +
  theme(
     legend.position = "top",
@@ -295,6 +300,7 @@ hatchery_stock_bar <- dat %>%
 
 # stock-specific size
 median_size <- dat %>% 
+  mutate(fl = fl / 10) %>% 
   group_by(stock_group) %>% 
   summarise(
     median_value = median(fl),
@@ -306,7 +312,7 @@ median_size <- dat %>%
 size_density <- ggplot() +
   geom_density(data = dat %>%
                  filter(month_n %in% c("5", "6", "7", "8", "9", "10")), 
-               aes(x=fl, group=stock_group, fill=stock_group),
+               aes(x=fl / 10, group=stock_group, fill=stock_group),
                adjust=1.5) +
   geom_vline(data = median_size, aes(xintercept = median_value), lty = 2) +
   geom_vline(data = median_size, aes(xintercept = lower_quantile), lty = 3) +
@@ -314,7 +320,7 @@ size_density <- ggplot() +
   facet_wrap(~stock_group) +
   scale_fill_manual(values = smu_colour_pal) +
   ggsidekick::theme_sleek() +
-  labs(x = "Fork Length") +
+  labs(x = "Fork Length (cm)") +
   theme(
     legend.position="none",
     panel.spacing = unit(0.1, "lines"),

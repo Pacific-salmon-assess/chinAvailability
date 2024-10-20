@@ -125,23 +125,6 @@ summer_samp_size <- dat %>%
 
 ## DATA FIGURES ----------------------------------------------------------------
 
-# sampling coverage 
-size_samp_cov <- ggplot(sample_key) +
-  geom_jitter(aes(x = week_n, y = year, size = sample_id_n),
-              alpha = 0.4
-  ) +
-  facet_wrap(~strata) +
-  scale_size_continuous(name = "Sample\nSize") +
-  scale_x_continuous(
-    breaks = c(2, 20, 36, 50),
-    labels = c("Jan", "May", "Sep", "Dec")
-  ) + 
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.title = element_blank()
-  )
-
-
 # stacked bar plot
 rec_size_bar <- ggplot(dat) +
   geom_bar(aes(x = month_n, fill = size_bin)) +
@@ -149,7 +132,7 @@ rec_size_bar <- ggplot(dat) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = size_colour_pal, name = "Size\nBin") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -174,7 +157,7 @@ rec_size_bar_summer <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = size_colour_pal, name = "Size\nBin") +
   labs(
-    y = "Recreational Fishery\nComposition"
+    y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
@@ -190,12 +173,6 @@ rec_size_bar_summer <- dat %>%
   )
 
 
-png(
-  here::here("figs", "size_comp_fishery", "rec_size_sample_coverage.png"),
-  height = 5, width = 7.5, units = "in", res = 250
-)
-size_samp_cov
-dev.off()
 
 png(
   here::here("figs", "size_comp_fishery", "rec_monthly_size_bar.png"),

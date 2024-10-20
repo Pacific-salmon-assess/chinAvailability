@@ -10,7 +10,7 @@ library(mvtweedie)
 library(sf)
 
 # import cleaned data 
-dat <- readRDS(dat, here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
+dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
 
 
 ## aggregate data (calculate mean location and sample size of each event) 
@@ -80,10 +80,7 @@ ppn_dat_pooled <- dat %>%
 size_fit <- readRDS(here::here("data", "rec", "size_at_age_fit.rds"))
 
 size_pred_dat <- dat %>% 
-  filter(!is.na(sw_age)) %>% 
-  mutate(
-    slot_limit = "no"
-  ) 
+  filter(!is.na(sw_age))
 
 pp <- predict(size_fit, size_pred_dat)
 
@@ -152,13 +149,13 @@ names(era_pal) <- levels(ppn_dat)
 size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
 names(size_colour_pal) <- c(NA, levels(dd$size_bin))
 
-# hatchery origin colour palette
-# hatchery_colour_pal <- c("#006d2c", "#bae4b3", "grey30", "grey60", "#7a0177",
-#                          "#fbb4b9")
-# names(hatchery_colour_pal) <- levels(hatchery_dat$origin2)
-
 
 ## RAW DATA FIGURES ------------------------------------------------------------
+
+sample_gap_poly <- data.frame(
+  x = c(25, 25, 41, 41),
+  y = c(2014, 2016, 2016, 2014)
+)
 
 # sample coverage through time and among strata
 diet_samp_cov <- dat %>% 
@@ -168,7 +165,8 @@ diet_samp_cov <- dat %>%
   geom_point(aes(x = week_n, y = year, size = n, shape = era), 
              alpha = 0.6) +
   facet_wrap(~strata) +
-  geom_hline(aes(yintercept = 2013), col = "red", lty = 2) +
+  geom_polygon(data = sample_gap_poly, aes(x = x, y = y), 
+               fill = "red", alpha = 0.5) +
   scale_size_continuous(name = "Sample\nSize") +
   scale_shape_manual(values = era_pal, name = "Sample\nEra") +
   scale_x_continuous(
@@ -194,7 +192,7 @@ diet_samp_bar <- ggplot(dat) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
   labs(
-    y = "Prey Remains Composition"
+    y = "Prey Remains Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
@@ -217,7 +215,7 @@ age_samp_bar <- ggplot(dd) +
     name = "Marine\nAge", values = age_pal, na.value = "grey60" 
     ) +
   labs(
-    y = "Prey Remains Composition"
+    y = "Prey Remains Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
@@ -232,24 +230,6 @@ age_samp_bar <- ggplot(dd) +
     hjust = 1.1, vjust = 1.1
   )
 
-# hatchery_samp_bar <- ggplot(hatchery_dat) +
-#   geom_bar(aes(x = month, y = scaled_prob, fill = origin2), stat = "identity") +
-#   facet_grid(era~strata) +
-#   ggsidekick::theme_sleek() +
-#   scale_fill_manual(
-#     name = "Hatchery\nContribution", values = hatchery_colour_pal) +
-#   labs(
-#     y = "Prey Remains Composition"
-#   ) +
-#   scale_x_continuous(
-#     breaks = c(6, 7, 8, 9, 10),
-#     labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
-#   ) +
-#   theme(
-#     legend.position = "top",
-#     axis.title.x = element_blank()
-#   )
-
 # box plots of size
 size_samp_bar <- ggplot(dd) +
   geom_bar(aes(x = month, fill = size_bin)) +
@@ -258,7 +238,7 @@ size_samp_bar <- ggplot(dd) +
   scale_fill_manual(name = "Size\nClass", values = size_colour_pal, 
                     na.value = "grey60" ) +
   labs(
-    y = "Prey Remains Composition"
+    y = "Prey Remains Composition\n(Individual Samples)"
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
@@ -303,13 +283,6 @@ png(
 )
 size_samp_bar
 dev.off()
-# 
-# png(
-#   here::here("figs", "rkw_diet", "comp_bar_prey_hatchery.png"),
-#   height = 5, width = 8, units = "in", res = 250
-# )
-# hatchery_samp_bar
-# dev.off()
 
 
 ## CHECK PBT COVERAGE ----------------------------------------------------------

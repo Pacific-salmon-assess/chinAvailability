@@ -161,10 +161,10 @@ sel_bean <- ggplot() +
     aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
     label = "*", size = 7.5, colour = "red"
   ) +
-  labs(x = "Difference Between Observed and Predicted Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition",
+       y = "Stock") +
   ggsidekick::theme_sleek() +
-  theme(legend.position = "none",
-        axis.title.y = element_blank()) +
+  theme(legend.position = "none") +
   geom_vline(xintercept = 0, lty = 2)
 
 sel_bean2 <- ggplot() +
@@ -179,12 +179,12 @@ sel_bean2 <- ggplot() +
     aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
     label = "*", size = 7.5, colour = "red"
   ) +
-  labs(x = "Difference Between Observed and Predicted Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition",
+       y = "Stock") +
   facet_wrap(~dataset, ncol = 1) +
   scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
-  theme(legend.position = "none",
-        axis.title.y = element_blank()) +
+  theme(legend.position = "none") +
   geom_vline(xintercept = 0, lty = 2)
 
 png(
@@ -297,22 +297,12 @@ rkw_dat_size <- readRDS(
 # import fitted models
 fit_size <- readRDS(
   here::here(
-    "data", "model_fits", "mvtweedie", "fit_size_mvtw.rds"
+    "data", "model_fits", "fit_size_mvtw.rds"
   )
 )
-# slot_fit_size <- readRDS(
-#   here::here(
-#     "data", "model_fits", "mvtweedie", "fit_size_slot.rds"
-#   )
-# )
-# 
-fit_list <- list(fit_size#, slot_fit_size
-                 )
+fit_list <- list(fit_size)
 
 
-# ensure size bins the same
-identical(
-  levels(fit_size$model$size_bin), levels(slot_fit_size$model$size_bin))
 size_bins <- levels(fit_size$model$size_bin)
 
 
@@ -340,8 +330,7 @@ new_dat_size <- purrr::map(
       ) %>% 
       mutate(
         obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn),
-        sg_year = paste(size_bin, year_n, sep = "_") %>% as.factor(),
-        slot_limit = "no"
+        sg_year = paste(size_bin, year_n, sep = "_") %>% as.factor()
       )
   }
 ) %>% 
@@ -350,7 +339,7 @@ new_dat_size <- purrr::map(
 
 # generate predictions based on each fitted model and store as tibble
 pred_tbl_size <- tibble(
-  dataset = c("standard", "management")
+  dataset = c("standard")
 ) %>% 
   mutate(
     pred_dat = purrr::map(
@@ -389,16 +378,14 @@ p_val_size <- purrr::map2(
 p_val_sig_size <- p_val_size %>% 
   filter(p_value < 0.05) %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard"#, "management"
-                                         ))
+    dataset = factor(dataset, levels = c("standard"))
   )
 
 
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat_size <- pred_tbl_size %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard"#, "management"
-                                         )),
+    dataset = factor(dataset, levels = c("standard")),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
@@ -434,31 +421,13 @@ sel_bean_size <- ggplot() +
     aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
     label = "*", size = 7.5, colour = "red"
   ) +
-  labs(x = "Difference Between Observed and Predicted Composition") +
+  labs(x = "Difference Between Observed and Predicted Composition",
+       y = "Size Bin (cm)") +
   ggsidekick::theme_sleek() +
   theme(legend.position = "none",
         axis.title.y = element_blank()) +
   geom_vline(xintercept = 0, lty = 2)
 
-# sel_bean2_size <- ggplot() +
-#   geom_pointrange(
-#     data = diff_quantile,
-#     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin, 
-#         fill = dataset),
-#     shape = 21
-#   ) +
-#   geom_text(
-#     data = p_val_sig_size,
-#     aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
-#     label = "*", size = 7.5, colour = "red"
-#   ) +
-#   labs(x = "Difference Between Observed and Predicted Composition") +
-#   facet_wrap(~dataset, ncol = 1) +
-#   scale_fill_manual(values = dataset_pal, name = "Model") +
-#   ggsidekick::theme_sleek() +
-#   theme(legend.position = "none",
-#         axis.title.y = element_blank()) +
-#   geom_vline(xintercept = 0, lty = 2)
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_size.png"),
@@ -466,6 +435,7 @@ png(
 )
 sel_bean_size
 dev.off()
+
 
 # png(
 #   here::here("figs", "selectivity", "selectivity_bean_size_comp.png"),
