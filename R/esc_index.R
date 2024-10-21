@@ -60,14 +60,18 @@ esc_dat <- expand.grid(
                    "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
                    "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
                    "Fraser_Fall"),
-        labels = c("WA_Coastal", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
-                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
-                   "FR_Sum_4.1", "FR_Fall")
+        labels = c(
+          "Washington\nCoastal", "Columbia\nSpring", "Columbia\nSummer/Fall",  
+          "Puget Sound", "Westcoast\nVan. Island", "Eastcoast\nVan. Island",
+          "Fraser\nSpring 4.2", "Fraser\nSpring 5.2", "Fraser\nSummer 5.2", 
+          "Fraser\nSummer 4.1", "Fraser \nFall"
+        )
       ),
     region = ifelse(
       stock_group %in% c(
-        "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
-        "FR_Sum_4.1", "FR_Fall", "PSD"
+        "Puget Sound",
+        "Fraser\nSpring 4.2", "Fraser\nSpring 5.2", "Fraser\nSummer 5.2", 
+        "Fraser\nSummer 4.1", "Fraser \nFall"
         ) |
         stock %in% c("lower_gst_a17_19_28_29", "upper_gst_a13_16", 
                      "juan_de_fuca"),
@@ -85,7 +89,7 @@ esc_dat <- expand.grid(
 sg_esc <- esc_dat %>% 
   group_by(year_n, average, stock_group) %>% 
   summarize(
-    sum_esc = sum(esc)
+    sum_esc = sum(esc, na.rm = T)
   ) # %>% 
   # remove incomplete data (southern US not available)
   # filter(
