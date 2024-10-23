@@ -12,3 +12,4 @@ Scripts:
 6) sep_figs.R: figures associated with pHOS and PBT marking rates
 7) sampling_maps.R: figures representing sampling locations
 8) size_by_stock.R: size-at-age of Chinook salmon stocks
+9) esc_index.R: generates figures showing terminal abundance
