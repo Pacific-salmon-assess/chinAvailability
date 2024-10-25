@@ -20,7 +20,9 @@ knitr-cache
 data/sep/
 data/rkw_diet/raw_data/
 data/rec/raw_data/
-#data/run_size/
+data/run_size/old/
+R/defunct/
+
 
 # History files
 .Rhistory
