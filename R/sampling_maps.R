@@ -99,10 +99,15 @@ diet_samp_map <- ggplot() +
     shape = 4
   ) +
   coord_sf(expand = FALSE) +
-  scale_fill_manual(values = strata_colour_pal, name = "Spatial\nStrata") +
+  scale_fill_manual(values = strata_colour_pal,
+                    name = "Spatial\nStrata") +
   scale_size_continuous(guide = "none") +
-  scale_shape_manual(values = era_shape_pal, name = "Diet\nSampling\nEra") +
+  scale_shape_manual(values = era_shape_pal, 
+                     name = "Diet\nSampling\nEra") +
   ggsidekick::theme_sleek() +
+  guides(
+    fill = guide_legend(override.aes = list(shape = 21))
+  ) +
   theme(
     strip.background = element_rect(colour="white", fill="white"),
     panel.background = element_rect(fill = "grey40"),
