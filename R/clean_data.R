@@ -744,6 +744,7 @@ rkw_dat <- raw_dat %>%
                    "Sooke/\nVictoria", "San Juan\nIslands")
       ),
     month = lubridate::month(date),
+    yday = lubridate::yday(date),
     # in-fill missing ages based on dominant life history strategy
     total_year = case_when(
       grepl("M", gr_age) & grepl(".2", smu) ~ sw_year + 2,
@@ -753,8 +754,7 @@ rkw_dat <- raw_dat %>%
       as.factor(),
     era = ifelse(year < 2015, "early", "current") %>% 
       fct_relevel(., "current", after = Inf),
-    # sampling event = all samples collected in a given strata-year-month
-    # week not feasible given sample sizes
+    # sampling event = all samples collected in a given strata-year-week
     sample_id = paste(year, week, strata, sep = "_"),
     sw_age = as.factor(sw_year),
     age_stock_group = case_when(
@@ -776,9 +776,17 @@ rkw_dat <- raw_dat %>%
   select(
     id, sample_id, sample_id_pooled,
     fw_year, sw_age, total_year, age_f = total_year,
-    era, year, month, week_n = week, strata, utm_y = Y, utm_x = X,
+    era, year, month, week_n = week, yday, strata, utm_y = Y, utm_x = X,
     stock, stock_prob, stock_group, age_stock_group, stock_id_method,
     lat = latitude, lon = longitude
   )
 
 saveRDS(rkw_dat, here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
+
+
+## plot spatio temporal distribution of sampling events
+rkw_dat %>% 
+  group_by(year, yday) %>% 
+  summarize(nn = length(unique(id))) %>% 
+  ggplot(.) +
+  geom_point(aes(y = as.factor(year), x = yday, size = nn))

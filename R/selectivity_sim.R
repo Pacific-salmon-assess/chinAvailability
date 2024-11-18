@@ -19,6 +19,9 @@ names(dataset_pal) <- c("standard", "management", "large")
 ## STOCK SELECTIVITY -----------------------------------------------------------
 
 # import SRKW prey data
+# NOTE: uses mean week and location for samples collected within a given strata;
+# exploratory analysis using single observations provided qualitatively similar
+# results with much greater uncertainty
 rkw_dat <- readRDS(
   here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
 ) %>%

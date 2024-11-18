@@ -20,6 +20,10 @@ dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
 
 # week-year scale
 sample_key <- dat %>% 
+  mutate(
+    yday = lubridate::yday(date),
+    sample_id = paste(year, yday, strata, sep = "_")
+  ) %>% 
   select(sample_id, id, utm_y, utm_x) %>% 
   distinct() %>% 
   group_by(sample_id) %>% 
@@ -43,35 +47,6 @@ ppn_dat <- dat %>%
 # saveRDS(
 #   ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
 # )
-
-
-# month scale
-sample_key_pooled <- dat %>% 
-  select(sample_id_pooled, id, utm_y, utm_x, week_n) %>% 
-  distinct() %>% 
-  group_by(sample_id_pooled) %>% 
-  summarize(
-    n_samples = length(unique(id)),
-    utm_y = mean(utm_y),
-    utm_x = mean(utm_x),
-    week_n = mean(week_n)
-  )
-
-ppn_dat_pooled <- dat %>% 
-  group_by(sample_id_pooled, era, month, strata, stock_group) %>% 
-  summarize(
-    agg_count = sum(stock_prob),
-    .groups = "drop"
-  ) %>% 
-  ungroup() %>% 
-  left_join(., sample_key_pooled, by = "sample_id_pooled") %>% 
-  mutate(
-    agg_prob = agg_count / n_samples
-  ) 
-# saveRDS(
-#   ppn_dat_pooled, here::here("data", "rkw_diet", "cleaned_ppn_dat_pooled.rds")
-# )
-
 
 
 ## CALCULATE MEAN SIZE ---------------------------------------------------------
