@@ -196,12 +196,24 @@ wide_rec <- rec_raw_new %>%
       !is.na(pbt_brood_year_n) ~ year - pbt_brood_year_n,
       TRUE ~ resolved_age
     ),
+    age_source = case_when(
+      !is.na(cwt_brood_year) ~ "cwt",
+      !is.na(pbt_brood_year_n) ~ "pbt",
+      !is.na(resolved_age) ~ "scale"
+    ),
     pbt = ifelse(
       is.na(pbt_brood_year_n),
       FALSE,
       TRUE
     )
   ) 
+
+# CALCULATE AGE CLASSIFICATION ERROR
+#1) make age_gr vs age key 
+#2) assign scale_age based on age_gr and resolved_age
+#3) define true age based on cwt, or pbt
+#4) subset to samples that have both a true age and scale age estimate
+#5) calculate classification accuracy
 
 # check to see if true duplicates by grouping by biokey then checking to see if 
 # fork lengths and resolved stock id match
@@ -301,8 +313,8 @@ wide_all <- full_join(wide_rec, corrected_sizes, by = "temp_key") %>%
     fishing_site = fishing_location,
     subarea, lat, lon, #shore_dist,
     fl, ad = adipose_fin_clipped, disposition,
-    pbt, pbt_brood_year_n,
-    age, age_gr, resolved_stock_source, 
+    pbt, pbt_brood_year_n, cwt_brood_year_n = cwt_brood_year,
+    age_gr, resolved_stock_source, 
     stock_1, stock_2 = dna_stock_2, stock_3 = dna_stock_3,
     stock_4 = dna_stock_4, stock_5 = dna_stock_5,
     starts_with("prob")
@@ -375,20 +387,20 @@ wide_rec4$strata <- ifelse(wide_rec4$fishing_site == "Cape Kepple",
                            wide_rec4$strata)
 
 #check disposition
-wide_rec4 %>%
-  filter(!strata == "other") %>%
-  group_by(year, strata2, week_n, month_n) %>%
-  mutate(count = length(unique(id)),
-         released = ifelse(disposition == "Released", 1, 0)) %>%
-  group_by(year, strata2, week_n, month_n, released, count) %>%
-  summarize(
-    ppn_rel = sum(released) / count
-  ) %>%
-  distinct() %>%
-  ggplot(.) +
-  geom_jitter(aes(x = as.factor(month_n), ppn_rel)) +
-  facet_wrap(~strata2)
-  
+# wide_rec4 %>%
+#   filter(!strata == "other") %>%
+#   group_by(year, strata2, week_n, month_n) %>%
+#   mutate(count = length(unique(id)),
+#          released = ifelse(disposition == "Released", 1, 0)) %>%
+#   group_by(year, strata2, week_n, month_n, released, count) %>%
+#   summarize(
+#     ppn_rel = sum(released) / count
+#   ) %>%
+#   distinct() %>%
+#   ggplot(.) +
+#   geom_jitter(aes(x = as.factor(month_n), ppn_rel)) +
+#   facet_wrap(~strata2)
+#   
 
 #checks for mapping locations 
 # coast <- readRDS(
@@ -424,7 +436,8 @@ nrow(wide_rec4 %>%
        filter(!is.na(stock_1) & !is.na(lat))) #70k stock/loc 
 
 
-saveRDS(wide_rec4, here::here("data", "rec", "wide_rec.rds"))
+saveRDS(wide_rec4 %>% select(-fishing_site),
+        here::here("data", "rec", "wide_rec.rds"))
 
 
 # GSI CLEAN --------------------------------------------------------------------
@@ -461,6 +474,7 @@ wide_rec4_trim <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>%
   filter(
     !is.na(stock_1)
   )
+
 
 #pivot to long (probs and stock IDs separately) and join 
 probs <- wide_rec4_trim %>% 
@@ -571,12 +585,13 @@ long_rec <- wide_rec4_trim %>%
       TRUE ~ pbt_stock
     ),
     # some estimated ages don't line up with pbt brood; assume latter correct
-    age = ifelse(!is.na(pbt_brood_year_n), year - pbt_brood_year_n, age),
-    # define saltwater age based on total age relative to dominant life history
+    pbt_age = ifelse(!is.na(pbt_brood_year_n), year - pbt_brood_year_n, NaN),
+    cwt_age = ifelse(!is.na(cwt_brood_year_n), year - cwt_brood_year_n, NaN),
+    true_age = ifelse(!is.na(cwt_age), cwt_age, pbt_age),
     sw_age = case_when(
-      grepl("M", age_gr) ~ stringr::str_split(age_gr, "(?<=\\d)(?=\\D)") %>% 
-        unlist() %>% 
-        .[[1]] %>% 
+      grepl("M", age_gr) ~ stringr::str_split(age_gr, "(?<=\\d)(?=\\D)") %>%
+        unlist() %>%
+        .[[1]] %>%
         as.numeric(),
       # young 2.1s likely 1.2s
       (stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
@@ -659,6 +674,11 @@ long_rec %>%
 saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
 
+## calculate mis-ID rate for each individual 
+long_rec %>% 
+  filter(!is.na(true_age))
+
+
 ## CLEAN SIZE ------------------------------------------------------------------
 
 wide_rec4 <- readRDS(here::here("data", "rec", "wide_rec.rds"))
@@ -725,7 +745,10 @@ raw_dat <- readRDS(
   here::here(
     "data", "rkw_diet", "raw_data", "RKW predation_chin samples_long_filtered.RDS"
   )
-)
+) %>% 
+  filter(
+    population == "SR"
+  )
 
 
 rkw_dat <- raw_dat %>% 
