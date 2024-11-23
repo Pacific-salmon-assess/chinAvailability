@@ -199,7 +199,8 @@ wide_rec <- rec_raw_new %>%
     age_source = case_when(
       !is.na(cwt_brood_year) ~ "cwt",
       !is.na(pbt_brood_year_n) ~ "pbt",
-      !is.na(resolved_age) ~ "scale"
+      is.na(pbt_brood_year_n) & is.na(cwt_brood_year) & !is.na(resolved_age) ~ 
+        "scale"
     ),
     pbt = ifelse(
       is.na(pbt_brood_year_n),
@@ -208,12 +209,35 @@ wide_rec <- rec_raw_new %>%
     )
   ) 
 
-# CALCULATE AGE CLASSIFICATION ERROR
-#1) make age_gr vs age key 
-#2) assign scale_age based on age_gr and resolved_age
-#3) define true age based on cwt, or pbt
-#4) subset to samples that have both a true age and scale age estimate
-#5) calculate classification accuracy
+
+# export data for age classification error analysis
+rec_for_aging <- wide_rec %>% 
+  filter(
+    (!is.na(cwt_brood_year) & !is.na(age_gr)) |
+      (!is.na(pbt_brood_year_n) & !is.na(age_gr)),
+    !grepl("M", age_gr),
+    !grepl("F", age_gr),
+    !grepl("S", age_gr),
+    !grepl("R", age_gr),
+    !(is.na(resolved_stock_origin) | resolved_stock_rollup == "SUS (assumed)")
+  ) %>% 
+  mutate(
+    stock = case_when(
+      resolved_stock_source == "DNA" ~ dna_results_stock_1,
+      resolved_stock_source == "CWT" ~ cwt_result,
+      resolved_stock_source == "Otolith Stock" ~ oto_stock,
+    ) %>% 
+      toupper(),
+    pbt_yes = ifelse(!is.na(pbt_brood_year_n), "yes", "no"),
+    cwt_yes = ifelse(!is.na(cwt_brood_year), "yes", "no")
+  ) %>% 
+  left_join(., stock_key %>% select(stock, stock_group), by = "stock") %>% 
+  select(
+    biokey, year, stock, resolved_stock_rollup, stock_group, age, age_gr, 
+    age_source
+  )
+saveRDS(rec_for_aging, here::here("data", "rec", "aging_data.rds"))
+
 
 # check to see if true duplicates by grouping by biokey then checking to see if 
 # fork lengths and resolved stock id match
