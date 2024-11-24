@@ -21,8 +21,40 @@ age_key <- data.frame(
   est_age = c(2, 3, 3, 3, 4, 4, 5, 5, 5, 6)
 )
 
+
+# import confusion matrices from Fraser and convert to long DF
+fr_stocks <- c("FR_Sum_4.1", "FR_Fall", "FR_Sum_5.2", "FR_Spr_4.2")
+stock_list <- vector(mode = "list", length = length(fr_stocks))
+for (i in seq_along(fr_stocks)) {
+  stock_list[[i]] <- readxl::read_xlsx(
+    here::here("data", "rec", "aging_error.xlsx"),
+    sheet = i
+  ) %>%
+    pivot_longer(
+      cols = starts_with("cwt_"),
+      names_to = "cwt_age",
+      names_prefix = "cwt_",
+      values_to = "count"
+    ) %>% 
+    mutate(
+      stock_group = fr_stocks[i],
+      age_source = "cwt",
+      location = "freshwater",
+      cwt_age = as.numeric(cwt_age)
+    )
+}
+fr_stock_dat <- bind_rows(stock_list) %>% 
+  rename(est_age = scale_age, age = cwt_age) %>% 
+  #expand to individual observations
+  uncount(weights = count) 
+
+
 dum <- age_dat %>% 
-  left_join(., age_key, by = "age_gr") %>% 
+  left_join(., age_key, by = "age_gr") %>%
+  mutate(age = age,
+         location = "marine") %>% 
+  select(est_age, age, stock_group, age_source, location) %>%
+  rbind(., fr_stock_dat) %>% 
   mutate(
     bias = case_when(
       age - est_age == 0 ~ "zero",
@@ -35,22 +67,20 @@ dum <- age_dat %>%
 
 samp_size <- dum %>% 
   group_by(stock_group, age) %>% 
-  summarize(
-    n = length(unique(biokey))
-  )
+  tally()
 
 ppn_dat <- dum %>% 
-  group_by(age) %>% 
+  group_by(stock_group, age) %>% 
   mutate(age_n = n(), .groups = "drop") %>% 
   ungroup() %>% 
-  group_by(bias, age, age_n) %>% 
+  group_by(stock_group, bias, age, age_n) %>% 
   tally() %>% 
   mutate(prop = n / age_n)
 
 ggplot(ppn_dat) +
   geom_bar(aes(x = age, y = prop, fill = bias),
            position="stack", stat="identity") +
-  # facet_wrap(~stock_group) +
+  facet_wrap(~stock_group) +
   ggsidekick::theme_sleek() +
   geom_text(
     data = samp_size, aes(x = age, y = -Inf, label = paste(n)),
