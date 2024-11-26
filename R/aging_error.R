@@ -1,11 +1,12 @@
 # Calculate Age Classification Errror
 # Uses data exported from clean_data.R
 # Nov 22, 2024
-#1) make age_gr vs age key 
-#2) assign scale_age based on age_gr and resolved_age
-#3) define true age based on cwt, or pbt
-#4) subset to samples that have both a true age and scale age estimate
-#5) calculate classification accuracy
+# 1) Use marine fishery and freshwater escapement samples as classification
+# accuracy data
+# 2) Fit multinomial model then generate stock specific aging accuracy estimates
+# 3) Export posterior to combine with size-at-age predictions to generate 
+# dataset of join posterior that can be sampled to derive size distribution 
+# probabilities and ultimately size class assignment vector
 
 library(tidyverse)
 library(brms)
@@ -100,7 +101,8 @@ prior_in <- c(
   prior(normal(0, 2), class = "b", coef = "age4", dpar = "muover"),
   prior(normal(0, 2), class = "b", coef = "age5", dpar = "muover"),
   prior(normal(0, 2), class = "b", coef = "age6", dpar = "muover"),
-  prior(exponential(1), class = "sd")  # Prior for random effects
+  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
+  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")  # Prior for random effects
 )
 
 fit <- brm(
@@ -108,32 +110,57 @@ fit <- brm(
                family = categorical(link = "logit")),
   data = dum,
   prior = prior_in,
-  chains = 4, cores = 4, iter = 2000
+  chains = 4, cores = 4, iter = 2000,
+  control = list(adapt_delta = 0.96)
 )
+saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
 
 
-new_data <- data.frame(
-  age = levels(dum$age)
-)
+new_data <- expand.grid(
+  age = levels(dum$age),
+  stock_group = levels(dum$stock_group)
+) %>% 
+  mutate(
+    asg = paste(age, stock_group, sep = "-")
+  )
 
 # Generate posterior predicted probabilities for the new data
 posterior_probs_new <- posterior_epred(fit, newdata = new_data)
+colnames(posterior_probs_new) <- new_data$asg
 
 posterior_probs_new %>%
   apply(c(2, 3), mean) %>%  # Take mean across posterior samples
   as.data.frame() %>%
   pivot_longer(cols = everything(), names_to = "bias", 
                values_to = "mean_prob") %>%
-  mutate(age = rep(new_data$age, each = length(unique(dum$bias)))) %>% 
+  glimpse()
+  mutate(asg = rep(new_data$asg, each = length(unique(dum$bias)))) %>% 
+  left_join(., new_data, by = "asg") %>% 
   ggplot(.) +
   geom_bar(aes(x = age, y = mean_prob, fill = bias),
            position="stack", stat="identity") +
+  facet_wrap(~stock_group) +
   ggsidekick::theme_sleek()
 
 
+# export posterior samples
+bias_names <- dimnames(posterior_probs_new)[[3]]
+post_list <- vector(mode = "list", length = 3)
+for (i in 1:3) {
+  post_list[[i]] <- posterior_probs_new[ , , 1] %>% 
+    as.data.frame() %>%
+    pivot_longer(cols = everything(), names_to = "asg", 
+                 values_to = "prob") %>% 
+    left_join(., new_data, by = "asg") %>% 
+    mutate(iter = rep(seq(1, 55, by = 1), each = 4000),
+           bias = bias_names[[i]])
+}
 
-# Load necessary library
-library(glmmTMB)
+post_out <- bind_rows(post_list)
+saveRDS(post_out, here::here("data", "rec", "age_bias_post_draws.rds"))
+
+
+## simulation check
 
 # 1. Simulate Multinomial Response Data with Categorical Predictor
 set.seed(123)  # For reproducibility
@@ -176,13 +203,6 @@ sim_data %>%
   group_by(x, y) %>% 
   tally()
 
-
-# 2. Fit the Multinomial Model using glmmTMB
-fit <- glmmTMB(
-  y ~ x,  # Formula for fixed effect
-  family = multinomial(link = "logit"),
-  data = sim_data
-)
 fit <- brm(
   formula = bf(y ~ x, #+ (1 | stock_group), 
                family = categorical(link = "logit")),

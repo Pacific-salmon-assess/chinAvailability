@@ -14,6 +14,8 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Oct2024.rds")) %>
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
+      region1name == "Juan_de_Fuca" | grepl("NICKOME", stock) | 
+        grepl("SERPEN", stock) ~ "PSD",
       pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
         region1name == "Willamette_R" ~ 
         "Col_Summer_Fall",
@@ -621,13 +623,13 @@ long_rec <- wide_rec4_trim %>%
       (stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
          pst_agg %in% c("NBC_SEAK")) & age_gr == "21" ~ 1,
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
-        pst_agg %in% c("NBC_SEAK") ~ age - 2,
+        pst_agg %in% c("NBC_SEAK") ~ true_age - 2,
       # if stock group has variable life history use identified yearlings
       (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp", 
                       "CA_ORCST", "WACST","CR-lower_fa", "PSD") | 
          stock_group %in% c("Fraser_Sum_4.1")) & 
-        age_gr %in% c("32", "42", "52") ~ age - 2,
-      TRUE ~ age - 1
+        age_gr %in% c("32", "42", "52") ~ true_age - 2,
+      TRUE ~ true_age - 1
     ),
     est_age = case_when(
       stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") | 
@@ -641,9 +643,9 @@ long_rec <- wide_rec4_trim %>%
     ),
     brood_year = year - est_age
   ) %>% 
-  left_join(
-    ., pbt_rate, by = c("brood_year", "pbt_stock")
-  ) %>% 
+  # left_join(
+  #   ., pbt_rate, by = c("brood_year", "pbt_stock")
+  # ) %>% 
   mutate(
     #define hatchery status
     origin = case_when(
