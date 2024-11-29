@@ -25,7 +25,9 @@ dat <- rec_raw %>%
     !fl < 551,
     #exclude samples collected outside areas in relatively close proximity to 
     # SRKW foraging areas
-    !strata == "other"
+    !strata == "other",
+    # remove Bessette and Duteau stocks due to assignment concerns
+    !(grepl("BESS", stock) | grepl("DUTEA", stock))
   ) %>% 
   mutate(
     # spatial location variable since some fishing sites have multiple lat/lon

@@ -10,12 +10,14 @@ library(ggplot2)
 # IMPORT STOCK KEY AND PREP ----------------------------------------------------
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Oct2024.rds")) %>%
+stock_key <- readRDS(here::here("data", "rec", "finalStockList_Nov2024.rds")) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
+      # move Juan de Fuca populations and Boundary Bay populations to Puget
       region1name == "Juan_de_Fuca" | grepl("NICKOME", stock) | 
-        grepl("SERPEN", stock) ~ "PSD",
+        grepl("SERPEN", stock) | 
+        (grepl("CAMPB", stock) & region1name == "Fraser_Fall") ~ "PSD",
       pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
         region1name == "Willamette_R" ~ 
         "Col_Summer_Fall",
@@ -643,9 +645,9 @@ long_rec <- wide_rec4_trim %>%
     ),
     brood_year = year - est_age
   ) %>% 
-  # left_join(
-  #   ., pbt_rate, by = c("brood_year", "pbt_stock")
-  # ) %>% 
+  left_join(
+    ., pbt_rate, by = c("brood_year", "pbt_stock")
+  ) %>%
   mutate(
     #define hatchery status
     origin = case_when(
@@ -699,10 +701,6 @@ long_rec %>%
 ## export
 saveRDS(long_rec, here::here("data", "rec", "rec_gsi.rds"))
 
-
-## calculate mis-ID rate for each individual 
-long_rec %>% 
-  filter(!is.na(true_age))
 
 
 ## CLEAN SIZE ------------------------------------------------------------------
