@@ -684,7 +684,24 @@ long_rec <- wide_rec4_trim %>%
              levels = c("hatchery_Can",  "hatchery_USA", "unknown_Can",
                         "unknown_USA", "wild_Can", "wild_USA"),
              labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
-                        "USA Wi"))
+                        "USA Wi")),
+    # adjust Capilano based on changes in brood source (ECVI pre 2013 brood);
+    # assume fish caught in 2016 onward from Fraser Fall stock
+    stock_group = ifelse(
+      year > 2015 & grepl("CAPI", stock), 
+      "Fraser_Fall", 
+      as.character(stock_group)
+      ) %>% 
+      factor(
+        .,
+        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
+                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
+                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
+                   "Fraser_Fall"),
+        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
+                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
+                   "FR_Sum_4.1", "FR_Fall")
+      )
   )
 
 # check for missing regional assignments
