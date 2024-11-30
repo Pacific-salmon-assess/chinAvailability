@@ -90,30 +90,31 @@ ggplot(ppn_dat) +
 
 
 ## fit initial multinomial model
-prior_in <- c(
-  prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
-  prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age3", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age4", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age5", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age6", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age3", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "age4", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "age5", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "age6", dpar = "muover"),
-  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
-  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")  # Prior for random effects
-)
-
-fit <- brm(
-  formula = bf(bias ~ age + (1 | stock_group), 
-               family = categorical(link = "logit")),
-  data = dum,
-  prior = prior_in,
-  chains = 4, cores = 4, iter = 2000,
-  control = list(adapt_delta = 0.96)
-)
-saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
+# prior_in <- c(
+#   prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
+#   prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "age3", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "age4", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "age5", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "age6", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "age3", dpar = "muover"),
+#   prior(normal(0, 2), class = "b", coef = "age4", dpar = "muover"),
+#   prior(normal(0, 2), class = "b", coef = "age5", dpar = "muover"),
+#   prior(normal(0, 2), class = "b", coef = "age6", dpar = "muover"),
+#   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
+#   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")
+# )
+# 
+# fit <- brm(
+#   formula = bf(bias ~ age + (1 | stock_group), 
+#                family = categorical(link = "logit")),
+#   data = dum,
+#   prior = prior_in,
+#   chains = 4, cores = 4, iter = 2000,
+#   control = list(adapt_delta = 0.96)
+# )
+# saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
+fit <- readRDS(here::here("data", "model_fits", "age_error_est.rds"))
 
 
 new_data <- expand.grid(
@@ -133,7 +134,6 @@ posterior_probs_new %>%
   as.data.frame() %>%
   pivot_longer(cols = everything(), names_to = "bias", 
                values_to = "mean_prob") %>%
-  glimpse()
   mutate(asg = rep(new_data$asg, each = length(unique(dum$bias)))) %>% 
   left_join(., new_data, by = "asg") %>% 
   ggplot(.) +
