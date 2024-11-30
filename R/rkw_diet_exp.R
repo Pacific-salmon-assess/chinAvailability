@@ -10,7 +10,11 @@ library(mvtweedie)
 library(sf)
 
 # import cleaned data 
-dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
+dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples.rds")) %>% 
+  # remove uncertain Spring 4.2 assignments
+  filter(
+    !(grepl("BESS", stock) | grepl("DUTEA", stock))
+  )
 
 
 ## aggregate data (calculate mean location and sample size of each event) 
@@ -20,10 +24,6 @@ dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
 
 # week-year scale
 sample_key <- dat %>% 
-  mutate(
-    yday = lubridate::yday(date),
-    sample_id = paste(year, yday, strata, sep = "_")
-  ) %>% 
   select(sample_id, id, utm_y, utm_x) %>% 
   distinct() %>% 
   group_by(sample_id) %>% 
@@ -44,9 +44,9 @@ ppn_dat <- dat %>%
   mutate(
     agg_prob = agg_count / n_samples
   ) 
-# saveRDS(
-#   ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
-# )
+saveRDS(
+  ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+)
 
 
 ## CALCULATE MEAN SIZE ---------------------------------------------------------

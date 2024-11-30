@@ -689,20 +689,17 @@ long_rec <- wide_rec4_trim %>%
     # assume fish caught in 2016 onward from Fraser Fall stock
     stock_group = ifelse(
       year > 2015 & grepl("CAPI", stock), 
-      "Fraser_Fall", 
+      "FR_Fall", 
       as.character(stock_group)
       ) %>% 
       factor(
         .,
-        levels = c("other", "Col_Spring", "Col_Summer_Fall", "PSD",  
-                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                   "Fraser_Fall"),
-        labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
+        levels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
                    "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
                    "FR_Sum_4.1", "FR_Fall")
       )
   )
+
 
 # check for missing regional assignments
 long_rec %>%

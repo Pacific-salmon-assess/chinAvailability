@@ -159,11 +159,11 @@ sel_bean <- ggplot() +
     data = dd %>% filter(dataset == "standard"),
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group)
   ) +
-  geom_text(
-    data = p_val_sig %>% filter(dataset == "standard"),
-    aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
-    label = "*", size = 7.5, colour = "red"
-  ) +
+  # geom_text(
+  #   data = p_val_sig %>% filter(dataset == "standard"),
+  #   aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
+  #   label = "*", size = 7.5, colour = "red"
+  # ) +
   labs(x = "Difference Between Observed and Predicted Composition",
        y = "Stock") +
   ggsidekick::theme_sleek() +
@@ -177,11 +177,11 @@ sel_bean2 <- ggplot() +
         fill = dataset),
     shape = 21
   ) +
-  geom_text(
-    data = p_val_sig,
-    aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
-    label = "*", size = 7.5, colour = "red"
-  ) +
+  # geom_text(
+  #   data = p_val_sig,
+  #   aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
+  #   label = "*", size = 7.5, colour = "red"
+  # ) +
   labs(x = "Difference Between Observed and Predicted Composition",
        y = "Stock") +
   facet_wrap(~dataset, ncol = 1) +
