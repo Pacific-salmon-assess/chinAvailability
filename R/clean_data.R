@@ -15,7 +15,7 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Nov2024.rds")) %>
   mutate(
     stock_group = case_when(
       # move Juan de Fuca populations and Boundary Bay populations to Puget
-      region1name == "Juan_de_Fuca" | grepl("NICKOME", stock) | 
+      region1name == "Juan_de_Fuca" | grepl("NICOMEK", stock) | 
         grepl("SERPEN", stock) | 
         (grepl("CAMPB", stock) & region1name == "Fraser_Fall") ~ "PSD",
       pst_agg %in% c("CR-lower_fa", "CR-upper_su/fa") | 
@@ -625,12 +625,14 @@ long_rec <- wide_rec4_trim %>%
       !is.na(age_gr) ~ substr(age_gr, 1, 1)
     ) %>% 
       as.numeric(.),
-    age = ifelse(is.na(true_age), est_age, true_age),
+    age = ifelse(is.na(true_age), est_age, true_age), 
     sw_age = case_when(
-      grepl("M", age_gr) ~ stringr::str_split(age_gr, "(?<=\\d)(?=\\D)") %>%
-        unlist() %>%
-        .[[1]] %>%
-        as.numeric(),
+      # pull first digit if M included in scale read age (indicating only 
+      # saltwater age readable)
+      grepl("M", age_gr) ~ map_dbl(age_gr, ~ str_split(.x, "(?<=\\d)(?=\\D)") %>%
+                                     unlist() %>%
+                                     .[[1]] %>%
+                                     as.numeric()),
       # young 2.1s likely 1.2s
       (stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") |
          pst_agg %in% c("NBC_SEAK")) & age_gr == "21" ~ 1,
@@ -645,46 +647,46 @@ long_rec <- wide_rec4_trim %>%
     ),
     brood_year = year - age
   ) %>% 
-  left_join(
-    ., pbt_rate, by = c("brood_year", "pbt_stock")
-  ) %>%
+  # left_join(
+  #   ., pbt_rate, by = c("brood_year", "pbt_stock")
+  # ) %>%
   mutate(
     #define hatchery status
-    origin = case_when(
-      pbt == TRUE |
-        resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
-      ad == "Y" ~ "hatchery",
-      # if PBT rate for a stock is uniformly high and caught after ~2013 BY
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
-        resolved_stock_source == "DNA" & year > 2016 & high == TRUE ~ "wild",
-      # if PBT rate varied or caught before widespread adoption
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
-        resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
-      # stock soruce not in PBT database
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
-        resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
-        "wild",
-      grepl("HANFORD", stock) ~ "unknown",
-      pst_agg %in% c("PSD", "WACST") | grepl("CR", pst_agg) & ad == "N" ~
-        "wild",
-      TRUE ~ "unknown"
-    ) %>%
-      factor(., levels = c("hatchery", "unknown", "wild")),
-    nation = ifelse(
-      pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI") |
-        region4name == "NBC",
-      "Can",
-      "USA"
-    ),
-    origin2 = paste(origin, nation, sep = "_") %>%
-      factor(.,
-             levels = c("hatchery_Can",  "hatchery_USA", "unknown_Can",
-                        "unknown_USA", "wild_Can", "wild_USA"),
-             labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
-                        "USA Wi")),
+    # origin = case_when(
+    #   pbt == TRUE |
+    #     resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
+    #   ad == "Y" ~ "hatchery",
+    #   # if PBT rate for a stock is uniformly high and caught after ~2013 BY
+    #   stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+    #                      "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+    #     resolved_stock_source == "DNA" & year > 2016 & high == TRUE ~ "wild",
+    #   # if PBT rate varied or caught before widespread adoption
+    #   stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+    #                      "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+    #     resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
+    #   # stock soruce not in PBT database
+    #   stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+    #                      "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+    #     resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
+    #     "wild",
+    #   grepl("HANFORD", stock) ~ "unknown",
+    #   pst_agg %in% c("PSD", "WACST") | grepl("CR", pst_agg) & ad == "N" ~
+    #     "wild",
+    #   TRUE ~ "unknown"
+    # ) %>%
+    #   factor(., levels = c("hatchery", "unknown", "wild")),
+    # nation = ifelse(
+    #   pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI") |
+    #     region4name == "NBC",
+    #   "Can",
+    #   "USA"
+    # ),
+    # origin2 = paste(origin, nation, sep = "_") %>%
+    #   factor(.,
+    #          levels = c("hatchery_Can",  "hatchery_USA", "unknown_Can",
+    #                     "unknown_USA", "wild_Can", "wild_USA"),
+    #          labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
+    #                     "USA Wi")),
     # adjust Capilano based on changes in brood source (ECVI pre 2013 brood);
     # assume fish caught in 2016 onward from Fraser Fall stock
     stock_group = ifelse(

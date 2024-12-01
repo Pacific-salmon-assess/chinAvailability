@@ -11,25 +11,27 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
     !fl < 551
   ) %>% 
   mutate(
-    age_stock_group = case_when(
-      stock == "Capilano" | region1name %in% c("ECVI", "SOMN") ~ "ECVI_SOMN",
-      grepl("Fraser", region1name) ~ region1name,
+    age_stock_group1 = case_when(
+      grepl("CAPI", stock) ~ stock_group,
+      stock_group == "PSD" ~ stock_group,
+      grepl("Fraser", region1name) ~ stock_group,
       TRUE ~ pst_agg
-    )
+    ),
+    age_stock_group = ifelse(age_stock_group1 == "ECVI_SOMN", "SOG", age_stock_group1)
   ) %>%
   # calculate the stock group level probability for each individual
   group_by(
     id, strata, stock_group, age_stock_group, week_n, month_n, fl,
-    age, sw_age, origin, year
+    age, sw_age, year
   ) %>% 
   summarize(
     sum_prob = sum(prob), .groups = "drop"
   ) %>% 
   ungroup() %>% 
-  # focus on: study area; May-Oct
+  # focus on: study area
   # remove uncertain assignments
   filter(
-    sum_prob < 0.75,
+    sum_prob > 0.75,
     !strata == "other"
   ) %>% 
   mutate(
@@ -44,35 +46,21 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       age_stock_group,
       levels = c(
         "CA_ORCST", "CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp",
-        "CR-lower_fa", "WACST", "PSD", "WCVI", "ECVI_SOMN",
-        "Fraser_Spring_4.2", "Fraser_Spring_5.2", "Fraser_Summer_5.2",
-        "Fraser_Summer_4.1", "Fraser_Fall",  "NBC_SEAK"
+        "CR-lower_fa", "WACST", "PSD", "WCVI", "SOG",
+        "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+        "FR_Sum_4.1", "FR_Fall",  "NBC_SEAK"
       )
     ),
     year_f = as.factor(year),
     age_f = as.factor(age),
-    sw_age = as.factor(sw_age),
-    size_bin = cut(
-      fl, 
-      breaks = c(-Inf, 601, 701, 801, Inf), 
-      labels = c("<60", "60-70", "70-80", ">80")
-    ),
-    origin = factor(
-      origin, levels = c("wild", "hatchery", "unknown")
-    )
+    sw_age = as.factor(sw_age)
   ) 
 
 
 # colour palettes
-size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
-names(size_colour_pal) <- c(NA, levels(gsi$size_bin))
-  
-age_pal <- c("grey30", "#1f78b4", "#a6cee3", "#b2df8a", "#33a02c")
+age_pal <- c("grey30", "#b35806", "#fee0b6", "#998ec3", "#542788", "black")
 names(age_pal) <- c(NA, levels(gsi$sw_age))
 
-origin_pal <- c("#ef8a62", "#ffffff", "#999999")
-names(origin_pal) <- levels(gsi$origin)
-  
 
 ## AGE COMPOSITION -------------------------------------------------------------
 
@@ -108,80 +96,6 @@ png(
   height = 5, width = 8, units = "in", res = 250
 )
 age_comp_stacked
-dev.off()
-
-
-## HATCHERY COMPOSITION --------------------------------------------------------
-
-origin_comp <- gsi %>%
-  group_by(stock_group) %>%
-  mutate(origin_n = n()) %>%
-  ungroup() %>%
-  group_by(stock_group, origin, origin_n) %>%
-  tally() %>% 
-  mutate(prop = n / origin_n)
-
-labs_origin_comp <- origin_comp %>%
-  ungroup() %>% 
-  select(stock_group, origin_n) %>% 
-  distinct()
-
-origin_comp_stacked <- ggplot() +
-  geom_bar(data = origin_comp,
-           aes(fill = origin, y = prop, x = stock_group),
-           position="stack", stat="identity", colour = "black") +
-  geom_text(data = labs_origin_comp, 
-            aes(x = stock_group, y = 0.05, label = origin_n)) +
-  scale_fill_manual(name = "Brood\nOrigin", values = origin_pal, 
-                    na.value = "grey60" ) +
-  labs(y = "Proportion Hatchery Composition", x = "Stock") +
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust=1)
-  )
-
-png(
-  here::here("figs", "stock_size_age", "comp_bar_fishery_origin.png"),
-  height = 5, width = 8, units = "in", res = 250
-)
-origin_comp_stacked
-dev.off()
-
-
-## SIZE COMPOSITION ------------------------------------------------------------
-
-size_comp <- gsi %>%
-  filter(!is.na(size_bin)) %>%
-  group_by(stock_group) %>%
-  mutate(size_n = n()) %>%
-  ungroup() %>%
-  group_by(stock_group, size_bin, size_n) %>%
-  tally() %>% 
-  mutate(prop = n / size_n)
-
-labs_size_comp <- size_comp %>%
-  ungroup() %>% 
-  select(stock_group, size_n) %>% 
-  distinct()
-
-size_comp_stacked <- ggplot() +
-  geom_bar(data = size_comp,
-           aes(fill = size_bin, y = prop, x = stock_group),
-           position="stack", stat="identity", colour = "black") +
-  geom_text(data = labs_size_comp,
-            aes(x = stock_group, y = 0.05, label = size_n)) +
-  scale_fill_manual(name = "Size\nClass", values = size_colour_pal) +
-  labs(y = "Proportion Size Composition", x = "Stock") +
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust=1)
-  )
-
-png(
-  here::here("figs", "stock_size_age", "comp_bar_fishery_size.png"),
-  height = 5, width = 8, units = "in", res = 250
-)
-size_comp_stacked
 dev.off()
 
 
@@ -224,6 +138,7 @@ fit <- gam(
 saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
 
 
+
 # make predictions, constraining to weeks where stocks present
 stock_week <- gsi %>% 
   filter(month_n > 4 & month_n < 10) %>% 
@@ -252,15 +167,16 @@ week_month <- data.frame(
   week_n = c(20, 25, 29, 34, 37),
   month = c("May", "Jun", "Jul", "Aug", "Sep")
 )
-new_dat <- expand.grid(
+new_dat1 <- expand.grid(
   week_n = unique(week_month$week_n),
   age_stock_group = unique(gsi$age_stock_group),
-  sw_age = unique(gsi$sw_age) %>% as.factor(),
-  slot_limit = c("yes", "no")
+  sw_age = unique(gsi$sw_age) %>% as.factor()
 ) %>% 
   left_join(., week_month, by = "week_n") %>% 
   left_join(., obs_weeks, by = "age_stock_group") %>% 
-  left_join(., stock_age, by = c("age_stock_group", "sw_age")) %>% 
+  left_join(., stock_age, by = c("age_stock_group", "sw_age"))
+  
+new_dat <- new_dat1 %>%   
   # remove weeks where stock not observed & rare age classes
   filter(
     !week_n > max_obs_week,
@@ -269,11 +185,9 @@ new_dat <- expand.grid(
     !is.na(sw_age),
     # slot_limit == "yes"
   ) %>% 
-  mutate(year_f = "2020",
-         month = fct_reorder(month, week_n))
+  mutate(month = fct_reorder(month, week_n))
 
-preds <- predict(fit, newdata = new_dat,  se.fit = TRUE, 
-                 exclude = "s(year_f)")
+preds <- predict(fit, newdata = new_dat,  se.fit = TRUE)
 
 new_dat2 <- new_dat %>% 
   mutate(
@@ -311,4 +225,19 @@ png(
 size_month2
 dev.off()
 
+
+# generate 1000 simulated draws for each combination 
+library(gratia)
+sims <- simulate(fit, nsim = 1000, data = new_dat)
+
+size_pred_post <- sims %>% 
+  as.data.frame() %>%
+  cbind(new_dat %>% 
+          select(month, sw_age, age_stock_group),
+        .) %>% 
+  pivot_longer(cols = starts_with("V"), names_to = "iter", names_prefix = "V",
+               values_to = "fl") %>% 
+  mutate(iter = as.numeric(iter))
+
+saveRDS(size_pred_post, here::here("data", "rec", "size_age_post_draws.rds"))
 

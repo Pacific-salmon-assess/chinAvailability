@@ -147,7 +147,7 @@ posterior_probs_new %>%
 bias_names <- dimnames(posterior_probs_new)[[3]]
 post_list <- vector(mode = "list", length = 3)
 for (i in 1:3) {
-  post_list[[i]] <- posterior_probs_new[ , , 1] %>% 
+  post_list[[i]] <- posterior_probs_new[ , , i] %>% 
     as.data.frame() %>%
     pivot_longer(cols = everything(), names_to = "asg", 
                  values_to = "prob") %>% 
