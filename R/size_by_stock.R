@@ -122,8 +122,11 @@ size_at_age_box
 dev.off()
 
 
-# fit GAM to size at age data
+## GAM FIT ---------------------------------------------------------------------
+
 library(mgcv)
+library(gratia)
+
 
 fit <- gam(
   fl ~ #0 + 
@@ -227,7 +230,6 @@ dev.off()
 
 
 # generate 1000 simulated draws for each combination 
-library(gratia)
 sims <- simulate(fit, nsim = 1000, data = new_dat)
 
 size_pred_post <- sims %>% 
