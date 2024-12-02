@@ -143,7 +143,6 @@ fit <- gam(
 saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
 
 
-
 # make predictions, constraining to weeks where stocks present
 stock_week <- gsi %>% 
   filter(month_n > 4 & month_n < 10) %>% 
@@ -169,8 +168,8 @@ stock_age <- gsi %>%
 
 # restrict to weeks where at least five individuals sampled
 week_month <- data.frame(
-  week_n = c(20, 25, 29, 34, 37),
-  month = c("May", "Jun", "Jul", "Aug", "Sep")
+  week_n = c(20, 25, 29, 34, 38, 42),
+  month = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
 )
 new_dat1 <- expand.grid(
   week_n = unique(week_month$week_n),
