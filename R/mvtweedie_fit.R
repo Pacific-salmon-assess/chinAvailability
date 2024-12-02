@@ -175,6 +175,65 @@ rec_samp_cov <- ggplot(sample_key) +
     axis.title = element_blank()
   )
 
+
+## supplementary figure showing locations/times of closures
+## week_n == 25 is June 15, week_n == 29 is July 15, week n == 31 is Aug 1
+sample_key2 <- sample_key %>%
+  mutate(
+    restricted = case_when(
+      ## Vic area strata
+      # size restrictions before July 15 and prior to 2019
+      strata == "Sooke/\nVictoria" & year < 2019 & week_n < 28 ~ "size limit",
+      # closed before Aug 1 and prior to 2019
+      strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 28 ~
+        "non-retention",
+      strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 32 ~
+        "size limit",
+      ## Swiftsure/Nitinat/Renfrew strata
+      # unrestricted prior to 2019
+      strata %in% c("Swiftsure", "Renfrew") & year < 2019 ~ "standard",
+      # closed prior to July 15 with 80 cm slot limit in place until Aug 1
+      strata %in% c("Swiftsure", "Renfrew") & year >= 2019 & 
+        week_n < 27 ~ "non-retention",
+      strata %in% c("Swiftsure", "Renfrew") & year >= 2019 & 
+        week_n < 32 ~ "size limit",
+      ## S Gulf Islands area strata
+      # size restrictions before July 15 and prior to 2019
+      # strata == "S. Gulf\nIslands" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
+      #   "size limit",
+      # closed before Aug 1 and prior to 2019
+      strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 28 ~
+        "non-retention",
+      strata == "S. Gulf\nIslands" & year >= 2017 & week_n < 32 ~ "size limit",
+      ## S Gulf Islands area strata
+      # size restrictions before July 15 and prior to 2019
+      # strata == "Saanich" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
+      #   "size limit",
+      # closed before Aug 1 and prior to 2019
+      strata == "saanich" & year >= 2019 & week_n < 28 ~
+        "non-retention",
+      strata == "saanich" & year >= 2019 & week_n < 32 ~ "size limit",
+      TRUE ~ "standard"
+    ) 
+  ) %>% 
+  filter(week_n > 17 & week_n < 44)
+
+rec_samp_cov2 <- ggplot(sample_key2) +
+  geom_jitter(aes(x = week_n, y = year, size = sample_id_n, colour = restricted),
+              alpha = 0.4
+  ) +
+  facet_wrap(~strata) +
+  scale_size_continuous(name = "Sample\nSize") +
+  scale_x_continuous(
+    breaks = c(19.5, 24, 28.5, 32.5, 37),
+    labels = c("May 15", "Jun 15", "Jul 15", "Aug 15", "Sep 15")
+  ) +
+  ggsidekick::theme_sleek() +
+  theme(
+    axis.title = element_blank()
+  )
+
+
 # stacked bar plot
 rec_samp_bar <- ggplot(dat) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 

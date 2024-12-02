@@ -647,46 +647,46 @@ long_rec <- wide_rec4_trim %>%
     ),
     brood_year = year - age
   ) %>% 
-  # left_join(
-  #   ., pbt_rate, by = c("brood_year", "pbt_stock")
-  # ) %>%
+  left_join(
+    ., pbt_rate, by = c("brood_year", "pbt_stock")
+  ) %>%
   mutate(
     #define hatchery status
-    # origin = case_when(
-    #   pbt == TRUE |
-    #     resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
-    #   ad == "Y" ~ "hatchery",
-    #   # if PBT rate for a stock is uniformly high and caught after ~2013 BY
-    #   stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-    #                      "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
-    #     resolved_stock_source == "DNA" & year > 2016 & high == TRUE ~ "wild",
-    #   # if PBT rate varied or caught before widespread adoption
-    #   stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-    #                      "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
-    #     resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
-    #   # stock soruce not in PBT database
-    #   stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-    #                      "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
-    #     resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
-    #     "wild",
-    #   grepl("HANFORD", stock) ~ "unknown",
-    #   pst_agg %in% c("PSD", "WACST") | grepl("CR", pst_agg) & ad == "N" ~
-    #     "wild",
-    #   TRUE ~ "unknown"
-    # ) %>%
-    #   factor(., levels = c("hatchery", "unknown", "wild")),
-    # nation = ifelse(
-    #   pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI") |
-    #     region4name == "NBC",
-    #   "Can",
-    #   "USA"
-    # ),
-    # origin2 = paste(origin, nation, sep = "_") %>%
-    #   factor(.,
-    #          levels = c("hatchery_Can",  "hatchery_USA", "unknown_Can",
-    #                     "unknown_USA", "wild_Can", "wild_USA"),
-    #          labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
-    #                     "USA Wi")),
+    origin = case_when(
+      pbt == TRUE |
+        resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
+      ad == "Y" ~ "hatchery",
+      # if PBT rate for a stock is uniformly high and caught after ~2013 BY
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+        resolved_stock_source == "DNA" & year > 2016 & high == TRUE ~ "wild",
+      # if PBT rate varied or caught before widespread adoption
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+        resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
+      # stock soruce not in PBT database
+      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
+                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+        resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
+        "wild",
+      grepl("HANFORD", stock) ~ "unknown",
+      pst_agg %in% c("PSD", "WACST") | grepl("CR", pst_agg) & ad == "N" ~
+        "wild",
+      TRUE ~ "unknown"
+    ) %>%
+      factor(., levels = c("hatchery", "unknown", "wild")),
+    nation = ifelse(
+      pst_agg %in% c("FR-early", "FR-late", "SOG", "Yukon", "WCVI") |
+        region4name == "NBC",
+      "Can",
+      "USA"
+    ),
+    origin2 = paste(origin, nation, sep = "_") %>%
+      factor(.,
+             levels = c("hatchery_Can",  "hatchery_USA", "unknown_Can",
+                        "unknown_USA", "wild_Can", "wild_USA"),
+             labels = c("Can Ha", "USA Ha", "Can Un", "USA Un", "Can Wi",
+                        "USA Wi")),
     # adjust Capilano based on changes in brood source (ECVI pre 2013 brood);
     # assume fish caught in 2016 onward from Fraser Fall stock
     stock_group = ifelse(
@@ -791,6 +791,13 @@ raw_dat <- readRDS(
   )
 
 
+## import aging model data
+# from aging_error.R in TOTAL AGE
+age_bias <- readRDS(here::here("data", "rec", "age_bias_post_draws.rds"))
+# from size_by_stock.R
+size_age_pred <- readRDS(here::here("data", "rec", "size_age_post_draws.rds"))
+
+
 rkw_dat <- raw_dat %>% 
   # correct weird stock 
   mutate(
@@ -809,22 +816,20 @@ rkw_dat <- raw_dat %>%
     month = lubridate::month(date),
     yday = lubridate::yday(date),
     # in-fill missing ages based on dominant life history strategy
-    total_year = case_when(
-      grepl("M", gr_age) & grepl(".2", smu) ~ sw_year + 2,
-      grepl("M", gr_age) & !grepl(".2", smu) ~ sw_year + 1,
-      TRUE ~ total_year
-    ) %>% 
-      as.factor(),
     era = ifelse(year < 2015, "early", "current") %>% 
       fct_relevel(., "current", after = Inf),
     # sampling event = all samples collected in a given strata-year-week
     sample_id = paste(year, week, strata, sep = "_"),
-    sw_age = as.factor(sw_year),
     age_stock_group = case_when(
-      grepl("Fraser", smu) ~ smu,
-      stock == "CAPILANO" ~ "Fraser_Fall",
-      agg == "SOG" ~ "ECVI_SOMN",
-      TRUE ~ agg
+      # grepl("Fraser", smu) ~ smu,
+      # stock == "CAPILANO" ~ "Fraser_Fall",
+      # agg == "SOG" ~ "ECVI_SOMN",
+      # TRUE ~ agg
+      grepl("CAPI", stock) | grepl("QUAT", stock) ~ stock_group,
+      stock %in% c("CLACKAMAS_RIVER", "SANTIAM_RIVER_NORTH") ~ "CR-upper_su/fa",
+      stock_group == "PSD" ~ stock_group,
+      grepl("Fraser", region1name) ~ stock_group,
+      TRUE ~ pst_agg
     ) %>% 
       as.factor()
   ) %>% 
@@ -838,13 +843,54 @@ rkw_dat <- raw_dat %>%
   ) %>% 
   select(
     id, sample_id, sample_id_pooled,
-    fw_year, sw_age, total_year, age_f = total_year,
+    fw_year, sw_year, total_year, gr_age, smu,
     era, year, month, week_n = week, yday, strata, utm_y = Y, utm_x = X,
     stock, stock_prob, stock_group, age_stock_group, stock_id_method,
     lat = latitude, lon = longitude
   )
 
-saveRDS(rkw_dat, here::here("data", "rkw_diet", "cleaned_diet_samples.rds"))
+saveRDS(rkw_dat, here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds"))
+
+
+## add age assignment uncertainty
+# focus only on individuals with high GSI probability
+rkw_age <- rkw_dat %>% 
+  group_by(id, age_stock_group) %>% 
+  summarize(
+    sum_prob = sum(stock_prob)
+  ) %>% 
+  group_by(id) %>% 
+  mutate(
+    max_prob = max(sum_prob)
+  ) %>% 
+  filter(
+    max_prob > 0.75,
+    sum_prob == max_prob
+  ) %>% 
+  left_join(
+    rkw_dat %>% 
+      select(
+        id, sample_id, sample_id_pooled, fw_year, sw_year, total_year, gr_age, 
+        era, year, month, week_n, yday, strata, utm_y, utm_x, lat, lon
+      ) %>% 
+      distinct(),
+    .,
+    by = "id"
+  ) %>% 
+  mutate(
+    # add intermediate ages
+    total_year = case_when(
+      is.na(total_year) & 
+        (grepl(".2", age_stock_group) | grepl("Spr", age_stock_group) | 
+           age_stock_group == "NBC_SEAK") ~ sw_year + 2,
+      is.na(total_year) ~ sw_year + 1,
+      TRUE ~ total_year
+    ) %>% 
+      as.factor()
+  )
+
+
+
 
 
 ## plot spatio temporal distribution of sampling events

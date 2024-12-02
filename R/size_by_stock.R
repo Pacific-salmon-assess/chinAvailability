@@ -17,7 +17,9 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       grepl("Fraser", region1name) ~ stock_group,
       TRUE ~ pst_agg
     ),
-    age_stock_group = ifelse(age_stock_group1 == "ECVI_SOMN", "SOG", age_stock_group1)
+    age_stock_group = ifelse(
+      age_stock_group1 == "ECVI_SOMN", "SOG", age_stock_group1
+      )
   ) %>%
   # calculate the stock group level probability for each individual
   group_by(
@@ -148,11 +150,11 @@ stock_week <- gsi %>%
   group_by(week_n, age_stock_group) %>% 
   tally() 
 
-ggplot(stock_week,
-       aes(x = week_n, y = age_stock_group, size = n, fill = age_stock_group)) +
-  geom_point(shape = 21) +
-  scale_size_continuous(trans = "log") +
-  ggsidekick::theme_sleek()
+# ggplot(stock_week,
+#        aes(x = week_n, y = age_stock_group, size = n, fill = age_stock_group)) +
+#   geom_point(shape = 21) +
+#   scale_size_continuous(trans = "log") +
+#   ggsidekick::theme_sleek()
 
 obs_weeks <- stock_week %>% 
   group_by(age_stock_group) %>% 
@@ -177,7 +179,10 @@ new_dat1 <- expand.grid(
 ) %>% 
   left_join(., week_month, by = "week_n") %>% 
   left_join(., obs_weeks, by = "age_stock_group") %>% 
-  left_join(., stock_age, by = c("age_stock_group", "sw_age"))
+  left_join(., stock_age, by = c("age_stock_group", "sw_age")) %>% 
+  filter(
+    !is.na(sw_age)
+  )
   
 new_dat <- new_dat1 %>%   
   # remove weeks where stock not observed & rare age classes
@@ -202,10 +207,10 @@ new_dat2 <- new_dat %>%
 shape_pal <- c(21, 22)
 names(shape_pal) <- c("yes", "no")
 
-size_month2 <- ggplot(new_dat2 %>% filter(slot_limit == "yes")) +
+size_month2 <- ggplot(new_dat2) +
   geom_pointrange(
     aes(x = month, y = pred_fl, ymin = lo_fl, ymax = up_fl, 
-        fill = sw_age#, shape = slot_limit
+        fill = sw_age
         ),
     shape = 21
   ) +
@@ -230,11 +235,11 @@ dev.off()
 
 
 # generate 1000 simulated draws for each combination 
-sims <- simulate(fit, nsim = 1000, data = new_dat)
+sims <- simulate(fit, nsim = 1000, data = new_dat1)
 
 size_pred_post <- sims %>% 
   as.data.frame() %>%
-  cbind(new_dat %>% 
+  cbind(new_dat1 %>% 
           select(month, sw_age, age_stock_group),
         .) %>% 
   pivot_longer(cols = starts_with("V"), names_to = "iter", names_prefix = "V",
