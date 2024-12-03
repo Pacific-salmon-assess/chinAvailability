@@ -10,20 +10,24 @@ library(mvtweedie)
 library(sf)
 
 # import cleaned data 
-dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples.rds")) %>% 
+stock_dat <- readRDS(
+  here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds")
+  ) %>% 
   # remove uncertain Spring 4.2 assignments
   filter(
     !(grepl("BESS", stock) | grepl("DUTEA", stock))
   )
 
 
-## aggregate data (calculate mean location and sample size of each event) 
-# at two scales: 
-# 1) week-year-strata for modeling
-# 2) month-strata for simulation sampling
+size_dat <- readRDS(
+  here::here("data", "rkw_diet", "cleaned_diet_samples_size.rds")
+  )
 
-# week-year scale
-sample_key <- dat %>% 
+
+## aggregate data (calculate mean location and sample size of each event) 
+# by week-year-strata for simulation sampling; size and stock data separately
+# due to slightly different sample sizes (not all samples could be aged)
+sample_key_stock <- stock_dat %>% 
   select(sample_id, id, utm_y, utm_x) %>% 
   distinct() %>% 
   group_by(sample_id) %>% 
@@ -32,83 +36,51 @@ sample_key <- dat %>%
     utm_y = mean(utm_y),
     utm_x = mean(utm_x)
   )
-
-ppn_dat <- dat %>% 
+ppn_dat_stock <- stock_dat %>% 
   group_by(sample_id, era, year, week_n, month, strata, stock_group) %>% 
   summarize(
     agg_count = sum(stock_prob),
     .groups = "drop"
   ) %>% 
   ungroup() %>% 
-  left_join(., sample_key, by = "sample_id") %>% 
+  left_join(., sample_key_stock, by = "sample_id") %>% 
   mutate(
     agg_prob = agg_count / n_samples
   ) 
-saveRDS(
-  ppn_dat, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
-)
 
 
-## CALCULATE MEAN SIZE ---------------------------------------------------------
-
-## use model fit in size_by_stock.R 
-size_fit <- readRDS(here::here("data", "rec", "size_at_age_fit.rds"))
-
-size_pred_dat <- dat %>% 
-  filter(!is.na(sw_age))
-
-pp <- predict(size_fit, size_pred_dat)
-
-# since each sample includes multiple stock IDs calculate mean size 
-size_pred_dat2 <- size_pred_dat %>% 
-  mutate(pred_fl = pp) %>% 
-  group_by(id) %>% 
+sample_key_size <- size_dat %>% 
+  select(sample_id, id, utm_y, utm_x) %>% 
+  distinct() %>% 
+  group_by(sample_id) %>% 
   summarize(
-    pred_fl = mean(pred_fl)
-  ) %>% 
-  ungroup
-
-dat2 <- left_join(
-  dat, 
-  size_pred_dat2 %>% 
-    select(id, pred_fl),
-  by = "id"
-) %>% 
-  mutate(
-    size_bin = cut(
-      pred_fl, 
-      breaks = c(-Inf, 651, 751, 851, Inf), 
-      labels = c("55-65", "65-75", "75-85", ">85")
-    )
+    n_samples = length(unique(id)),
+    utm_y = mean(utm_y),
+    utm_x = mean(utm_x)
   )
-
-dd <- dat2 %>% 
-  select(id, strata, era, month, fw_year, sw_age, age_f, pred_fl, size_bin) %>% 
-  distinct() 
-
-ppn_dat_size <- dat2 %>% 
-  filter(!is.na(size_bin)) %>% 
+ppn_dat_size <- size_dat %>% 
   group_by(sample_id, era, year, week_n, month, strata, size_bin) %>% 
   summarize(
-    agg_count = sum(length(unique(id))),
+    agg_count = sum(prob),
     .groups = "drop"
   ) %>% 
   ungroup() %>% 
-  left_join(., sample_key, by = "sample_id") %>% 
+  left_join(., sample_key_size, by = "sample_id") %>% 
   mutate(
     agg_prob = agg_count / n_samples
   ) 
-# saveRDS(
-#   ppn_dat_size, here::here("data", "rkw_diet", "cleaned_ppn_dat_size.rds")
-# )
+
+ppn_dat_list <- list(ppn_dat_stock, ppn_dat_size)
+names(ppn_dat_list) <- c("stock", "size")
+
+saveRDS(
+  ppn_dat_list, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+)
 
 
 ## PALETTES --------------------------------------------------------------------
-
-age_pal <- c(
-  "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c"
-)
-names(age_pal) <- levels(size_fit$model$sw_age)
+age_pal <- c("grey30", "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c")
+names(age_pal) <- c(NA, "1", "2", "3", "4")
 
 # SMU colour palette
 smu_colour_pal <- c("grey30", "#3182bd", "#bdd7e7", "#bae4bc", "#6A51A3",
@@ -118,11 +90,11 @@ names(smu_colour_pal) <- levels(dat$stock_group)
 
 # era shape palette
 era_pal <- c(15, 16)
-names(era_pal) <- levels(ppn_dat)
+names(era_pal) <- levels(ppn_dat_size)
 
 # size colour palette
 size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
-names(size_colour_pal) <- c(NA, levels(dd$size_bin))
+names(size_colour_pal) <- c(NA, levels(ppn_dat_size$size_bin))
 
 
 ## RAW DATA FIGURES ------------------------------------------------------------
@@ -133,7 +105,7 @@ sample_gap_poly <- data.frame(
 )
 
 # sample coverage through time and among strata
-diet_samp_cov <- dat %>% 
+diet_samp_cov <- stock_dat %>% 
   group_by(week_n, strata, year, era) %>% 
   summarize(n = length(unique(id))) %>% 
   ggplot(.) +
@@ -153,14 +125,21 @@ diet_samp_cov <- dat %>%
     axis.title = element_blank()
   )
 
-samp_size <- dat %>% 
+samp_size_stock <- stock_dat %>% 
   group_by(era, strata) %>% 
   summarize(
     n = length(unique(id))
   )
 
+samp_size_age <- size_dat %>% 
+  group_by(era, strata) %>% 
+  summarize(
+    n = length(unique(id))
+  )
+
+
 # stacked bar plots
-diet_samp_bar <- ggplot(dat) +
+diet_samp_bar <- ggplot(stock_dat) +
   geom_bar(aes(x = month, y = stock_prob, fill = stock_group), 
            stat = "identity") +
   facet_grid(era~strata) +
@@ -178,12 +157,15 @@ diet_samp_bar <- ggplot(dat) +
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = samp_size_stock, aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
-age_samp_bar <- ggplot(dd) +
-  geom_bar(aes(x = month, fill = sw_age)) +
+age_samp_bar <- size_dat %>% 
+  select(id, strata, era, month, fw_year, sw_year, total_year) %>%
+  distinct() %>% 
+  ggplot(.) +
+  geom_bar(aes(x = month, fill = as.factor(sw_year))) +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(
@@ -201,13 +183,14 @@ age_samp_bar <- ggplot(dd) +
     axis.title.x = element_blank()
   )+
   geom_text(
-    data = samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = samp_size_age, aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
 # box plots of size
-size_samp_bar <- ggplot(dd) +
-  geom_bar(aes(x = month, fill = size_bin)) +
+size_samp_bar <- ggplot(size_dat) +
+  geom_bar(aes(x = month, y = prob, fill = size_bin), 
+           stat = "identity") +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(name = "Size\nClass", values = size_colour_pal, 
@@ -224,7 +207,7 @@ size_samp_bar <- ggplot(dd) +
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = samp_size_age, aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 

@@ -60,7 +60,7 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
 
 
 # colour palettes
-age_pal <- c("grey30", "#b35806", "#fee0b6", "#998ec3", "#542788", "black")
+age_pal <- c("grey30", "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "black")
 names(age_pal) <- c(NA, levels(gsi$sw_age))
 
 
