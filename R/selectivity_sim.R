@@ -12,26 +12,31 @@ source(here::here("R", "functions", "pred_mvtweedie2.R"))
 source(here::here("R", "functions", "sim_multinomial.R"))
 
 
-dataset_pal <- c("#e0f3db", "#a8ddb5", "#43a2ca")
-names(dataset_pal) <- c("standard", "management", "large")
+dataset_pal <- c("#e0f3db", "#43a2ca")
+names(dataset_pal) <- c("standard", "large")
 
-
-## STOCK SELECTIVITY -----------------------------------------------------------
-
-# import SRKW prey data
+# import SRKW prey data list
 # NOTE: uses mean week and location for samples collected within a given strata;
 # exploratory analysis using single observations provided qualitatively similar
 # results with much greater uncertainty
-rkw_dat <- readRDS(
+rkw_dat1 <- readRDS(
   here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
-) %>%
-  rename(
-    year_n = year
-  ) %>%
-  filter(
-    era == "current"
-  )
+) 
 
+# clean both datasets
+rkw_dat <- purrr::map(
+  rkw_dat1, 
+  ~ .x %>% 
+    rename(
+      year_n = year
+    ) %>%
+    filter(
+      era == "current"
+    )
+)
+
+
+## STOCK SELECTIVITY -----------------------------------------------------------
 
 # import fitted models
 model_fit <- readRDS(
@@ -48,7 +53,7 @@ fit_list <- list(model_fit, large_fit)
 
 
 # infill rkw data to ensure each stock group present for each sampling event
-dat_list <- split(rkw_dat, rkw_dat$sample_id)
+dat_list <- split(rkw_dat$stock, rkw_dat$stock$sample_id)
 
 new_dat <- purrr::map(
   dat_list,
@@ -65,15 +70,13 @@ new_dat <- purrr::map(
       # add observed proportion for each stock and sampling event
       left_join(
         ., 
-        rkw_dat %>% 
+        rkw_dat$stock %>% 
           select(sample_id, stock_group, obs_ppn = agg_prob), 
         by = c("sample_id", "stock_group")
       ) %>% 
       mutate(
         obs_ppn = ifelse(is.na(obs_ppn), 0, obs_ppn),
-        sg_year = paste(stock_group, year_n, sep = "_") %>% as.factor(),
-        # set slot limit to no under assumption SRKW behaving like unreg fishery
-        slot_limit = "no"
+        sg_year = paste(stock_group, year_n, sep = "_") %>% as.factor()
       )
   }
 ) %>% 
@@ -285,18 +288,6 @@ dev.off()
 
 ## SIZE SELECTIVITY ------------------------------------------------------------
 
-
-rkw_dat_size <- readRDS(
-  here::here("data", "rkw_diet", "cleaned_ppn_dat_size.rds")
-) %>%
-  rename(
-    year_n = year
-  ) %>%
-  filter(
-    era == "current"
-  )
-
-
 # import fitted models
 fit_size <- readRDS(
   here::here(
@@ -308,9 +299,8 @@ fit_list <- list(fit_size)
 
 size_bins <- levels(fit_size$model$size_bin)
 
-
 # infill rkw data to ensure each stock group present for each sampling event
-dat_list_size <- split(rkw_dat_size, rkw_dat_size$sample_id)
+dat_list_size <- split(rkw_dat$size, rkw_dat$size$sample_id)
 
 new_dat_size <- purrr::map(
   dat_list_size,
@@ -327,7 +317,7 @@ new_dat_size <- purrr::map(
       # add observed proportion for each stock and sampling event
       left_join(
         ., 
-        rkw_dat_size %>% 
+        rkw_dat$size %>% 
           select(sample_id, size_bin, obs_ppn = agg_prob), 
         by = c("sample_id", "size_bin")
       ) %>% 
@@ -370,19 +360,19 @@ pred_tbl_size$sim_dat <- furrr::future_map(
 
 
 # calculate p-values for each and print
-p_val_size <- purrr::map2(
-  pred_tbl_size$sim_dat, pred_tbl_size$dataset,
-  ~ .x %>% 
-    group_by(size_bin) %>% 
-    summarize(p_value = sum(test_stat) / length(unique(sim_i))) %>% 
-    mutate(dataset = .y)
-) %>% 
-  bind_rows()
-p_val_sig_size <- p_val_size %>% 
-  filter(p_value < 0.05) %>% 
-  mutate(
-    dataset = factor(dataset, levels = c("standard"))
-  )
+# p_val_size <- purrr::map2(
+#   pred_tbl_size$sim_dat, pred_tbl_size$dataset,
+#   ~ .x %>% 
+#     group_by(size_bin) %>% 
+#     summarize(p_value = sum(test_stat) / length(unique(sim_i))) %>% 
+#     mutate(dataset = .y)
+# ) %>% 
+#   bind_rows()
+# p_val_sig_size <- p_val_size %>% 
+#   filter(p_value < 0.05) %>% 
+#   mutate(
+#     dataset = factor(dataset, levels = c("standard"))
+#   )
 
 
 # calculate simulated proportion in each simulation to compare to observed
@@ -419,11 +409,11 @@ sel_bean_size <- ggplot() +
     data = diff_quantile %>% filter(dataset == "standard"),
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin)
   ) +
-  geom_text(
-    data = p_val_sig_size %>% filter(dataset == "standard"),
-    aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
-    label = "*", size = 7.5, colour = "red"
-  ) +
+  # geom_text(
+  #   data = p_val_sig_size %>% filter(dataset == "standard"),
+  #   aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
+  #   label = "*", size = 7.5, colour = "red"
+  # ) +
   labs(x = "Difference Between Observed and Predicted Composition",
        y = "Size Bin (cm)") +
   ggsidekick::theme_sleek() +
