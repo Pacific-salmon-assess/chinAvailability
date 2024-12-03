@@ -183,9 +183,10 @@ sample_key2 <- sample_key %>%
     restricted = case_when(
       ## Vic area strata
       # size restrictions before July 15 and prior to 2019
-      strata == "Sooke/\nVictoria" & year < 2019 & week_n < 28 ~ "size limit",
+      strata == "Sooke/\nVictoria" & year == 2018 & week_n < 32 ~ "size limit",
+      strata == "Sooke/\nVictoria" & year < 2018 & week_n < 29 ~ "size limit",
       # closed before Aug 1 and prior to 2019
-      strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 28 ~
+      strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 29 ~
         "non-retention",
       strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 32 ~
         "size limit",
@@ -202,21 +203,25 @@ sample_key2 <- sample_key %>%
       # strata == "S. Gulf\nIslands" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
       #   "size limit",
       # closed before Aug 1 and prior to 2019
-      strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 28 ~
+      strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 29 ~
         "non-retention",
-      strata == "S. Gulf\nIslands" & year >= 2017 & week_n < 32 ~ "size limit",
+      strata == "S. Gulf\nIslands" & year == 2018 &  
+        (week_n > 26 & week_n < 32) ~ "size limit",
+      strata == "S. Gulf\nIslands" & year == 2017 & 
+        (week_n > 28 & week_n < 32) ~ "size limit",
+      strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 32 ~ "size limit",
       ## S Gulf Islands area strata
       # size restrictions before July 15 and prior to 2019
       # strata == "Saanich" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
       #   "size limit",
       # closed before Aug 1 and prior to 2019
-      strata == "saanich" & year >= 2019 & week_n < 28 ~
+      strata == "saanich" & year >= 2019 & week_n < 29 ~
         "non-retention",
       strata == "saanich" & year >= 2019 & week_n < 32 ~ "size limit",
       TRUE ~ "standard"
     ) 
   ) %>% 
-  filter(week_n > 17 & week_n < 44)
+  filter(week_n > 17 & week_n < 41)
 
 rec_samp_cov2 <- ggplot(sample_key2) +
   geom_jitter(aes(x = week_n, y = year, size = sample_id_n, colour = restricted),
@@ -230,7 +235,8 @@ rec_samp_cov2 <- ggplot(sample_key2) +
   ) +
   ggsidekick::theme_sleek() +
   theme(
-    axis.title = element_blank()
+    axis.title = element_blank(),
+    axis.text = element_text(size = rel(0.6))
   )
 
 
@@ -398,6 +404,14 @@ png(
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_cov
+dev.off()
+
+png(
+  here::here("figs", "stock_comp_fishery", 
+             "rec_temporal_sample_coverage_management.png"),
+  height = 5, width = 7.5, units = "in", res = 250
+)
+rec_samp_cov2
 dev.off()
 
 png(

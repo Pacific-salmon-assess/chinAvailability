@@ -78,15 +78,27 @@ ppn_dat <- dum %>%
   tally() %>% 
   mutate(prop = n / age_n)
 
-ggplot(ppn_dat) +
+obs_error <- ggplot(ppn_dat) +
   geom_bar(aes(x = age, y = prop, fill = bias),
            position="stack", stat="identity") +
   facet_wrap(~stock_group) +
   ggsidekick::theme_sleek() +
   geom_text(
     data = samp_size, aes(x = age, y = -Inf, label = paste(n)),
-    vjust = -1.1
+    vjust = -1.1, size = rel(2.5)
+  ) +
+  labs(x = "Total Age", y = "Proportion of Samples") +
+  theme(
+    legend.position = "top"
   )
+
+
+png(
+  here::here("figs", "stock_size_age", "age_error.png"),
+  height = 5.5, width = 6.5, units = "in", res = 250
+)
+obs_error
+dev.off()
 
 
 ## fit initial multinomial model
@@ -134,7 +146,8 @@ posterior_probs_new %>%
   as.data.frame() %>%
   pivot_longer(cols = everything(), names_to = "bias", 
                values_to = "mean_prob") %>%
-  mutate(asg = rep(new_data$asg, each = length(unique(dum$bias)))) %>% 
+  mutate(asg = rep(new_data$asg, each = length(unique(dum$bias))),
+         bias = factor(bias, levels = c("zero", "under", "over"))) %>% 
   left_join(., new_data, by = "asg") %>% 
   ggplot(.) +
   geom_bar(aes(x = age, y = mean_prob, fill = bias),
