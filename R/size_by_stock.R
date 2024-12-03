@@ -101,29 +101,6 @@ age_comp_stacked
 dev.off()
 
 
-## BODY SIZE -------------------------------------------------------------------
-
-# add fill color by SMU
-size_at_age_box <- gsi %>%
-  filter(!is.na(sw_age)) %>% 
-  ggplot(.) +
-  geom_boxplot(aes(x = stock_group, y = fl)) +
-  labs(y = "Fork Length", x = "Stock") +
-  ggsidekick::theme_sleek() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust=1),
-    axis.title.x = element_blank()
-  ) +
-  facet_wrap(~sw_age, ncol = 2)
-
-png(
-  here::here("figs", "stock_size_age", "box_fishery_age.png"),
-  height = 6, width = 8, units = "in", res = 250
-)
-size_at_age_box
-dev.off()
-
-
 ## GAM FIT ---------------------------------------------------------------------
 
 library(mgcv)
@@ -189,8 +166,7 @@ new_dat <- new_dat1 %>%
     !week_n > max_obs_week,
     !week_n < min_obs_week,
     !age_n < 5,
-    !is.na(sw_age),
-    # slot_limit == "yes"
+    !is.na(sw_age)
   ) %>% 
   mutate(month = fct_reorder(month, week_n))
 

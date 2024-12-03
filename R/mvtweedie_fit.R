@@ -1129,60 +1129,61 @@ newdata <- expand.grid(
   #   strata %in% c("Renfrew", "Swiftsure", "Nitinat")
   # )
 
+
 ## Exclude released individuals 
-kept_dat <- dat %>%
-  filter(disposition == "Kept") %>%
-  group_by(sample_id) %>%
-  mutate(sample_id_n = sum(prob)) %>%
-  ungroup()
-sample_key_kept <- kept_dat %>%
-  select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>%
-  distinct()
-
-agg_dat_kept <- expand.grid(
-  sample_id = unique(kept_dat$sample_id),
-  stock_group = unique(kept_dat$stock_group)
-) %>% 
-  left_join(., sample_key_kept, by = "sample_id") %>% 
-  left_join(
-    ., 
-    kept_dat %>% 
-      group_by(sample_id, stock_group) %>% 
-      summarize(
-        agg_prob = sum(prob)
-      ) %>% 
-      ungroup(),
-    by = c("sample_id", "stock_group")
-  ) %>% 
-  mutate(
-    agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
-    agg_ppn = agg_prob / sample_id_n,
-    year_n = as.numeric(year),
-    year = as.factor(year),
-    stock_group = as.factor(stock_group),
-    utm_x_m = utm_x * 1000,
-    utm_y_m = utm_y * 1000,
-    sg_year = paste(stock_group, year, sep = "_") %>% as.factor()
-  ) 
-
-# Includes smooth for year by stock group
-system.time(
-  fit_kept <- gam(
-    agg_prob ~ 0 + stock_group + 
-      s(week_n, by = stock_group, k = 20, bs = "cc") +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
-      s(sg_year, bs = "re"),
-    data = agg_dat_kept, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
-class(fit_kept) = c( "mvtweedie", class(fit_kept) )
-saveRDS(
-  fit_kept,
-  here::here(
-    "data", "model_fits", "fit_kept.rds"
-  )
-)
+# kept_dat <- dat %>%
+#   filter(disposition == "Kept") %>%
+#   group_by(sample_id) %>%
+#   mutate(sample_id_n = sum(prob)) %>%
+#   ungroup()
+# sample_key_kept <- kept_dat %>%
+#   select(sample_id, sample_id_n, strata, year, week_n, utm_y, utm_x) %>%
+#   distinct()
+# 
+# agg_dat_kept <- expand.grid(
+#   sample_id = unique(kept_dat$sample_id),
+#   stock_group = unique(kept_dat$stock_group)
+# ) %>% 
+#   left_join(., sample_key_kept, by = "sample_id") %>% 
+#   left_join(
+#     ., 
+#     kept_dat %>% 
+#       group_by(sample_id, stock_group) %>% 
+#       summarize(
+#         agg_prob = sum(prob)
+#       ) %>% 
+#       ungroup(),
+#     by = c("sample_id", "stock_group")
+#   ) %>% 
+#   mutate(
+#     agg_prob = ifelse(is.na(agg_prob), 0, agg_prob),
+#     agg_ppn = agg_prob / sample_id_n,
+#     year_n = as.numeric(year),
+#     year = as.factor(year),
+#     stock_group = as.factor(stock_group),
+#     utm_x_m = utm_x * 1000,
+#     utm_y_m = utm_y * 1000,
+#     sg_year = paste(stock_group, year, sep = "_") %>% as.factor()
+#   ) 
+# 
+# # Includes smooth for year by stock group
+# system.time(
+#   fit_kept <- gam(
+#     agg_prob ~ 0 + stock_group + 
+#       s(week_n, by = stock_group, k = 20, bs = "cc") +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
+#       s(sg_year, bs = "re"),
+#     data = agg_dat_kept, family = "tw", method = "REML",
+#     knots = list(week_n = c(0, 52))
+#   )
+# )
+# class(fit_kept) = c( "mvtweedie", class(fit_kept) )
+# saveRDS(
+#   fit_kept,
+#   here::here(
+#     "data", "model_fits", "fit_kept.rds"
+#   )
+# )
 
 
 
