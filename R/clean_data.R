@@ -816,7 +816,7 @@ rkw_dat <- raw_dat %>%
     # sampling event = all samples collected in a given strata-year-week
     sample_id = paste(year, week, strata, sep = "_"),
     age_stock_group = case_when(
-      grepl("CAPI", stock) | grepl("QUAT", stock) ~ stock_group,
+      grepl("CAPI", stock) | grepl("QUAT", stock) ~ "SOG",
       stock %in% c("CLACKAMAS_RIVER", "SANTIAM_RIVER_NORTH") ~ "CR-upper_su/fa",
       stock_group == "PSD" ~ stock_group,
       grepl("Fraser", region1name) ~ stock_group,
@@ -845,6 +845,8 @@ saveRDS(rkw_dat, here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds"
 
 ## add age assignment uncertainty
 # focus only on individuals with high GSI probability
+rkw_dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds"))
+
 rkw_age <- rkw_dat %>% 
   group_by(id, age_stock_group, stock_group) %>% 
   summarize(
@@ -910,47 +912,56 @@ size_age_pred <- readRDS(here::here("data", "rec", "size_age_post_draws.rds")) %
       month == "Jun" ~ 6,
       month == "Jul" ~ 7,
       month == "Aug" ~ 8,
-      month == "Sep" ~ 9
+      month == "Sep" ~ 9,
+      month == "Oct" ~ 10
     )
   )
 
 
-xx <- rkw_age[1, ]
-
-foo <- age_bias %>% 
-  filter(asg == xx$asg) %>% 
-  mutate(
-    sw_age = xx$sw_year,
-    sw_age_biased = case_when(
-      bias == "over"  ~ sw_age - 1,
-      bias == "under"  ~ sw_age + 1,  
-      bias == "zero" ~ sw_age)
-  )
-
-# generate 1000 age observations
-foo$age_count <- rmultinom(1, 1000, foo$mean_prob) %>% 
-  as.numeric()
-
-foo2 <- size_age_pred %>% 
-  filter(age_stock_group == as.character(xx$age_stock_group),
-         month_n == xx$month)
-
-# loop through ages and sample from size distribution proportionally to abundance
-length_list <- vector(length = nrow(foo), mode = "list")
-for (i in 1:nrow(foo)) {
-  length_list[[i]] <- foo2 %>% 
-    filter(sw_age == foo$sw_age[i]) %>% 
-    sample_n(foo$age_count[i])
+length_bin_list <- vector(length = nrow(rkw_age), mode = "list")
+for (j in 1:nrow(rkw_age)) {
+  xx <- rkw_age[j, ]
+  foo <- age_bias %>% 
+    filter(asg == xx$asg) %>% 
+    mutate(
+      sw_age = xx$sw_year,
+      sw_age_biased = case_when(
+        bias == "over"  ~ sw_age - 1,
+        bias == "under"  ~ sw_age + 1,  
+        bias == "zero" ~ sw_age)
+    )
+  
+  # generate 1000 age observations
+  foo$age_count <- rmultinom(1, 1000, foo$mean_prob) %>% 
+    as.numeric()
+  
+  foo2 <- size_age_pred %>% 
+    filter(age_stock_group == as.character(xx$age_stock_group),
+           month_n == xx$month)
+  
+  # loop through ages and sample from size distribution proportionally to 
+  # abundance
+  length_list <- vector(length = nrow(foo), mode = "list")
+  for (i in 1:nrow(foo)) {
+    length_list[[i]] <- foo2 %>% 
+      filter(sw_age == foo$sw_age[i]) %>% 
+      sample_n(foo$age_count[i])
+  }
+  dd <- bind_rows(length_list) %>% 
+    mutate(
+      size_bin = cut(
+        fl, 
+        breaks = c(-Inf, 651, 751, 851, Inf), 
+        labels = c("55-65", "65-75", "75-85", ">85")
+      )
+    )
+  
+  # export dataframe with probs
+  length_bin_list[[j]] <- dd %>% 
+    group_by(size_bin) %>% 
+    tally() %>% 
+    mutate(id = xx$id,
+           prob = n / 1000) %>% 
+    right_join(rkw_age, ., by = "id")
 }
-dd <- bind_rows(length_list) %>% 
-  mutate(
-    size_bin = cut(
-      fl, 
-      breaks = c(-Inf, 651, 751, 851, Inf), 
-      labels = c("55-65", "65-75", "75-85", ">85")
-    )
-  )
 
-dd %>% 
-  group_by(size_bin) %>% 
-  tally()
