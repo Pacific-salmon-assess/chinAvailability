@@ -845,7 +845,9 @@ saveRDS(rkw_dat, here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds"
 
 ## add age assignment uncertainty
 # focus only on individuals with high GSI probability
-rkw_dat <- readRDS(here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds"))
+rkw_dat <- readRDS(
+  here::here("data", "rkw_diet", "cleaned_diet_samples_stock.rds")
+  )
 
 rkw_age <- rkw_dat %>% 
   group_by(id, age_stock_group, stock_group) %>% 
@@ -904,7 +906,9 @@ age_bias <- readRDS(here::here("data", "rec", "age_bias_post_draws.rds")) %>%
       as.numeric()
   ) 
 # from size_by_stock.R
-size_age_pred <- readRDS(here::here("data", "rec", "size_age_post_draws.rds")) %>% 
+size_age_pred <- readRDS(
+  here::here("data", "rec", "size_age_post_draws.rds")
+) %>% 
   mutate(
     age_stock_group = as.character(age_stock_group),
     month_n = case_when(
@@ -961,7 +965,14 @@ for (j in 1:nrow(rkw_age)) {
     group_by(size_bin) %>% 
     tally() %>% 
     mutate(id = xx$id,
-           prob = n / 1000) %>% 
-    right_join(rkw_age, ., by = "id")
+           prob = n / 1000) 
 }
 
+
+length_bin_out <- length_bin_list %>% 
+  bind_rows() %>% 
+  right_join(rkw_age, ., by = "id")
+
+
+saveRDS(length_bin_out,
+        here::here("data", "rkw_diet", "cleaned_diet_samples_size.rds"))
