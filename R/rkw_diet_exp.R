@@ -154,7 +154,8 @@ diet_samp_bar <- ggplot(stock_dat) +
   ) +
   theme(
     legend.position = "top",
-    axis.title.x = element_blank()
+    axis.title.x = element_blank(),
+    axis.text = element_text(size = 7.5)
   ) +
   geom_text(
     data = samp_size_stock, aes(x = Inf, y = Inf, label = paste(n)),
@@ -180,7 +181,8 @@ age_samp_bar <- size_dat %>%
   ) +
   theme(
     legend.position = "top",
-    axis.title.x = element_blank()
+    axis.title.x = element_blank(),
+    axis.text = element_text(size = 7.5)
   )+
   geom_text(
     data = samp_size_age, aes(x = Inf, y = Inf, label = paste(n)),
@@ -204,7 +206,8 @@ size_samp_bar <- ggplot(size_dat) +
   ) +
   theme(
     legend.position = "top",
-    axis.title.x = element_blank()
+    axis.title.x = element_blank(),
+    axis.text = element_text(size = 7.5)
   ) +
   geom_text(
     data = samp_size_age, aes(x = Inf, y = Inf, label = paste(n)),
@@ -223,7 +226,7 @@ dev.off()
 
 png(
   here::here("figs", "rkw_diet", "monthly_comp_bar.png"),
-  height = 5, width = 8, units = "in", res = 250
+  height = 5, width = 7.5, units = "in", res = 250
 )
 diet_samp_bar
 dev.off()
