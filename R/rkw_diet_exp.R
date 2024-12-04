@@ -70,12 +70,12 @@ ppn_dat_size <- size_dat %>%
     agg_prob = agg_count / n_samples
   ) 
 
-ppn_dat_list <- list(ppn_dat_stock, ppn_dat_size)
-names(ppn_dat_list) <- c("stock", "size")
-
-saveRDS(
-  ppn_dat_list, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
-)
+# ppn_dat_list <- list(ppn_dat_stock, ppn_dat_size)
+# names(ppn_dat_list) <- c("stock", "size")
+# 
+# saveRDS(
+#   ppn_dat_list, here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
+# )
 
 
 ## PALETTES --------------------------------------------------------------------

@@ -9,9 +9,9 @@ library(sf)
 diet_dat_in <- readRDS(
   here::here("data", "rkw_diet", "cleaned_ppn_dat.rds")
 ) 
-diet_dat <- diet_dat_in %>% 
+diet_dat <- diet_dat_in$stock %>% 
   mutate(
-    dataset = "diet",
+    dataset = "Diet",
     utm_x_m = utm_x * 1000,  
     utm_y_m = utm_y * 1000 
   ) %>% 
@@ -30,7 +30,7 @@ rec_dat <- rec_dat_in %>%
   group_by(utm_x_m, utm_y_m, strata) %>% 
   summarize(
     era = "current",
-    dataset = "fishery",
+    dataset = "Fishery",
     n_samples = round(sum(agg_prob), digits = 0)
   ) %>% 
   select(utm_x_m, utm_y_m, era, strata, n_samples, dataset) %>% 
@@ -49,11 +49,15 @@ strata_key <- data.frame(
   lon = c(-124.92151, -124.85158, -124.52353, -124.12741, -123.56583, 
           -123.06742, -123.35288, -123.50943),
   lat = c(48.55033, 48.65752, 48.53, 48.38, 48.29965,
-          48.45791, 48.70844, 48.67728)
+          48.45791, 48.70844, 48.67728),
+  dataset = "Fishery"
 ) %>% 
   sdmTMB::add_utm_columns(
     ., ll_names = c("lon", "lat"), ll_crs = 4326, units = "m",
     utm_names = c("utm_x_m", "utm_y_m")
+  ) %>% 
+  filter(
+    !strata %in% c("San Juan\nIslands", "cJDF")
   )
 # saveRDS(
 #   strata_key,
@@ -61,12 +65,12 @@ strata_key <- data.frame(
 # )
 
 
-strata_colour_pal <- RColorBrewer::brewer.pal(
-  length(levels(dat$strata)),
-  "Paired"
-)
+strata_colour_pal <- c(
+  "#e41a1c",  "#377eb8",  "#4daf4a",  "#984ea3",  "#ff7f00",  "#ffff33", 
+  "#a65628",  "#f781bf"
+  )
 names(strata_colour_pal) <- levels(dat$strata) 
-era_shape_pal <- c(21, 22)
+era_shape_pal <- c(22, 21)
 names(era_shape_pal) <- levels(dat$era) 
 
   
@@ -92,11 +96,11 @@ diet_samp_map <- ggplot() +
     data = dat,
     aes(x = utm_x_m, y = utm_y_m, fill = strata, shape = era, 
         size = n_samples), 
-    alpha = 0.5
+    alpha = 0.7
   ) +
   geom_point(
     data = strata_key, aes(x = utm_x_m, y = utm_y_m), 
-    shape = 4
+    shape = 4, stroke = 1.5
   ) +
   coord_sf(expand = FALSE) +
   scale_fill_manual(values = strata_colour_pal,
