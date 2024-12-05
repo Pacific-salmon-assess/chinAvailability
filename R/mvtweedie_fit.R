@@ -228,6 +228,7 @@ rec_samp_cov2 <- ggplot(sample_key2) +
               alpha = 0.4
   ) +
   facet_wrap(~strata) +
+  scale_colour_discrete(name = "Management\nMeasures") +
   scale_size_continuous(name = "Sample\nSize") +
   scale_x_continuous(
     breaks = c(19.5, 24, 28.5, 32.5, 37),
@@ -943,16 +944,6 @@ new_dat_sp <- expand.grid(
     sg_year = paste(stock_group, year_n, sep = "_") %>% 
       as.factor()
   ) 
-  
-# key for month labels
-# month_key <- data.frame(
-#   week_n = unique(new_dat_sp$week_n)
-# ) %>% 
-#   mutate(
-#     month = c("May", "Jun", "Jul", "Aug", "Sep") %>% 
-#       as.factor() %>% 
-#       fct_reorder(., week_n)
-#   )
 
 excl3 <- #grepl("week_n", gratia::smooths(fit2)) | 
   grepl("year", gratia::smooths(fit2))
@@ -1014,7 +1005,7 @@ spatial_pred <- ggplot() +
     axis.text = element_blank(), 
     axis.ticks = element_blank(),
     legend.position = "none",
-    strip.text = element_text(size = 5)
+    strip.text = element_text(size = 9)
   ) 
 spatial_legend <- cowplot::get_legend(
   ggplot() +
@@ -1049,7 +1040,7 @@ spatial_pred_scaled <- ggplot() +
     axis.text = element_blank(), 
     axis.ticks = element_blank(),
     legend.position = "none",
-    strip.text = element_text(size = 5)
+    strip.text = element_text(size = 9)
   ) 
 spatial_scaled_legend <- cowplot::get_legend(
   ggplot() +
