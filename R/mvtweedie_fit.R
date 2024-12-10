@@ -177,19 +177,19 @@ rec_samp_cov <- ggplot(sample_key) +
 
 
 ## supplementary figure showing locations/times of closures
-## week_n == 25 is June 15, week_n == 29 is July 15, week n == 31 is Aug 1
+## week_n == 25 is June 15, == 29 is July 15, == 31 is Aug 1, == 36 is Aug 31
 sample_key2 <- sample_key %>%
   mutate(
     restricted = case_when(
       ## Vic area strata
       # size restrictions before July 15 and prior to 2019
-      strata == "Sooke/\nVictoria" & year == 2018 & week_n < 32 ~ "size limit",
+      strata == "Sooke/\nVictoria" & year == 2018 & week_n < 31 ~ "size limit",
       strata == "Sooke/\nVictoria" & year < 2018 & week_n < 29 ~ "size limit",
       # closed before Aug 1 and prior to 2019
-      strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 29 ~
-        "non-retention",
-      strata %in% c("Sooke/\nVictoria", "Saanich") & year >= 2019 & week_n < 32 ~
-        "size limit",
+      strata %in% c("Sooke/\nVictoria", "Saanich", "S. Gulf\nIslands") & 
+        year >= 2019 & week_n < 29 ~ "non-retention",
+      strata %in% c("Sooke/\nVictoria", "Saanich", "S. Gulf\nIslands") & 
+        year > 2019 & week_n < 36 ~ "size limit",
       ## Swiftsure/Nitinat/Renfrew strata
       # unrestricted prior to 2019
       strata %in% c("Swiftsure", "Renfrew") & year < 2019 ~ "standard",
@@ -203,13 +203,13 @@ sample_key2 <- sample_key %>%
       # strata == "S. Gulf\nIslands" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
       #   "size limit",
       # closed before Aug 1 and prior to 2019
-      strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 29 ~
-        "non-retention",
+      # strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 29 ~
+      #   "non-retention",
       strata == "S. Gulf\nIslands" & year == 2018 &  
         (week_n > 26 & week_n < 32) ~ "size limit",
       strata == "S. Gulf\nIslands" & year == 2017 & 
         (week_n > 28 & week_n < 32) ~ "size limit",
-      strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 32 ~ "size limit",
+      # strata == "S. Gulf\nIslands" & year >= 2019 & week_n < 32 ~ "size limit",
       ## S Gulf Islands area strata
       # size restrictions before July 15 and prior to 2019
       # strata == "Saanich" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
