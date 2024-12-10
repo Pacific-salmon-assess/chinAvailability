@@ -300,7 +300,8 @@ fit_list <- list(fit_size)
 size_bins <- levels(fit_size$model$size_bin)
 
 # infill rkw data to ensure each stock group present for each sampling event
-dat_list_size <- split(rkw_dat$size, rkw_dat$size$sample_id)
+rkw_size_dat <- rkw_dat$size 
+dat_list_size <- split(rkw_size_dat, rkw_size_dat$sample_id)
 
 new_dat_size <- purrr::map(
   dat_list_size,
@@ -317,7 +318,7 @@ new_dat_size <- purrr::map(
       # add observed proportion for each stock and sampling event
       left_join(
         ., 
-        rkw_dat$size %>% 
+        rkw_size_dat %>% 
           select(sample_id, size_bin, obs_ppn = agg_prob), 
         by = c("sample_id", "size_bin")
       ) %>% 
@@ -378,7 +379,6 @@ pred_tbl_size$sim_dat <- furrr::future_map(
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat_size <- pred_tbl_size %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard")),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
@@ -389,14 +389,14 @@ sim_ppn_dat_size <- pred_tbl_size %>%
         )
     )
   ) %>% 
-  select(dataset, sim_ppn) %>% 
+  select(sim_ppn) %>% 
   unnest(
     cols = sim_ppn
   )
 
 
 diff_quantile <- sim_ppn_dat_size %>%
-  group_by(size_bin, dataset) %>% 
+  group_by(size_bin) %>% 
   summarize(
     med_dif = median(diff_ppn),
     up_dif = quantile(diff_ppn, 0.975),
@@ -406,7 +406,7 @@ diff_quantile <- sim_ppn_dat_size %>%
 
 sel_bean_size <- ggplot() +
   geom_pointrange(
-    data = diff_quantile %>% filter(dataset == "standard"),
+    data = diff_quantile,
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin)
   ) +
   # geom_text(
@@ -438,21 +438,21 @@ dev.off()
 # dev.off()
 
 
-
-# # calculate observed proportions
-# obs_ppn_dat_size <- rkw_dat_size %>% 
-#   group_by(size_bin) %>% 
+# 
+# # # calculate observed proportions
+# obs_ppn_dat_size <- rkw_dat$size %>%
+#   group_by(size_bin) %>%
 #   summarize(
 #     sum_obs = sum(agg_prob)
-#   ) %>% 
-#   ungroup() %>% 
-#   # no smallest sizes observed so add manually as zero
-#   rbind(
-#     .,
-#     data.frame(
-#       size_bin = "55-65", sum_obs = 0
-#     )
-#   ) %>% 
+#   ) %>%
+#   ungroup() %>%
+#   # # no smallest sizes observed so add manually as zero
+#   # rbind(
+#   #   .,
+#   #   data.frame(
+#   #     size_bin = "55-65", sum_obs = 0
+#   #   )
+#   # ) %>%
 #   mutate(
 #     obs_ppn = ifelse(sum_obs == "0", 0, sum_obs / sum(sum_obs)),
 #     se_obs_ppn = sqrt(obs_ppn * (1 - obs_ppn) / sum(sum_obs)),
@@ -462,20 +462,20 @@ dev.off()
 # 
 # sel_boxplot_size <- ggplot() +
 #   geom_boxplot(
-#     data = sim_ppn_dat_size %>% filter(dataset == "standard"),
+#     data = sim_ppn_dat_size,
 #     aes(x = size_bin, y = pred_sim_ppn)
 #   ) +
 #   geom_pointrange(
-#     data = obs_ppn_dat_size, 
-#     aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
+#     data = obs_ppn_dat_size,
+#     aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up),
 #     colour = "red",
 #     position = position_nudge(x = 0.1)
 #   ) +
-#   geom_text(
-#     data = p_val_sig_size %>% filter(dataset == "standard"),
-#     aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
-#     label = "*", size = 7.5
-#   ) +
+#   # geom_text(
+#   #   data = p_val_sig_size %>% filter(dataset == "standard"),
+#   #   aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)),
+#   #   label = "*", size = 7.5
+#   # ) +
 #   lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
 #   labs(y = "Sample Composition") +
 #   ggsidekick::theme_sleek() +
@@ -489,14 +489,14 @@ dev.off()
 #     aes(x = size_bin, y = pred_sim_ppn, fill = dataset)
 #   ) +
 #   geom_pointrange(
-#     data = obs_ppn_dat_size, 
-#     aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up), 
+#     data = obs_ppn_dat_size,
+#     aes(x = size_bin, y = obs_ppn, ymin = lo, ymax = up),
 #     colour = "red",
 #     position = position_nudge(x = 0.1)
 #   ) +
 #   geom_text(
 #     data = p_val_sig_size,
-#     aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)), 
+#     aes(x = size_bin, y = max(obs_ppn_dat_size$up + 0.1)),
 #     label = "*", size = 7.5
 #   ) +
 #   lims(y = c(0, max(obs_ppn_dat_size$up + 0.2))) +
