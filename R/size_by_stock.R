@@ -113,7 +113,7 @@ fit <- gam(
     s(week_n, bs = "tp", by = sw_age, k = 4, m = 1) +
     s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) 
   # remove given minimal variability in size and some missing years
-  #+ s(year_f, bs = "re")
+  + s(year_f, bs = "re")
   ,
   data = gsi %>% filter(!is.na(sw_age))
 )
@@ -170,7 +170,7 @@ new_dat <- new_dat1 %>%
   ) %>% 
   mutate(month = fct_reorder(month, week_n))
 
-preds <- predict(fit, newdata = new_dat,  se.fit = TRUE)
+preds <- predict(fit, newdata = new_dat,  se.fit = TRUE, exclude = "s(year_f)")
 
 new_dat2 <- new_dat %>% 
   mutate(

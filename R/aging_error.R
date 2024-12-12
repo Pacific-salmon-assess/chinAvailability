@@ -57,6 +57,7 @@ dum <- age_dat %>%
   select(est_age, age, stock_group, age_source, location) %>%
   rbind(., fr_stock_dat) %>% 
   mutate(
+    bias_n = age - est_age,
     bias = case_when(
       age - est_age == 0 ~ "zero",
       age - est_age > 0 ~ "under",
@@ -64,30 +65,44 @@ dum <- age_dat %>%
     ) %>% 
       factor(., levels = c("zero", "under", "over")),
     age = as.factor(age)
+  ) %>% 
+  mutate(
+    stock_group = factor(
+      stock_group, 
+      labels = c(
+        "other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", "ECVI_SOMN",
+        "FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2", "FR_Sum_4sub1", 
+        "FR_Fall"
+      ))
+  ) %>% 
+  # remove samples with greater than one year difference 
+  filter(
+    !abs(bias_n) > 1
   )
 
 samp_size <- dum %>% 
-  group_by(stock_group, age) %>% 
+  group_by(stock_group, est_age) %>% 
   tally()
 
-ppn_dat <- dum %>% 
-  group_by(stock_group, age) %>% 
+ppn_dat <- dum %>%  
+  group_by(stock_group, est_age) %>% 
   mutate(age_n = n(), .groups = "drop") %>% 
   ungroup() %>% 
-  group_by(stock_group, bias, age, age_n) %>% 
+  group_by(stock_group, bias, est_age, age_n) %>% 
   tally() %>% 
   mutate(prop = n / age_n)
 
+
 obs_error <- ggplot(ppn_dat) +
-  geom_bar(aes(x = age, y = prop, fill = bias),
+  geom_bar(aes(x = est_age, y = prop, fill = bias),
            position="stack", stat="identity") +
   facet_wrap(~stock_group) +
   ggsidekick::theme_sleek() +
   geom_text(
-    data = samp_size, aes(x = age, y = -Inf, label = paste(n)),
+    data = samp_size, aes(x = est_age, y = -Inf, label = paste(n)),
     vjust = -1.1, size = rel(2.5)
   ) +
-  labs(x = "Total Age", y = "Proportion of Samples") +
+  labs(x = "Estimated Total Age", y = "Proportion of Samples") +
   theme(
     legend.position = "top"
   )
@@ -102,31 +117,31 @@ dev.off()
 
 
 ## fit initial multinomial model
-# prior_in <- c(
-#   prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
-#   prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
-#   prior(normal(0, 2), class = "b", coef = "age3", dpar = "muunder"),
-#   prior(normal(0, 2), class = "b", coef = "age4", dpar = "muunder"),
-#   prior(normal(0, 2), class = "b", coef = "age5", dpar = "muunder"),
-#   prior(normal(0, 2), class = "b", coef = "age6", dpar = "muunder"),
-#   prior(normal(0, 2), class = "b", coef = "age3", dpar = "muover"),
-#   prior(normal(0, 2), class = "b", coef = "age4", dpar = "muover"),
-#   prior(normal(0, 2), class = "b", coef = "age5", dpar = "muover"),
-#   prior(normal(0, 2), class = "b", coef = "age6", dpar = "muover"),
-#   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
-#   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")
-# )
-# 
-# fit <- brm(
-#   formula = bf(bias ~ age + (1 | stock_group), 
-#                family = categorical(link = "logit")),
-#   data = dum,
-#   prior = prior_in,
-#   chains = 4, cores = 4, iter = 2000,
-#   control = list(adapt_delta = 0.96)
-# )
+prior_in <- c(
+  prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
+  prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "age3", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "age4", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "age5", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "age6", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "age3", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "age4", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "age5", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "age6", dpar = "muover"),
+  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
+  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")
+)
+
+fit <- brm(
+  formula = bf(bias ~ age + (1 | stock_group),
+               family = categorical(link = "logit")),
+  data = dum,
+  prior = prior_in,
+  chains = 4, cores = 4, iter = 2000,
+  control = list(adapt_delta = 0.96)
+)
 # saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
-fit <- readRDS(here::here("data", "model_fits", "age_error_est.rds"))
+fit2 <- readRDS(here::here("data", "model_fits", "age_error_est.rds"))
 
 
 new_data <- expand.grid(
