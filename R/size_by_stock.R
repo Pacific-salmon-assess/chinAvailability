@@ -111,26 +111,17 @@ fit <- gam(
   fl ~ #0 + 
     sw_age + age_stock_group + s(week_n, bs = "tp", k = 4, m = 2) +
     s(week_n, bs = "tp", by = sw_age, k = 4, m = 1) +
-    s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) 
-  # remove given minimal variability in size and some missing years
-  + s(year_f, bs = "re")
+    s(week_n, bs = "tp", by = age_stock_group, k = 4, m = 1) +
+    s(year_f, bs = "re")
   ,
   data = gsi %>% filter(!is.na(sw_age))
 )
-saveRDS(fit, here::here("data", "rec", "size_at_age_fit.rds"))
-
 
 # make predictions, constraining to weeks where stocks present
 stock_week <- gsi %>% 
   filter(month_n > 4 & month_n < 10) %>% 
   group_by(week_n, age_stock_group) %>% 
   tally() 
-
-# ggplot(stock_week,
-#        aes(x = week_n, y = age_stock_group, size = n, fill = age_stock_group)) +
-#   geom_point(shape = 21) +
-#   scale_size_continuous(trans = "log") +
-#   ggsidekick::theme_sleek()
 
 obs_weeks <- stock_week %>% 
   group_by(age_stock_group) %>% 
@@ -146,7 +137,8 @@ stock_age <- gsi %>%
 # restrict to weeks where at least five individuals sampled
 week_month <- data.frame(
   week_n = c(20, 25, 29, 34, 38, 42),
-  month = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+  month = c("May", "Jun", "Jul", "Aug", "Sep", "Oct"),
+  month_n = c(5, 6, 7, 8, 9, 10)
 )
 new_dat1 <- expand.grid(
   week_n = unique(week_month$week_n),
@@ -159,6 +151,8 @@ new_dat1 <- expand.grid(
   filter(
     !is.na(sw_age)
   )
+new_dat1$year_f <- unique(gsi$year_f)[1]
+new_dat1$sw_year <- as.numeric(as.character(new_dat1$sw_age))
   
 new_dat <- new_dat1 %>%   
   # remove weeks where stock not observed & rare age classes
@@ -168,15 +162,26 @@ new_dat <- new_dat1 %>%
     !age_n < 5,
     !is.na(sw_age)
   ) %>% 
-  mutate(month = fct_reorder(month, week_n))
+  mutate(
+    month = fct_reorder(month, week_n)
+  )
 
-preds <- predict(fit, newdata = new_dat,  se.fit = TRUE, exclude = "s(year_f)")
+
+# generate predictions, integrating out year effects
+preds <- predict(fit, newdata = new_dat, se.fit = TRUE, exclude = "s(year_f)")
 
 new_dat2 <- new_dat %>% 
   mutate(
     pred_fl = as.numeric(preds$fit),
     lo_fl = pred_fl + (stats::qnorm(0.025) * as.numeric(preds$se.fit)), 
-    up_fl = pred_fl + (stats::qnorm(0.975) * as.numeric(preds$se.fit))
+    up_fl = pred_fl + (stats::qnorm(0.975) * as.numeric(preds$se.fit)),
+    age_stock_group = fct_recode(
+      age_stock_group, 
+      "FR_Spr_4sub2" = "FR_Spr_4.2",
+      "FR_Spr_5sub2" = "FR_Spr_5.2",
+      "FR_Sum_5sub2" = "FR_Sum_5.2",
+      "FR_Sum_4sub1" = "FR_Sum_4.1"
+    )
     )
 
 shape_pal <- c(21, 22)
@@ -210,11 +215,26 @@ dev.off()
 
 
 # generate 1000 simulated draws for each combination 
-sims <- simulate(fit, nsim = 1000, data = new_dat1)
+# subset based on data necessary for diet predictions 
+# (generated in clean_data.R)
+key <- readRDS(here::here("data", "size_at_age_pred_key.rds")) %>% 
+  mutate(
+    id = paste(age_stock_group, sw_year, month, sep = "_")
+  )
+new_dat_post_out <- new_dat1 %>% 
+  mutate(
+    id = paste(age_stock_group, sw_year, month_n, sep = "_")
+  ) %>% 
+  filter(
+    id %in% key$id
+  )
+
+set.seed(123)
+sims <- simulate(fit, nsim = 1000, data = new_dat_post_out, exclude = "s(year_f)")
 
 size_pred_post <- sims %>% 
   as.data.frame() %>%
-  cbind(new_dat1 %>% 
+  cbind(new_dat_post_out %>% 
           select(month, sw_age, age_stock_group),
         .) %>% 
   pivot_longer(cols = starts_with("V"), names_to = "iter", names_prefix = "V",
@@ -223,3 +243,51 @@ size_pred_post <- sims %>%
 
 saveRDS(size_pred_post, here::here("data", "rec", "size_age_post_draws.rds"))
 
+
+# histogram of stock-specific size distributions
+size_pred_hist <- ggplot(
+  size_pred_post %>% 
+    mutate(
+      age_stock_group = fct_recode(
+        age_stock_group, 
+        "FR_Spr_4sub2" = "FR_Spr_4.2",
+        "FR_Spr_5sub2" = "FR_Spr_5.2",
+        "FR_Sum_5sub2" = "FR_Sum_5.2",
+        "FR_Sum_4sub1" = "FR_Sum_4.1"
+      )
+    ) %>% 
+    filter(month == "Jul")
+) +
+  geom_histogram(aes(x = fl, fill = sw_age)) +
+  scale_fill_manual(name = "Marine\nAge", values = age_pal, 
+                    na.value = "grey60" ) +
+  facet_wrap(~age_stock_group) +
+  ggsidekick::theme_sleek() +
+  theme(
+    axis.title.x = element_blank(),
+    legend.position = "top"
+  ) +
+  labs(
+    y = "Predicted Fork Length"
+  )
+
+png(
+  here::here("figs", "stock_size_age", "hist_pred_fishery.png"),
+  height = 6.5, width = 8, units = "in", res = 250
+)
+size_pred_hist
+dev.off()
+
+# ggplot(gsi %>% filter(!is.na(sw_age))) +
+#   geom_histogram(aes(x = fl, fill = sw_age)) +
+#   scale_fill_manual(name = "Marine\nAge", values = age_pal, 
+#                     na.value = "grey60" ) +
+#   facet_wrap(~age_stock_group) +
+#   ggsidekick::theme_sleek() +
+#   theme(
+#     axis.title.x = element_blank(),
+#     legend.position = "top"
+#   ) +
+#   labs(
+#     y = "Predicted Fork Length"
+#   )

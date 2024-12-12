@@ -64,6 +64,7 @@ dum <- age_dat %>%
       age - est_age < 0 ~ "over"
     ) %>% 
       factor(., levels = c("zero", "under", "over")),
+    est_age = as.factor(est_age),
     age = as.factor(age)
   ) %>% 
   mutate(
@@ -116,40 +117,40 @@ obs_error
 dev.off()
 
 
-## fit initial multinomial model
+## fit multinomial model
 prior_in <- c(
   prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
   prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age3", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age4", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age5", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age6", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "age3", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "age4", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "age5", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "age6", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "est_age3", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "est_age4", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "est_age5", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "est_age6", dpar = "muunder"),
+  prior(normal(0, 2), class = "b", coef = "est_age3", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "est_age4", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "est_age5", dpar = "muover"),
+  prior(normal(0, 2), class = "b", coef = "est_age6", dpar = "muover"),
   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")
 )
 
 fit <- brm(
-  formula = bf(bias ~ age + (1 | stock_group),
+  formula = bf(bias ~ est_age + (1 | stock_group),
                family = categorical(link = "logit")),
   data = dum,
   prior = prior_in,
   chains = 4, cores = 4, iter = 2000,
   control = list(adapt_delta = 0.96)
 )
-# saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
-fit2 <- readRDS(here::here("data", "model_fits", "age_error_est.rds"))
+saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
+fit <- readRDS(here::here("data", "model_fits", "age_error_est.rds"))
 
 
 new_data <- expand.grid(
-  age = levels(dum$age),
+  est_age = levels(dum$est_age),
   stock_group = levels(dum$stock_group)
 ) %>% 
   mutate(
-    asg = paste(age, stock_group, sep = "-")
+    asg = paste(est_age, stock_group, sep = "-")
   )
 
 # Generate posterior predicted probabilities for the new data
@@ -165,7 +166,7 @@ posterior_probs_new %>%
          bias = factor(bias, levels = c("zero", "under", "over"))) %>% 
   left_join(., new_data, by = "asg") %>% 
   ggplot(.) +
-  geom_bar(aes(x = age, y = mean_prob, fill = bias),
+  geom_bar(aes(x = est_age, y = mean_prob, fill = bias),
            position="stack", stat="identity") +
   facet_wrap(~stock_group) +
   ggsidekick::theme_sleek()
@@ -179,13 +180,58 @@ for (i in 1:3) {
     as.data.frame() %>%
     pivot_longer(cols = everything(), names_to = "asg", 
                  values_to = "prob") %>% 
-    left_join(., new_data, by = "asg") %>% 
-    mutate(iter = rep(seq(1, 55, by = 1), each = 4000),
-           bias = bias_names[[i]])
+    left_join(., new_data, by = "asg") %>%
+    mutate(iter = rep(seq(1, 55, by = 1), times = 4000),
+           bias = bias_names[[i]]) 
 }
 
 post_out <- bind_rows(post_list)
 saveRDS(post_out, here::here("data", "rec", "age_bias_post_draws.rds"))
+
+
+# same as above but ignore stock group in predictions so that average bias 
+# is used when a given age/stock group was not observed
+new_data2 <- expand.grid(
+  est_age = levels(dum$est_age),
+  stock_group = levels(dum$stock_group)[1]
+)
+
+# Generate posterior predicted probabilities for the new data
+posterior_probs_new2 <- posterior_epred(fit, newdata = new_data2, re_formula = NA)
+colnames(posterior_probs_new2) <- new_data2$est_age
+
+posterior_probs_new2 %>%
+  apply(c(2, 3), mean) %>%  # Take mean across posterior samples
+  as.data.frame() %>%
+  pivot_longer(cols = everything(), names_to = "bias", 
+               values_to = "mean_prob") %>%
+  mutate(est_age = rep(new_data2$est_age, each = length(unique(dum$bias))),
+         bias = factor(bias, levels = c("zero", "under", "over"))) %>%
+  # left_join(., new_data2, by = "asg") %>% 
+  ggplot(.) +
+  geom_bar(aes(x = est_age, y = mean_prob, fill = bias),
+           position="stack", stat="identity") +
+  # facet_wrap(~stock_group) +
+  ggsidekick::theme_sleek()
+
+
+# export posterior samples
+bias_names <- dimnames(posterior_probs_new2)[[3]]
+post_list2 <- vector(mode = "list", length = 3)
+for (i in 1:3) {
+  post_list2[[i]] <- posterior_probs_new2[ , , i] %>% 
+    as.data.frame() %>%
+    pivot_longer(cols = everything(), names_to = "age", 
+                 values_to = "prob") %>% 
+    mutate(iter = rep(seq(1, 4000, by = 1), each = 5),
+           bias = bias_names[[i]]) 
+}
+
+post_out2 <- bind_rows(post_list2)
+saveRDS(post_out2, 
+        here::here("data", "rec", "age_bias_post_draws_no_stock.rds"))
+
+
 
 
 ## simulation check

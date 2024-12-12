@@ -888,23 +888,41 @@ rkw_age <- rkw_dat %>%
     !is.na(total_year)
   )
 
+# identify the stock/age/month combinations that need to be predicted by 
+# size-at-age model
+size_at_age_pred_key <- rkw_age %>% select(age_stock_group, sw_year, month)
+saveRDS(size_at_age_pred_key,
+        here::here("data", "size_at_age_pred_key.rds"))
 
-## import aging model data
+
+
+## import aging model data and convert to probabilities by age and stock
 # from aging_error.R in TOTAL AGE
 age_bias <- readRDS(here::here("data", "rec", "age_bias_post_draws.rds")) %>% 
   group_by(asg, bias) %>% 
   summarise(
-    mean_prob1 = mean(prob)
+    mean_prob = mean(prob)
   ) %>% 
-  group_by(asg) %>% 
   mutate(
-    sum_prob = sum(mean_prob1),
-    mean_prob = mean_prob1 / sum_prob,
     total_age = str_split(asg, "-") %>%
       unlist() %>%
       .[[1]] %>%
       as.numeric()
   ) 
+
+# as above but no stock ID
+age_bias_no_stock <- readRDS(
+  here::here("data", "rec", "age_bias_post_draws_no_stock.rds")
+) %>% 
+  group_by(age, bias) %>% 
+  summarise(
+    mean_prob = mean(prob)
+  ) %>% 
+  mutate(
+    total_age = age %>%
+      as.numeric()
+  )
+  
 # from size_by_stock.R
 size_age_pred <- readRDS(
   here::here("data", "rec", "size_age_post_draws.rds")
@@ -918,22 +936,36 @@ size_age_pred <- readRDS(
       month == "Aug" ~ 8,
       month == "Sep" ~ 9,
       month == "Oct" ~ 10
-    )
+    ),
+    sw_year = as.numeric(as.character(sw_age))
   )
 
 
 length_bin_list <- vector(length = nrow(rkw_age), mode = "list")
 for (j in 1:nrow(rkw_age)) {
   xx <- rkw_age[j, ]
-  foo <- age_bias %>% 
-    filter(asg == xx$asg) %>% 
-    mutate(
-      sw_age = xx$sw_year,
-      sw_age_biased = case_when(
-        bias == "over"  ~ sw_age - 1,
-        bias == "under"  ~ sw_age + 1,  
-        bias == "zero" ~ sw_age)
-    )
+  
+  if (xx$asg %in% unique(age_bias$asg) == TRUE) {
+    foo <- age_bias %>% 
+      filter(asg == xx$asg) %>% 
+      mutate(
+        sw_age = xx$sw_year,
+        sw_age_biased = case_when(
+          bias == "over"  ~ sw_age - 1,
+          bias == "under"  ~ sw_age + 1,  
+          bias == "zero" ~ sw_age)
+      )
+  } else {
+    foo <- age_bias_no_stock %>% 
+      filter(total_age == xx$total_year) %>% 
+      mutate(
+        sw_age = xx$sw_year,
+        sw_age_biased = case_when(
+          bias == "over"  ~ sw_age - 1,
+          bias == "under"  ~ sw_age + 1,  
+          bias == "zero" ~ sw_age)
+      )
+  }
   
   # generate 1000 age observations
   foo$age_count <- rmultinom(1, 1000, foo$mean_prob) %>% 
