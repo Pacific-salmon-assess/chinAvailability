@@ -40,8 +40,8 @@ dat <- size_raw %>%
       strata,
       levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "vic",
                  "haro", "saanich"),
-      labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke/\nVictoria",
-                 "S. Gulf\nIslands", "Saanich")
+      labels = c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew",
+                 "Sooke/\nVictoria", "S. Gulf\nIslands", "Saanich")
     )
   ) %>% 
   sdmTMB::add_utm_columns(
@@ -169,7 +169,6 @@ rec_size_bar_summer <- dat %>%
     data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
-
 
 
 png(
@@ -373,8 +372,7 @@ newdata1 <- expand.grid(
     year = as.factor(year_n),
     sg_year = paste(size_bin, year, sep = "_") %>% 
       as.factor(),
-    strata = factor(strata, levels = levels(agg_dat$strata)),
-    slot_limit = "no"
+    strata = factor(strata, levels = levels(agg_dat$strata))
   ) %>% 
   filter(
     !strata == "Saanich"
@@ -391,7 +389,7 @@ pred3 = pred_dummy(
   fit,
   se.fit = TRUE,
   category_name = "size_bin",
-  origdata = agg_dat_slot,
+  origdata = agg_dat,
   newdata = newdata1
 )
 
@@ -401,19 +399,18 @@ newdata_yr <- cbind( newdata1, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
     upper = fit + (qnorm(0.975)*se.fit)
   ) %>% 
   filter(
-    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
-    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)
+    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n < 22),
+    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)
   )
 
 year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
   facet_grid(size_bin~strata, scales = "free_y") +
-  scale_colour_discrete() +
+  scale_colour_discrete(name = "Year") +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
   ) +
   labs(y="Predicted Proportion") +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top",
         axis.title.x = element_blank()) +
   scale_x_continuous(

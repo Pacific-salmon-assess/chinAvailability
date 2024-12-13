@@ -113,25 +113,25 @@ pred_tbl$sim_dat <- furrr::future_map(
 
 
 # calculate p-values for each and print
-p_val <- purrr::map2(
-  pred_tbl$sim_dat, pred_tbl$dataset,
-  ~ .x %>% 
-    group_by(stock_group) %>% 
-    summarize(p_value = sum(test_stat) / length(unique(sim_i))) %>% 
-    mutate(dataset = .y)
-  ) %>% 
-  bind_rows()
-p_val_sig <- p_val %>% 
-  filter(p_value < 0.05) %>% 
-  mutate(
-    dataset = factor(dataset, levels = c("standard", "management", "large"))
-  )
+# p_val <- purrr::map2(
+#   pred_tbl$sim_dat, pred_tbl$dataset,
+#   ~ .x %>% 
+#     group_by(stock_group) %>% 
+#     summarize(p_value = sum(test_stat) / length(unique(sim_i))) %>% 
+#     mutate(dataset = .y)
+#   ) %>% 
+#   bind_rows()
+# p_val_sig <- p_val %>% 
+#   filter(p_value < 0.05) %>% 
+#   mutate(
+#     dataset = factor(dataset, levels = c("standard", "large"))
+#   )
 
 
 # calculate simulated proportion in each simulation to compare to observed
 sim_ppn_dat <- pred_tbl %>% 
   mutate(
-    dataset = factor(dataset, levels = c("standard", "management", "large")),
+    dataset = factor(dataset, levels = c("standard", "large")),
     sim_ppn = purrr::map(
       sim_dat,
       ~ .x %>% 
