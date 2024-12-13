@@ -36,8 +36,8 @@ stock_key <- readRDS(here::here("data", "rec", "finalStockList_Nov2024.rds")) %>
                    "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
                    "Fraser_Fall"),
         labels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI", 
-                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2", 
-                   "FR_Sum_4.1", "FR_Fall")
+                   "ECVI_SOMN", "FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2", 
+                   "FR_Sum_4sub1", "FR_Fall")
       )
   )
 
@@ -504,8 +504,7 @@ pbt_rate <- readRDS(here::here("data", "sep", "cleaned_pbt.rds"))
 wide_rec4_trim <- readRDS(here::here("data", "rec", "wide_rec.rds")) %>% 
   filter(
     !is.na(stock_1)
-  )
-
+  ) 
 
 #pivot to long (probs and stock IDs separately) and join 
 probs <- wide_rec4_trim %>% 
@@ -636,14 +635,14 @@ long_rec <- wide_rec4_trim %>%
           as.numeric()
       ),
       # young 2.1s likely 1.2s
-      (stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") |
+      (stock_group %in% c("FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2") |
          pst_agg %in% c("NBC_SEAK")) & age_gr == "21" ~ 1,
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2") |
+      stock_group %in% c("FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2") |
         pst_agg %in% c("NBC_SEAK") ~ age - 2,
       # if stock group has variable life history use identified yearlings
       (pst_agg %in% c("CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp",
                       "CA_ORCST", "WACST","CR-lower_fa", "PSD") |
-         stock_group %in% c("Fraser_Sum_4.1")) &
+         stock_group %in% c("Fraser_Sum_4sub1")) &
         age_gr %in% c("32", "42", "52", "62") ~ age - 2,
       TRUE ~ age - 1
     ),
@@ -659,16 +658,16 @@ long_rec <- wide_rec4_trim %>%
         resolved_stock_source %in% c("CWT", "Otolith Stock") ~ "hatchery",
       ad == "Y" ~ "hatchery",
       # if PBT rate for a stock is uniformly high and caught after ~2013 BY
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+      stock_group %in% c("FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2",
+                         "FR_Sum_4sub1", "FR_Fall", "ECVI_SOMN", "WCVI") &
         resolved_stock_source == "DNA" & year > 2016 & high == TRUE ~ "wild",
       # if PBT rate varied or caught before widespread adoption
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+      stock_group %in% c("FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2",
+                         "FR_Sum_4sub1", "FR_Fall", "ECVI_SOMN", "WCVI") &
         resolved_stock_source == "DNA" & tag_rate > 0.8 ~ "wild",
       # stock soruce not in PBT database
-      stock_group %in% c("FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                         "FR_Sum_4.1", "FR_Fall", "ECVI_SOMN", "WCVI") &
+      stock_group %in% c("FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2",
+                         "FR_Sum_4sub1", "FR_Fall", "ECVI_SOMN", "WCVI") &
         resolved_stock_source == "DNA" & !(pbt_stock %in% pbt_rate$pbt_stock) ~
         "wild",
       grepl("HANFORD", stock) ~ "unknown",
@@ -699,8 +698,8 @@ long_rec <- wide_rec4_trim %>%
       factor(
         .,
         levels = c("other", "Col_Spr", "Col_Sum/Fall", "PSD", "WCVI",
-                   "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-                   "FR_Sum_4.1", "FR_Fall")
+                   "ECVI_SOMN", "FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2",
+                   "FR_Sum_4sub1", "FR_Fall")
       )
   )
 
@@ -805,7 +804,7 @@ rkw_dat <- raw_dat %>%
         .,
         levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "cJDF",
                    "sooke", "vic"),
-        labels = c("Swiftsure", "Nitinat", "Renfrew", "cJDF",
+        labels = c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew", "Central\nJDF",
                    "Sooke/\nVictoria", "San Juan\nIslands")
       ),
     month = lubridate::month(date),
@@ -876,7 +875,7 @@ rkw_age <- rkw_dat %>%
     # add intermediate ages
     total_year = case_when(
       is.na(total_year) & 
-        (grepl(".2", age_stock_group) | grepl("Spr", age_stock_group) | 
+        (grepl("sub2", age_stock_group) | grepl("Spr", age_stock_group) | 
            age_stock_group == "NBC_SEAK") ~ sw_year + 2,
       is.na(total_year) ~ sw_year + 1,
       TRUE ~ total_year

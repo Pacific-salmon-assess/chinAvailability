@@ -14,7 +14,16 @@ library(brms)
 rstan::rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
-age_dat <- readRDS(here::here("data", "rec", "aging_data.rds"))
+age_dat <- readRDS(here::here("data", "rec", "aging_data.rds")) %>% 
+  mutate(
+    stock_group = fct_recode(
+      stock_group,
+      "FR_Spr_4sub2" = "FR_Spr_4.2",
+      "FR_Spr_5sub2" = "FR_Spr_5.2",
+      "FR_Sum_5sub2" = "FR_Sum_5.2",
+      "FR_Sum_4sub1" = "FR_Sum_4.1"
+    )
+  )
 
 # make age_key 
 age_key <- data.frame(
@@ -25,6 +34,7 @@ age_key <- data.frame(
 
 # import confusion matrices from Fraser and convert to long DF
 fr_stocks <- c("FR_Sum_4.1", "FR_Fall", "FR_Sum_5.2", "FR_Spr_4.2")
+fr_stocks_rename <- c("FR_Sum_4sub1", "FR_Fall", "FR_Sum_5sub2", "FR_Spr_4sub2")
 stock_list <- vector(mode = "list", length = length(fr_stocks))
 for (i in seq_along(fr_stocks)) {
   stock_list[[i]] <- readxl::read_xlsx(
@@ -38,7 +48,7 @@ for (i in seq_along(fr_stocks)) {
       values_to = "count"
     ) %>% 
     mutate(
-      stock_group = fr_stocks[i],
+      stock_group = fr_stocks_rename[i],
       age_source = "cwt",
       location = "freshwater",
       cwt_age = as.numeric(cwt_age)
@@ -118,30 +128,30 @@ dev.off()
 
 
 ## fit multinomial model
-prior_in <- c(
-  prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
-  prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "est_age3", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "est_age4", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "est_age5", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "est_age6", dpar = "muunder"),
-  prior(normal(0, 2), class = "b", coef = "est_age3", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "est_age4", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "est_age5", dpar = "muover"),
-  prior(normal(0, 2), class = "b", coef = "est_age6", dpar = "muover"),
-  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
-  prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")
-)
-
-fit <- brm(
-  formula = bf(bias ~ est_age + (1 | stock_group),
-               family = categorical(link = "logit")),
-  data = dum,
-  prior = prior_in,
-  chains = 4, cores = 4, iter = 2000,
-  control = list(adapt_delta = 0.96)
-)
-saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
+# prior_in <- c(
+#   prior(normal(-1, 1), class = "Intercept", dpar = "muover"),
+#   prior(normal(-1, 1), class = "Intercept", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "est_age3", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "est_age4", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "est_age5", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "est_age6", dpar = "muunder"),
+#   prior(normal(0, 2), class = "b", coef = "est_age3", dpar = "muover"),
+#   prior(normal(0, 2), class = "b", coef = "est_age4", dpar = "muover"),
+#   prior(normal(0, 2), class = "b", coef = "est_age5", dpar = "muover"),
+#   prior(normal(0, 2), class = "b", coef = "est_age6", dpar = "muover"),
+#   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muover"),
+#   prior(exponential(1), class = "sd", group = "stock_group", dpar = "muunder")
+# )
+# 
+# fit <- brm(
+#   formula = bf(bias ~ est_age + (1 | stock_group),
+#                family = categorical(link = "logit")),
+#   data = dum,
+#   prior = prior_in,
+#   chains = 4, cores = 4, iter = 2000,
+#   control = list(adapt_delta = 0.96)
+# )
+# saveRDS(fit, here::here("data", "model_fits", "age_error_est.rds"))
 fit <- readRDS(here::here("data", "model_fits", "age_error_est.rds"))
 
 

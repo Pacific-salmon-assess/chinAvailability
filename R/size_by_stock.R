@@ -41,16 +41,16 @@ gsi <- readRDS(here::here("data", "rec", "rec_gsi.rds")) %>%
       strata,
       levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "vic",
                  "haro", "saanich"),
-      labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke/\nVictoria",
-                 "S. Gulf\nIslands", "Saanich")
+      labels = c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew",
+                 "Sooke/\nVictoria", "S. Gulf\nIslands", "Saanich")
     ),
     age_stock_group = factor(
       age_stock_group,
       levels = c(
         "CA_ORCST", "CR-upper_sp", "CR-upper_su/fa", "CR-lower_sp",
         "CR-lower_fa", "WACST", "PSD", "WCVI", "SOG",
-        "FR_Spr_4.2", "FR_Spr_5.2", "FR_Sum_5.2",
-        "FR_Sum_4.1", "FR_Fall",  "NBC_SEAK"
+        "FR_Spr_4sub2", "FR_Spr_5sub2", "FR_Sum_5sub2",
+        "FR_Sum_4sub1", "FR_Fall",  "NBC_SEAK"
       )
     ),
     year_f = as.factor(year),
@@ -73,14 +73,7 @@ age_comp <- gsi %>%
   ungroup() %>%
   group_by(stock_group, sw_age, age_n) %>%
   tally() %>% 
-  mutate(prop = n / age_n,
-         stock_group = fct_recode(
-           stock_group, 
-           "FR_Spr_4sub2" = "FR_Spr_4.2",
-           "FR_Spr_5sub2" = "FR_Spr_5.2",
-           "FR_Sum_5sub2" = "FR_Sum_5.2",
-           "FR_Sum_4sub1" = "FR_Sum_4.1"
-         ))
+  mutate(prop = n / age_n)
 
 labs_age_comp <- age_comp %>%
   ungroup() %>% 
@@ -181,14 +174,7 @@ new_dat2 <- new_dat %>%
   mutate(
     pred_fl = as.numeric(preds$fit),
     lo_fl = pred_fl + (stats::qnorm(0.025) * as.numeric(preds$se.fit)), 
-    up_fl = pred_fl + (stats::qnorm(0.975) * as.numeric(preds$se.fit)),
-    age_stock_group = fct_recode(
-      age_stock_group, 
-      "FR_Spr_4sub2" = "FR_Spr_4.2",
-      "FR_Spr_5sub2" = "FR_Spr_5.2",
-      "FR_Sum_5sub2" = "FR_Sum_5.2",
-      "FR_Sum_4sub1" = "FR_Sum_4.1"
-    )
+    up_fl = pred_fl + (stats::qnorm(0.975) * as.numeric(preds$se.fit))
     )
 
 shape_pal <- c(21, 22)
@@ -254,15 +240,6 @@ saveRDS(size_pred_post, here::here("data", "rec", "size_age_post_draws.rds"))
 # histogram of stock-specific size distributions
 size_pred_hist <- ggplot(
   size_pred_post %>% 
-    mutate(
-      age_stock_group = fct_recode(
-        age_stock_group, 
-        "FR_Spr_4sub2" = "FR_Spr_4.2",
-        "FR_Spr_5sub2" = "FR_Spr_5.2",
-        "FR_Sum_5sub2" = "FR_Sum_5.2",
-        "FR_Sum_4sub1" = "FR_Sum_4.1"
-      )
-    ) %>% 
     filter(month == "Jul")
 ) +
   geom_histogram(aes(x = fl, fill = sw_age)) +

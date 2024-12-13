@@ -40,9 +40,9 @@ dat <- rec_raw %>%
       strata,
       levels = c("swiftsure", "swiftsure_nearshore", "renfrew", "vic",
                  "haro", "saanich"),
-      labels = c("Swiftsure", "Nitinat", "Renfrew", "Sooke/\nVictoria",
-                 "S. Gulf\nIslands", "Saanich")
-    ),
+      labels = c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew",
+                 "Sooke/\nVictoria", "S. Gulf\nIslands", "Saanich")
+    ),,
     stock_group = fct_relevel(stock_group, "PSD", after = 3)#
   ) %>% 
   sdmTMB::add_utm_columns(
