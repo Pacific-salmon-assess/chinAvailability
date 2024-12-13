@@ -10,7 +10,9 @@ library(ggplot2)
 # IMPORT STOCK KEY AND PREP ----------------------------------------------------
 
 # stock key
-stock_key <- readRDS(here::here("data", "rec", "finalStockList_Nov2024.rds")) %>%
+stock_key <- readRDS(
+  here::here("data", "rec", "finalStockList_Dec2024.rds")
+  ) %>%
   janitor::clean_names() %>% 
   mutate(
     stock_group = case_when(
@@ -889,9 +891,9 @@ rkw_age <- rkw_dat %>%
 
 # identify the stock/age/month combinations that need to be predicted by 
 # size-at-age model
-size_at_age_pred_key <- rkw_age %>% select(age_stock_group, sw_year, month)
-saveRDS(size_at_age_pred_key,
-        here::here("data", "size_at_age_pred_key.rds"))
+# size_at_age_pred_key <- rkw_age %>% select(age_stock_group, sw_year, month)
+# saveRDS(size_at_age_pred_key,
+#         here::here("data", "size_at_age_pred_key.rds"))
 
 
 

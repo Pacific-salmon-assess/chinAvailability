@@ -42,7 +42,7 @@ dat <- rec_raw %>%
                  "haro", "saanich"),
       labels = c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew",
                  "Sooke/\nVictoria", "S. Gulf\nIslands", "Saanich")
-    ),,
+    ),
     stock_group = fct_relevel(stock_group, "PSD", after = 3)#
   ) %>% 
   sdmTMB::add_utm_columns(
@@ -56,11 +56,11 @@ dat <- rec_raw %>%
 
 
 ## export stock key
-stks <- dat %>%
-  select(stock, region1name, stock_group) %>%
-  distinct() %>%
-  arrange(stock_group, region1name)
-write.csv(stks, here::here("data", "stock_key.csv"), row.names = FALSE)
+# stks <- dat %>%
+#   select(stock, region1name, stock_group) %>%
+#   distinct() %>%
+#   arrange(stock_group, region1name)
+# write.csv(stks, here::here("data", "stock_key.csv"), row.names = FALSE)
 
 
 sample_key <- dat %>% 
@@ -192,11 +192,12 @@ sample_key2 <- sample_key %>%
         year > 2019 & week_n < 36 ~ "size limit",
       ## Swiftsure/Nitinat/Renfrew strata
       # unrestricted prior to 2019
-      strata %in% c("Swiftsure", "Renfrew") & year < 2019 ~ "standard",
+      strata %in% c("Swiftsure\nBank", "Port\nRenfrew") & year < 2019 ~ 
+        "standard",
       # closed prior to July 15 with 80 cm slot limit in place until Aug 1
-      strata %in% c("Swiftsure", "Renfrew") & year >= 2019 & 
+      strata %in% c("Swiftsure\nBank", "Port\nRenfrew") & year >= 2019 & 
         week_n < 27 ~ "non-retention",
-      strata %in% c("Swiftsure", "Renfrew") & year >= 2019 & 
+      strata %in% c("Swiftsure\nBank", "Port\nRenfrew") & year >= 2019 & 
         week_n < 32 ~ "size limit",
       ## S Gulf Islands area strata
       # size restrictions before July 15 and prior to 2019
@@ -215,9 +216,9 @@ sample_key2 <- sample_key %>%
       # strata == "Saanich" & year < 2019 & (week_n > 23 & week_n < 29) ~ 
       #   "size limit",
       # closed before Aug 1 and prior to 2019
-      strata == "saanich" & year >= 2019 & week_n < 29 ~
+      strata == "Saanich" & year >= 2019 & week_n < 29 ~
         "non-retention",
-      strata == "saanich" & year >= 2019 & week_n < 32 ~ "size limit",
+      strata == "Saanich" & year >= 2019 & week_n < 32 ~ "size limit",
       TRUE ~ "standard"
     ) 
   ) %>% 
@@ -537,13 +538,6 @@ sum(agg_dat$agg_prob == 0) / nrow(agg_dat)
 s_sdmTMB <- simulate(fit_sdmTMB, nsim = 500)
 sum(s_sdmTMB == 0) / length(s_sdmTMB)
 
-# pred_fixed <- fit_sdmTMB$family$linkinv(predict(fit_sdmTMB)$est)
-# dharma_sim <- DHARMa::createDHARMa(
-#   simulatedResponse = s_sdmTMB,
-#   observedResponse = agg_dat$agg_prob,
-#   fittedPredictedResponse = pred_fixed
-# )
-
 samp <- sdmTMBextra::predict_mle_mcmc(
   fit_sdmTMB, mcmc_iter = 101, mcmc_warmup = 100
   )
@@ -610,8 +604,8 @@ avg_obs_comp <- avg_obs_comp1 %>%
 
 # manage size by plotting 4 at a time
 g1 <- c("other", "Col_Spr", "Col_Sum/Fall", "PSD")
-g2 <- c("WCVI", "ECVI_SOMN", "FR_Spr_4.2", "FR_Spr_5.2")
-g3 <- c("FR_Sum_5.2", "FR_Sum_4.1", "FR_Fall")
+g2 <- c("WCVI", "ECVI_SOMN", "FR_Spr_4sub2", "FR_Spr_5sub2")
+g3 <- c("FR_Sum_5sub2", "FR_Sum_4sub1", "FR_Fall")
 post_sim_list <- purrr::map(
   list(g1, g2, g3), function (x) {
     ggplot() +
@@ -696,8 +690,8 @@ newdata_yr <- cbind( newdata, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
     stock_group2 = gsub("_", "\n", stock_group)
   ) %>% 
   filter(
-    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
-    !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)
+    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n < 22),
+    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)
   )
 
 year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
@@ -816,8 +810,8 @@ summer_preds_fullx <- summer_preds +
 summer_pred_stacked <- ggplot(
   data = newdata3b %>% 
     filter(week_n > 19 & week_n < 44,
-           !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
-           !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)), 
+           !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n < 22),
+           !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)), 
   aes(x = week_n)
 ) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
@@ -840,7 +834,7 @@ summer_pred_stacked <- ggplot(
   ) 
 summer_pred_legend <- cowplot::get_legend(
   ggplot(
-    data = newdata3b %>% filter(strata== "Swiftsure"), aes(x = week_n)
+    data = newdata3b %>% filter(strata== "Swiftsure\nBank"), aes(x = week_n)
   ) +
     geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
               stat = "identity") +
@@ -849,7 +843,6 @@ summer_pred_legend <- cowplot::get_legend(
     guides(fill = guide_legend(ncol = 2),
            colour = guide_legend(ncol = 2))
 )
-
 
 
 png(

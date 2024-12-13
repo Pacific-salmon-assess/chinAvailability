@@ -77,15 +77,6 @@ ppn_dat_size <- size_dat %>%
 # )
 
 
-# adjust Fraser names
-stock_dat$stock_group <- fct_recode(
-  stock_dat$stock_group, 
-  "FR_Spr_4sub2" = "FR_Spr_4.2",
-  "FR_Spr_5sub2" = "FR_Spr_5.2",
-  "FR_Sum_5sub2" = "FR_Sum_5.2",
-  "FR_Sum_4sub1" = "FR_Sum_4.1"
-)
-
 
 ## PALETTES --------------------------------------------------------------------
 age_pal <- c("grey30", "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c")

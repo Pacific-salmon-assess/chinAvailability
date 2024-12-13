@@ -57,7 +57,7 @@ strata_key <- data.frame(
     utm_names = c("utm_x_m", "utm_y_m")
   ) %>% 
   filter(
-    !strata %in% c("San Juan\nIslands", "cJDF")
+    !strata %in% c("San Juan\nIslands", "Central\nJDF")
   )
 # saveRDS(
 #   strata_key,
@@ -74,9 +74,6 @@ era_shape_pal <- c(22, 21)
 names(era_shape_pal) <- levels(dat$era) 
 
   
-# coast <- rbind(rnaturalearth::ne_states( "United States of America", 
-#                                            returnclass = "sf"), 
-#                  rnaturalearth::ne_states( "Canada", returnclass = "sf")) %>%
 coast <- readRDS(
   here::here("data", "spatial", "coast_major_river_sf_plotting.RDS")
   ) %>% 
