@@ -73,7 +73,14 @@ age_comp <- gsi %>%
   ungroup() %>%
   group_by(stock_group, sw_age, age_n) %>%
   tally() %>% 
-  mutate(prop = n / age_n)
+  mutate(prop = n / age_n,
+         stock_group = fct_recode(
+           stock_group, 
+           "FR_Spr_4sub2" = "FR_Spr_4.2",
+           "FR_Spr_5sub2" = "FR_Spr_5.2",
+           "FR_Sum_5sub2" = "FR_Sum_5.2",
+           "FR_Sum_4sub1" = "FR_Sum_4.1"
+         ))
 
 labs_age_comp <- age_comp %>%
   ungroup() %>% 

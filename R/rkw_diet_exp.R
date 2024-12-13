@@ -16,8 +16,7 @@ stock_dat <- readRDS(
   # remove uncertain Spring 4.2 assignments
   filter(
     !(grepl("BESS", stock) | grepl("DUTEA", stock))
-  )
-
+  ) 
 
 size_dat <- readRDS(
   here::here("data", "rkw_diet", "cleaned_diet_samples_size.rds")
@@ -78,6 +77,16 @@ ppn_dat_size <- size_dat %>%
 # )
 
 
+# adjust Fraser names
+stock_dat$stock_group <- fct_recode(
+  stock_dat$stock_group, 
+  "FR_Spr_4sub2" = "FR_Spr_4.2",
+  "FR_Spr_5sub2" = "FR_Spr_5.2",
+  "FR_Sum_5sub2" = "FR_Sum_5.2",
+  "FR_Sum_4sub1" = "FR_Sum_4.1"
+)
+
+
 ## PALETTES --------------------------------------------------------------------
 age_pal <- c("grey30", "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c")
 names(age_pal) <- c(NA, "1", "2", "3", "4")
@@ -86,7 +95,7 @@ names(age_pal) <- c(NA, "1", "2", "3", "4")
 smu_colour_pal <- c("grey30", "#3182bd", "#bdd7e7", "#bae4bc", "#6A51A3",
                     "#CBC9E2", "#67000D", "#A50F15", "#EF3B2C", "#FC9272", 
                     "#FCBBA1")
-names(smu_colour_pal) <- levels(dat$stock_group)
+names(smu_colour_pal) <- levels(stock_dat$stock_group)
 
 # era shape palette
 era_pal <- c(15, 16)
@@ -113,7 +122,7 @@ diet_samp_cov <- stock_dat %>%
              alpha = 0.6) +
   facet_wrap(~strata) +
   geom_polygon(data = sample_gap_poly, aes(x = x, y = y), 
-               fill = "red", alpha = 0.5) +
+               fill = "red", alpha = 0.3) +
   scale_size_continuous(name = "Sample\nSize") +
   scale_shape_manual(values = era_pal, name = "Sample\nEra") +
   scale_x_continuous(
@@ -125,6 +134,8 @@ diet_samp_cov <- stock_dat %>%
     axis.title = element_blank()
   )
 
+
+# sample size labels
 samp_size_stock <- stock_dat %>% 
   group_by(era, strata) %>% 
   summarize(
