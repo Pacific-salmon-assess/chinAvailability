@@ -57,9 +57,9 @@ pbt_rate_plot <- pbt_rate %>%
       pbt_stock %in% c("CHEHALIS_RIVER_SUMMER", "CHILLIWACK_RIVER_FALL",
                        "HARRISON_RIVER") ~ "FR_Fall",
       pbt_stock %in% c("SHUSWAP_RIVER_LOWER", "SHUSWAP_RIVER_MIDDLE") ~ 
-        "FR_Sum_4.1",
-      pbt_stock %in% c("CHILKO_RIVER", "NECHAKO_RIVER") ~ "FR_Sum_5.2",
-      pbt_stock == "NICOLA_RIVER" ~ "FR_Spr_4.2",
+        "FR_Sum_4sub1",
+      pbt_stock %in% c("CHILKO_RIVER", "NECHAKO_RIVER") ~ "FR_Sum_5sub2",
+      pbt_stock == "NICOLA_RIVER" ~ "FR_Spr_4sub2",
       TRUE ~ "WCVI"
     ) %>% 
       factor(., levels = levels(long_rec$stock_group)),
@@ -117,10 +117,10 @@ phos <- readxl::read_xlsx(
       cu_acronym %in% c("Chil_transp_F", "LFR-fall") ~ "FR_Fall",
       grepl("EVI", cu_acronym) | cu_acronym %in% c("CWCH-KOK", "QP-fall") ~ 
         "ECVI_SOMN",
-      cu_acronym == "MFR-summer" ~ "FR_Sum_5.2",
-      cu_acronym == "LTh" ~ "FR_Spr_4.2",
-      cu_acronym == "STh-1.3" ~ "FR_Spr_5.2",
-      cu_acronym == "STh-SHUR" ~ "FR_Sum_4.1"
+      cu_acronym == "MFR-summer" ~ "FR_Sum_5sub2",
+      cu_acronym == "LTh" ~ "FR_Spr_4sub2",
+      cu_acronym == "STh-1.3" ~ "FR_Spr_5sub2",
+      cu_acronym == "STh-SHUR" ~ "FR_Sum_4sub1"
     ),
     stock_group = factor(stock_group, levels = levels(long_rec$stock_group)),
     population = gsub(" River", "", population),

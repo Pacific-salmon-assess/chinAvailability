@@ -38,10 +38,10 @@ esc_dat <- expand.grid(
   ) %>% 
   mutate(
     stock_group = case_when(
-      grepl("spring_5_2", stock) ~ "Fraser_Spring_5.2",
-      grepl("spring_4_2", stock) ~ "Fraser_Spring_4.2",
-      grepl("summer_5_2", stock) ~ "Fraser_Summer_5.2",
-      grepl("summer_4_1", stock) ~ "Fraser_Summer_4.1",
+      grepl("spring_5_2", stock) ~ "Fraser_Spring_5sub2",
+      grepl("spring_4_2", stock) ~ "Fraser_Spring_4sub2",
+      grepl("summer_5_2", stock) ~ "Fraser_Summer_5sub2",
+      grepl("summer_4_1", stock) ~ "Fraser_Summer_4sub1",
       grepl("fr_fall", stock) ~ "Fraser_Fall",
       stock %in% c("lower_gst_a17_19_28_29", "upper_gst_a13_16", "jst_a12") ~ 
         "ECVI_SOMN",
@@ -57,14 +57,14 @@ esc_dat <- expand.grid(
       factor(
         .,
         levels = c("WA_Coastal", "Col_Spring", "Col_Summer_Fall", "PSD",  
-                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4.2",
-                   "Fraser_Spring_5.2", "Fraser_Summer_5.2", "Fraser_Summer_4.1",
-                   "Fraser_Fall"),
+                   "WCVI", "ECVI_SOMN", "Fraser_Spring_4sub2",
+                   "Fraser_Spring_5sub2", "Fraser_Summer_5sub2", 
+                   "Fraser_Summer_4sub1", "Fraser_Fall"),
         labels = c(
           "Washington\nCoastal", "Columbia\nSpring", "Columbia\nSummer/Fall",  
           "Puget Sound", "Westcoast\nVan. Island", "Eastcoast\nVan. Island",
-          "Fraser\nSpring 4.2", "Fraser\nSpring 5.2", "Fraser\nSummer 5.2", 
-          "Fraser\nSummer 4.1", "Fraser \nFall"
+          "Fraser\nSpring 4sub2", "Fraser\nSpring 5sub2", "Fraser\nSummer 5sub2", 
+          "Fraser\nSummer 4sub1", "Fraser \nFall"
         )
       ),
     region = ifelse(
