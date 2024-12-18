@@ -57,16 +57,16 @@ esc_dat <- readxl::read_xlsx(
     ),
     region = ifelse(
       stock_group %in% c(
-        "Puget Sound", "East Coast\nVan. Island",
-        "Fraser\nSpring 4.2", "Fraser\nSpring 5.2", "Fraser\nSummer 5.2", 
-        "Fraser\nSummer 4.1", "Fraser \nFall"
+        "Puget Sound", "ECVI\nand SOMN",
+        "Fraser\nSpring 4sub2", "Fraser\nSpring 5sub2", "Fraser\nSummer 5sub2", 
+        "Fraser\nSummer 4sub1", "Fraser \nFall"
       ),
       "salish_sea",
       "coastal"
     ) %>% 
       factor(
         ., labels = c("Outer Coast", "Salish Sea")
-      )
+      )#,
     # obs = ifelse(is.na(esc), 0, 1)
   ) %>%
   group_by(stock) %>% 
@@ -76,12 +76,13 @@ esc_dat <- readxl::read_xlsx(
     # remove years with gappy data
     # !(year < 1983 | year == "2023")
   ) %>% 
-  ungroup()
+  ungroup() %>% 
+  filter(year > 1981)
 
 
 # # visualize data presence
 # ggplot(
-#   esc_raw_dat,
+#   esc_dat,
 #   aes(x = year, y = stock, colour = obs)
 # ) +
 #   geom_point()
@@ -95,14 +96,13 @@ sg_esc <- esc_dat %>%
   #remove incomplete data (southern US not available)
   filter(
     !is.na(sum_esc)
-  )
+  ) 
 
 re_esc <- esc_dat %>%
   group_by(year, region) %>% 
   summarize(
     sum_esc = sum(esc)
-  ) %>% 
-  filter(year > 1982 & year < 2023)
+  ) 
 
 
 ## FIGURES ---------------------------------------------------------------------
@@ -132,7 +132,7 @@ dev.off()
 
 
 reg_plot <- ggplot(re_esc) +
-  geom_bar(aes(x = year, y = sum_esc / 1000, fill = region),
+  geom_bar(aes(x = year, y = sum_esc / 1000, fill = region), colour = "black",
            stat = "identity") +
   # scale_alpha_manual(values = average_pal) +
   ggsidekick::theme_sleek() +
