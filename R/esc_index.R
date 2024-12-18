@@ -101,7 +101,8 @@ re_esc <- esc_dat %>%
   group_by(year, region) %>% 
   summarize(
     sum_esc = sum(esc)
-  ) 
+  ) %>% 
+  filter(year > 1982 & year < 2023)
 
 
 ## FIGURES ---------------------------------------------------------------------
@@ -130,7 +131,7 @@ sg_plot
 dev.off()
 
 
-reg_plot <- ggplot(re_esc %>% filter(year > 1982 & year < 2023)) +
+reg_plot <- ggplot(re_esc) +
   geom_bar(aes(x = year, y = sum_esc / 1000, fill = region),
            stat = "identity") +
   # scale_alpha_manual(values = average_pal) +
@@ -149,3 +150,11 @@ png(
 )
 reg_plot
 dev.off()
+
+
+## TREND TEST ------------------------------------------------------------------
+
+re_esc$year_z <- scale(re_esc$year) %>% as.numeric()
+
+fit_region <- lm(sum_esc ~ year_z * region, data = re_esc)
+summary(fit_region)
