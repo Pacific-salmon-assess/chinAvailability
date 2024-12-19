@@ -32,8 +32,47 @@ rkw_dat <- purrr::map(
     ) %>%
     filter(
       era == "current"
-    )
+    ) 
 )
+
+
+# make keys representing proportion of samples in rec fishery by stock and
+# size class
+stock_sample_key <- readRDS(
+  here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
+) %>% 
+  filter(
+    strata %in% c(rkw_dat$stock$strata)
+  ) %>% 
+  group_by(
+    stock_group
+  ) %>% 
+  summarize(
+    nn = sum(agg_prob)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    total_samp = sum(nn),
+    ppn = nn /total_samp
+  )
+
+size_sample_key <- readRDS(
+  here::here("data", "rec", "cleaned_ppn_data_rec_size_xy.rds")
+) %>% 
+  filter(
+    strata %in% c(rkw_dat$size$strata)
+  ) %>% 
+  group_by(
+    size_bin
+  ) %>% 
+  summarize(
+    nn = sum(agg_prob)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    total_samp = sum(nn),
+    ppn = nn /total_samp
+  )
 
 
 ## STOCK SELECTIVITY -----------------------------------------------------------
@@ -154,43 +193,56 @@ dd <- sim_ppn_dat %>%
     med_dif = median(diff_ppn),
     up_dif = rethinking::HPDI(diff_ppn, 0.95)[2],
     lo_dif = rethinking::HPDI(diff_ppn, 0.95)[1]
-  ) 
+  ) %>% 
+  left_join(
+    ., stock_sample_key %>% select(stock_group, ppn), by = "stock_group"
+  )
+
+# export for use in other sensitivity analysis
+saveRDS(dd %>% filter(dataset == "standard"),
+        here::here("data", "rec", "original_stock_selectivity.rds"))
 
 
 sel_bean <- ggplot() +
   geom_pointrange(
     data = dd %>% filter(dataset == "standard"),
-    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group)
+    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group,
+        fill = ppn),
+    shape = 21
   ) +
-  # geom_text(
-  #   data = p_val_sig %>% filter(dataset == "standard"),
-  #   aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
-  #   label = "*", size = 7.5, colour = "red"
-  # ) +
+  scale_fill_continuous(
+    name = "Proportion of\nFishery Samples\nin Western Strata",
+    trans = "sqrt",
+    breaks = c(0.05, 0.15, 0.25)
+    ) +
   labs(x = "Difference Between Observed and Predicted Composition",
        y = "Stock") +
   ggsidekick::theme_sleek() +
-  theme(legend.position = "none") +
+  theme(legend.position = "top",
+        legend.key.size = unit(0.75, "cm"),
+        plot.margin = margin(t = 5.5, r = 10, b = 5.5, l = 5.5)) +
   geom_vline(xintercept = 0, lty = 2)
 
 sel_bean2 <- ggplot() +
   geom_pointrange(
     data = dd,
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group, 
-        fill = dataset),
+        fill = ppn),
     shape = 21
   ) +
-  # geom_text(
-  #   data = p_val_sig,
-  #   aes(y = stock_group, x = max(dd$up_dif + 0.1)), 
-  #   label = "*", size = 7.5, colour = "red"
-  # ) +
+  scale_fill_continuous(
+    name = "Proportion of\nFishery Samples\nin Western Strata",
+    trans = "sqrt",
+    breaks = c(0.05, 0.15, 0.25)
+  ) +
   labs(x = "Difference Between Observed and Predicted Composition",
        y = "Stock") +
   facet_wrap(~dataset, ncol = 1) +
-  scale_fill_manual(values = dataset_pal, name = "Model") +
   ggsidekick::theme_sleek() +
-  theme(legend.position = "none") +
+  theme(legend.position = "top",
+        legend.key.size = unit(0.75, "cm"),
+        # legend.text = element_text(size = 9),
+        plot.margin = margin(t = 5.5, r = 10, b = 5.5, l = 5.5)) +
   geom_vline(xintercept = 0, lty = 2)
 
 png(
@@ -202,7 +254,7 @@ dev.off()
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_stock_comp.png"),
-  height = 6.5, width = 5, units = "in", res = 250
+  height = 6.5, width = 5.1, units = "in", res = 250
 )
 sel_bean2
 dev.off()
@@ -401,24 +453,31 @@ diff_quantile <- sim_ppn_dat_size %>%
     med_dif = median(diff_ppn),
     up_dif = quantile(diff_ppn, 0.975),
     lo_dif = quantile(diff_ppn, 0.025)
-  ) 
+  ) %>% 
+  left_join(
+    ., size_sample_key %>% select(size_bin, ppn), by = "size_bin"
+  )
+
+saveRDS(diff_quantile %>% mutate(dataset = "standard"),
+        here::here("data", "rec", "original_size_selectivity.rds"))
 
 
 sel_bean_size <- ggplot() +
   geom_pointrange(
     data = diff_quantile,
-    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin)
+    aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin,
+        fill = ppn),
+    shape = 21
   ) +
-  # geom_text(
-  #   data = p_val_sig_size %>% filter(dataset == "standard"),
-  #   aes(y = size_bin, x = max(diff_quantile$up_dif + 0.1)), 
-  #   label = "*", size = 7.5, colour = "red"
-  # ) +
+  scale_fill_continuous(
+    name = "Proportion of\nFishery Samples\nin Western Strata",
+    trans = "sqrt"
+  ) +
   labs(x = "Difference Between Observed and Predicted Composition",
        y = "Size Bin (cm)") +
   ggsidekick::theme_sleek() +
-  theme(legend.position = "none",
-        axis.title.y = element_blank()) +
+  theme(legend.position = "top"
+        ) +
   geom_vline(xintercept = 0, lty = 2)
 
 

@@ -97,6 +97,9 @@ agg_dat <- expand.grid(
     sg_year = paste(size_bin, year, sep = "_") %>% 
       as.factor()
   ) 
+# saveRDS(
+#   agg_dat, here::here("data", "rec", "cleaned_ppn_data_rec_size_xy.rds")
+# )
 
 
 # size colour palette
