@@ -198,7 +198,7 @@ sample_key2 <- sample_key %>%
         "standard",
       # closed prior to July 15 with 80 cm slot limit in place until Aug 1
       strata %in% c("Swiftsure\nBank", "Port\nRenfrew") & year >= 2019 & 
-        week_n < 27 ~ "non-retention",
+        week_n < 28 ~ "non-retention",
       strata %in% c("Swiftsure\nBank", "Port\nRenfrew") & year >= 2019 & 
         week_n < 32 ~ "size limit",
       ## S Gulf Islands area strata
