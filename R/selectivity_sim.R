@@ -42,7 +42,8 @@ stock_sample_key <- readRDS(
   here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
 ) %>% 
   filter(
-    strata %in% c(rkw_dat$stock$strata)
+    strata %in% c(rkw_dat$stock$strata),
+    week_n >= min(rkw_dat$stock$week_n) & week_n <= max(rkw_dat$stock$week_n)
   ) %>% 
   group_by(
     stock_group
@@ -60,7 +61,8 @@ size_sample_key <- readRDS(
   here::here("data", "rec", "cleaned_ppn_data_rec_size_xy.rds")
 ) %>% 
   filter(
-    strata %in% c(rkw_dat$size$strata)
+    strata %in% c(rkw_dat$size$strata),
+    week_n >= min(rkw_dat$size$week_n) & week_n <= max(rkw_dat$size$week_n)
   ) %>% 
   group_by(
     size_bin
@@ -247,14 +249,14 @@ sel_bean2 <- ggplot() +
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_stock.png"),
-  height = 5, width = 5, units = "in", res = 250
+  height = 6.5, width = 5, units = "in", res = 250
 )
 sel_bean
 dev.off()
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_stock_comp.png"),
-  height = 6.5, width = 5.1, units = "in", res = 250
+  height = 7.5, width = 5, units = "in", res = 250
 )
 sel_bean2
 dev.off()
@@ -483,7 +485,7 @@ sel_bean_size <- ggplot() +
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_size.png"),
-  height = 4, width = 5, units = "in", res = 250
+  height = 3.25, width = 4.25, units = "in", res = 250
 )
 sel_bean_size
 dev.off()

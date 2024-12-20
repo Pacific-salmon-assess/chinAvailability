@@ -43,7 +43,8 @@ stock_sample_key <- readRDS(
   here::here("data", "rec", "cleaned_ppn_data_rec_xy.rds")
 ) %>% 
   filter(
-    strata %in% c(rkw_dat$stock$strata)
+    strata %in% c(rkw_dat$stock$strata),
+    week_n >= min(rkw_dat$stock$week_n) & week_n <= max(rkw_dat$stock$week_n)
   ) %>% 
   group_by(
     stock_group
@@ -61,7 +62,8 @@ size_sample_key <- readRDS(
   here::here("data", "rec", "cleaned_ppn_data_rec_size_xy.rds")
 ) %>% 
   filter(
-    strata %in% c(rkw_dat$size$strata)
+    strata %in% c(rkw_dat$size$strata),
+    week_n >= min(rkw_dat$size$week_n) & week_n <= max(rkw_dat$size$week_n)
   ) %>% 
   group_by(
     size_bin

@@ -146,7 +146,7 @@ diet_samp_bar <- ggplot(stock_dat) +
            stat = "identity") +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
+  scale_fill_manual(values = smu_colour_pal, name = "Stock") +
   labs(
     y = "Prey Remains Composition\n(Individual Samples)"
   ) +
@@ -228,7 +228,7 @@ dev.off()
 
 png(
   here::here("figs", "rkw_diet", "monthly_comp_bar.png"),
-  height = 5, width = 7.5, units = "in", res = 250
+  height = 5, width = 8, units = "in", res = 250
 )
 diet_samp_bar
 dev.off()

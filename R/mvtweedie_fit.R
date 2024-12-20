@@ -187,6 +187,8 @@ sample_key2 <- sample_key %>%
       strata == "Sooke/\nVictoria" & year < 2018 & week_n < 29 ~ "size limit",
       # closed before Aug 1 and prior to 2019
       strata %in% c("Sooke/\nVictoria", "Saanich", "S. Gulf\nIslands") & 
+        year >= 2021 & week_n < 31 ~ "non-retention",
+      strata %in% c("Sooke/\nVictoria", "Saanich", "S. Gulf\nIslands") & 
         year >= 2019 & week_n < 29 ~ "non-retention",
       strata %in% c("Sooke/\nVictoria", "Saanich", "S. Gulf\nIslands") & 
         year > 2019 & week_n < 36 ~ "size limit",
@@ -248,7 +250,7 @@ rec_samp_bar <- ggplot(dat) +
            stat = "identity") +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
+  scale_fill_manual(values = smu_colour_pal, name = "Stock") +
   labs(
     y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
@@ -273,7 +275,7 @@ rec_samp_bar_summer <- dat %>%
            stat = "identity") +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = smu_colour_pal, name = "Stock\nGroup") +
+  scale_fill_manual(values = smu_colour_pal, name = "Stock") +
   labs(
     y = "Recreational Fishery Composition\n(Individual Samples)"
   ) +
