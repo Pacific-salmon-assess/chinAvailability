@@ -485,7 +485,7 @@ sel_bean_size <- ggplot() +
 
 png(
   here::here("figs", "selectivity", "selectivity_bean_size.png"),
-  height = 3.25, width = 4.25, units = "in", res = 250
+  height = 3.25, width = 5, units = "in", res = 250
 )
 sel_bean_size
 dev.off()
