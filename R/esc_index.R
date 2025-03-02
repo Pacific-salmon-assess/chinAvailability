@@ -158,3 +158,71 @@ re_esc$year_z <- scale(re_esc$year) %>% as.numeric()
 
 fit_region <- lm(sum_esc ~ year_z * region, data = re_esc)
 summary(fit_region)
+
+
+## CALCULATE SYNCHONY INDEX ----------------------------------------------------
+
+library(synchrony)
+
+sg_esc_wide <- sg_esc %>% 
+  ungroup() %>% 
+  select(
+    year, sum_esc, stock_group
+  ) %>% 
+  pivot_wider(names_from = stock_group, values_from = sum_esc) 
+
+esc_mat <- sg_esc_wide %>% 
+  select(-year) %>% 
+  as.matrix()
+
+rolling_synchrony <- function(data, window_size) {
+  n_years <- nrow(data)
+  results <- rep(NA, n_years - window_size + 1)  # Store results
+  
+  for (i in 1:(n_years - window_size + 1)) {
+    window_data <- data[i:(i + window_size - 1), ]  # Extract window
+    results[i] <- community.sync(window_data, method = "pearson")$obs  # Compute synchrony
+  }
+  
+  return(results)
+}
+
+
+# Calculate rolling 8-year synchrony
+sync_values <- rolling_synchrony(esc_mat, window_size = 8)
+total_esc <- re_esc %>% 
+  summarize(total_esc = sum(sum_esc) / 1000000)
+roll_esc <- zoo::rollmean(total_esc$total_esc, k = 8, fill = NA, 
+                          align = "right")
+
+synch_dat <- data.frame(
+  year = unique(sg_esc$year)[8:length(unique(sg_esc$year))],
+  synch = sync_values,
+  total_esc = roll_esc[8:length(roll_esc)]
+)
+max_esc <- max(synch_dat$total_esc)
+min_esc <- min(synch_dat$total_esc)
+max_synch <- max(synch_dat$synch)
+min_synch <- min(synch_dat$synch)
+
+synch_dat$scaled_esc <- (synch_dat$total_esc - min_esc) / (max_esc - min_esc) * 
+      (max_synch - min_synch) + min_synch
+
+
+ggplot(synch_dat, aes(x = year)) +
+  geom_line(aes(y = synch), colour = "red") +
+  geom_line(aes(y = scaled_esc), colour = "black") +
+  scale_y_continuous(
+    name = "Synchrony Index (0-1)",  # Left y-axis label
+    sec.axis = sec_axis(~ (. - min_synch) / (max_synch - min_synch) * 
+                          (max_esc - min_esc) + min_esc,
+                        name = "Total Abundance (millions)")  # Right y-axis label and transformation
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.y.right = element_text(color = "black"),  # Right axis color
+    axis.title.y.left = element_text(color = "red")  # Left axis color
+  ) +
+  ggsidekick::theme_sleek()
+
+
