@@ -226,3 +226,60 @@ ggplot(synch_dat, aes(x = year)) +
   ggsidekick::theme_sleek()
 
 
+## CORRELATE WITH WCVI INDEX ---------------------------------------------------
+
+aabm_dat <- read.csv(
+  here::here("data", "run_size", "old", "aabm_fishery_abundance_indices.csv"),
+  stringsAsFactors = FALSE
+) %>% 
+  group_by(aabm_fishery) %>% 
+  mutate(
+    rolling_mean = zoo::rollmean(abundance_index, k = 5, fill = NA, align = "right")
+  )
+
+
+wcvi_aabm <- aabm_dat %>% 
+  filter(aabm_fishery == "wcvi") 
+nbc_aabm <- aabm_dat %>% 
+  filter(aabm_fishery == "nbc") 
+
+
+dd <- re_esc %>% 
+  group_by(year) %>% 
+  summarize(total_esc = sum(sum_esc)) %>% 
+  left_join(., wcvi_aabm, by = "year") %>% 
+  filter(!is.na(aabm_fishery))
+
+png(
+  here::here("figs", "run_size", "escapement_aabm_corr_aggregate.png"),
+  height = 5, width = 5.5, units = "in", res = 250
+)
+plot(total_esc ~ abundance_index, data = dd)
+dev.off()
+
+
+cor(dd$total_esc, dd$abundance_index)
+
+
+sg_esc2 <- sg_esc %>% 
+  left_join(., wcvi_aabm, by = "year")  %>% 
+  filter(!is.na(aabm_fishery))
+
+cor_df <- sg_esc2 %>%
+  group_by(stock_group) %>%
+  summarise(correlation = cor(abundance_index, sum_esc)) %>%
+  mutate(label = paste0("r = ", round(correlation, 2)))
+
+png(
+  here::here("figs", "run_size", "escapement_aabm_corr.png"),
+  height = 7, width = 7.5, units = "in", res = 250
+)
+ggplot(data = sg_esc2, aes(x = abundance_index, y = sum_esc / 1000)) +
+  geom_point() +
+  facet_wrap(~stock_group, scales = "free_y") +
+  geom_text(data = cor_df, aes(x = -Inf, y = Inf, label = label),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE) + 
+  labs(x = "WCVI AABM Index", y = "Terminal Run Size") +
+  ggsidekick::theme_sleek()
+dev.off()
+
