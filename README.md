@@ -1,6 +1,6 @@
 # Estimates of Chinook salmon composition in SRKW prey remains and critical habitat
 
-Data and code associated with estimates of relative abundance of Chinook salmon stocks and size classes in SRKW prey remains and critical habitat. Associated with CSAS Research Document **Southern Resident Killer Whale prey selectivity in relation to Chinook Salmon stock and size composition within Canadian critical habitat**
+Data and code associated with estimates of relative abundance of Chinook salmon stocks and size classes in SRKW prey remains and critical habitat. Associated with CSAS Research Document **Southern Resident Killer Whale prey selectivity in relation to Chinook Salmon stock and size composition within Canadian critical habitat**.
 
 Scripts:
 1) functions/: utility functions
