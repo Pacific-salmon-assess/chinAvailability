@@ -13,3 +13,6 @@ Scripts:
 7) sampling_maps.R: figures representing sampling locations
 8) size_by_stock.R: size-at-age of Chinook salmon stocks
 9) esc_index.R: generates figures showing terminal abundance
+10) aging_error.R: code associated with calculating aging error in supplementary material
+11) selectivity_sim.R: conducts selectivity analyses
+12) selectivity_sim_sensitivity.R: conducts selectivity analyses in sensitivity analysis
