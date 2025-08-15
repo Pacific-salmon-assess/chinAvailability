@@ -8,6 +8,43 @@
 # dataset of join posterior that can be sampled to derive size distribution 
 # probabilities and ultimately size class assignment vector
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/stock_size_age", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/stock_size_age", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for bias categories
+translate_bias <- function(bias_values) {
+  if (FRENCH) {
+    case_when(
+      bias_values == "zero" ~ "zéro",
+      bias_values == "negative" ~ "négatif", 
+      bias_values == "positive" ~ "positif",
+      TRUE ~ bias_values
+    )
+  } else {
+    bias_values
+  }
+}
+
 library(tidyverse)
 library(brms)
 
@@ -70,10 +107,10 @@ dum <- age_dat %>%
     bias_n = age - est_age,
     bias = case_when(
       age - est_age == 0 ~ "zero",
-      age - est_age > 0 ~ "under",
-      age - est_age < 0 ~ "over"
+      age - est_age > 0 ~ "negative",
+      age - est_age < 0 ~ "positive"
     ) %>% 
-      factor(., levels = c("zero", "under", "over")),
+      factor(., levels = c("zero", "negative", "positive")),
     est_age = as.factor(est_age),
     age = as.factor(age)
   ) %>% 
@@ -104,7 +141,7 @@ ppn_dat <- dum %>%
   mutate(prop = n / age_n)
 
 
-obs_error <- ggplot(ppn_dat) +
+obs_error <- ggplot(ppn_dat %>% mutate(bias = translate_bias(bias))) +
   geom_bar(aes(x = est_age, y = prop, fill = bias),
            position="stack", stat="identity") +
   facet_wrap(~stock_group) +
@@ -113,14 +150,15 @@ obs_error <- ggplot(ppn_dat) +
     data = samp_size, aes(x = est_age, y = -Inf, label = paste(n)),
     vjust = -1.1, size = rel(2.5)
   ) +
-  labs(x = "Estimated Total Age", y = "Proportion of Samples") +
+  labs(x = tr("Estimated Total Age", "Âge total estimé"), 
+       y = tr("Proportion of Samples", "Proportion des échantillons")) +
   theme(
     legend.position = "top"
   )
 
 
 png(
-  here::here("figs", "stock_size_age", "age_error.png"),
+  fig_path(file.path("stock_size_age", "age_error.png")),
   height = 5.5, width = 6.5, units = "in", res = 250
 )
 obs_error
@@ -172,9 +210,10 @@ posterior_probs_new %>%
   as.data.frame() %>%
   pivot_longer(cols = everything(), names_to = "bias", 
                values_to = "mean_prob") %>%
-  mutate(asg = rep(new_data$asg, each = length(unique(dum$bias))),
-         bias = factor(bias, levels = c("zero", "under", "over"))) %>% 
+  mutate(asg = rep(new_data$asg, each = length(unique(dum$bias)))) %>% 
   left_join(., new_data, by = "asg") %>% 
+  mutate(bias = factor(bias, levels = c("zero", "under", "over"),
+                       labels = c("zero", "negative", "positive"))) %>% 
   ggplot(.) +
   geom_bar(aes(x = est_age, y = mean_prob, fill = bias),
            position="stack", stat="identity") +

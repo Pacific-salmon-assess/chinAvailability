@@ -3,6 +3,28 @@
 # Ramshaw
 # Oct 9, 2024
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/pbt_phos", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/pbt_phos", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
 
 library(tidyverse)
 
@@ -81,7 +103,8 @@ pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
   geom_point(aes(fill = stock_group), shape = 21) +
   geom_hline(aes(yintercept = 0.8), colour = "red") +
   facet_wrap(~pbt_stock, ncol = 3) +
-  labs(y = "Proportion of Brood Stock with PBT", x = "Brood Year", 
+  labs(y = tr("Proportion of Brood Stock with PBT", "Proportion du stock reproducteur avec PBT"), 
+       x = tr("Brood Year", "Année de fraie"), 
        fill = NULL) +
   scale_x_discrete(
     breaks = seq(2013, 2021, by = 2)
@@ -92,7 +115,7 @@ pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
 
 
 png(
-  here::here("figs", "pbt_phos", "pbt_rate.png"),
+  fig_path("pbt_phos/pbt_rate.png"),
   height = 6.5, width = 5.75, units = "in", res = 250
 )
 pbt_coverage
@@ -133,7 +156,7 @@ phos <- readxl::read_xlsx(
 phos_box <- ggplot(phos) +
   geom_boxplot(aes(x = population, y = pHOS, fill = stock_group)) +
   scale_fill_manual(values = smu_colour_pal) +
-  labs(y = "Proportion Hatchery Origin Spawners", fill = NULL) +
+  labs(y = tr("Proportion Hatchery Origin Spawners", "Proportion de géniteurs d'origine d'écloserie"), fill = NULL) +
   ggsidekick::theme_sleek() +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(angle = 45, hjust = 1),
@@ -155,7 +178,7 @@ ci <-  confint(fit, parm = dd$coefficients$cond %>% rownames(), level = 0.95)
 boot::inv.logit(ci)
 
 png(
-  here::here("figs", "pbt_phos", "phos_box.png"),
+  fig_path("pbt_phos/phos_box.png"),
   height = 5, width = 8.25, units = "in", res = 250
 )
 phos_box

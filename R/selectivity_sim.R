@@ -3,6 +3,42 @@
 # selectivity in RKW diet observations
 # March 28, 2024
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/selectivity", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/selectivity", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for dataset categories
+translate_dataset <- function(dataset_values) {
+  if (FRENCH) {
+    case_when(
+      dataset_values == "standard" ~ "standard",
+      dataset_values == "large" ~ "grand", 
+      dataset_values == "filtered" ~ "filtré",
+      TRUE ~ dataset_values
+    )
+  } else {
+    dataset_values
+  }
+}
 
 library(tidyverse)
 library(mvtweedie)
@@ -213,12 +249,12 @@ sel_bean <- ggplot() +
     shape = 21
   ) +
   scale_fill_continuous(
-    name = "Proportion of\nFishery Samples\nin Western Strata",
+    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates occidentales"),
     trans = "sqrt",
     breaks = c(0.05, 0.15, 0.25)
     ) +
-  labs(x = "Difference Between Observed and Predicted Composition",
-       y = "Stock") +
+  labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
+       y = tr("Stock", "Stock")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
         legend.key.size = unit(0.75, "cm"),
@@ -227,18 +263,18 @@ sel_bean <- ggplot() +
 
 sel_bean2 <- ggplot() +
   geom_pointrange(
-    data = dd,
+    data = dd %>% mutate(dataset = translate_dataset(dataset)),
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group, 
         fill = ppn),
     shape = 21
   ) +
   scale_fill_continuous(
-    name = "Proportion of\nFishery Samples\nin Western Strata",
+    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates occidentales"),
     trans = "sqrt",
     breaks = c(0.05, 0.15, 0.25)
   ) +
-  labs(x = "Difference Between Observed and Predicted Composition",
-       y = "Stock") +
+  labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
+       y = tr("Stock", "Stock")) +
   facet_wrap(~dataset, ncol = 1) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
@@ -248,14 +284,14 @@ sel_bean2 <- ggplot() +
   geom_vline(xintercept = 0, lty = 2)
 
 png(
-  here::here("figs", "selectivity", "selectivity_bean_stock.png"),
+  fig_path("selectivity/selectivity_bean_stock.png"),
   height = 6.5, width = 5, units = "in", res = 250
 )
 sel_bean
 dev.off()
 
 png(
-  here::here("figs", "selectivity", "selectivity_bean_stock_comp.png"),
+  fig_path("selectivity/selectivity_bean_stock_comp.png"),
   height = 7.5, width = 5, units = "in", res = 250
 )
 sel_bean2
@@ -472,7 +508,7 @@ sel_bean_size <- ggplot() +
     shape = 21
   ) +
   scale_fill_continuous(
-    name = "Proportion of\nFishery Samples\nin Western Strata",
+    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates occidentales"),
     trans = "sqrt"
   ) +
   labs(x = "Difference Between Observed and Predicted Composition",
@@ -484,7 +520,7 @@ sel_bean_size <- ggplot() +
 
 
 png(
-  here::here("figs", "selectivity", "selectivity_bean_size.png"),
+  fig_path("selectivity/selectivity_bean_size.png"),
   height = 3.25, width = 5, units = "in", res = 250
 )
 sel_bean_size

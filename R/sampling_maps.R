@@ -2,6 +2,60 @@
 # Maps for locations of SRKW diet and fisheries-dependent data
 # Uses cleaned and aggregated data generated in model fitting scripts
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for strata labels
+translate_strata <- function(strata_values) {
+  if (FRENCH) {
+    case_when(
+      strata_values == "Swiftsure\nBank" ~ "Banc\nSwiftsure",
+      strata_values == "Port\nRenfrew" ~ "Port\nRenfrew",
+      strata_values == "Sooke/\nVictoria" ~ "Sooke/\nVictoria",
+      strata_values == "S. Gulf\nIslands" ~ "Îles du Golfe\ndu Sud",
+      strata_values == "Saanich" ~ "Saanich",
+      strata_values == "Juan\nde Fuca" ~ "Juan\nde Fuca",
+      strata_values == "San Juan\nIslands" ~ "Îles\nSan Juan",
+      strata_values == "Nitinat" ~ "Nitinat",
+      TRUE ~ strata_values
+    )
+  } else {
+    strata_values
+  }
+}
+
+# Translation function for era labels
+translate_era <- function(era_values) {
+  if (FRENCH) {
+    case_when(
+      era_values == "current" ~ "actuel",
+      era_values == "early" ~ "précoce",
+      TRUE ~ era_values
+    )
+  } else {
+    era_values
+  }
+}
+
 library(tidyverse)
 library(sf)
 
@@ -90,21 +144,24 @@ coast <- readRDS(
 diet_samp_map <- ggplot() +
   geom_sf(data = coast,  fill = "white", colour = "white") +
   geom_point(
-    data = dat,
+    data = dat %>% 
+      mutate(strata = translate_strata(strata),
+             era = translate_era(era)),
     aes(x = utm_x_m, y = utm_y_m, fill = strata, shape = era, 
         size = n_samples), 
     alpha = 0.7
   ) +
   geom_point(
-    data = strata_key, aes(x = utm_x_m, y = utm_y_m), 
+    data = strata_key %>% mutate(strata = translate_strata(strata)), 
+    aes(x = utm_x_m, y = utm_y_m), 
     shape = 4, stroke = 1.5
   ) +
   coord_sf(expand = FALSE) +
   scale_fill_manual(values = strata_colour_pal,
-                    name = "Spatial\nStrata") +
+                    name = tr("Spatial\nStrata", "Strates\nspatiales")) +
   scale_size_continuous(guide = "none") +
   scale_shape_manual(values = era_shape_pal, 
-                     name = "Diet\nSampling\nEra") +
+                     name = tr("Diet\nSampling\nEra", "Époque\nd'échantillonnage\ndu régime")) +
   ggsidekick::theme_sleek() +
   guides(
     fill = guide_legend(override.aes = list(shape = 21))
@@ -123,7 +180,7 @@ diet_samp_map <- ggplot() +
 
 
 png(
-  here::here("figs", "sampling_map.png"),
+  fig_path("sampling_map.png"),
   height = 7.5, width = 8, units = "in", res = 250
 )
 diet_samp_map

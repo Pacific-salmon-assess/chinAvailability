@@ -2,6 +2,47 @@
 # Use GSI samples through 2022 to evaluate trends in size-at-age by stock
 # Oct 30, 2023
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/stock_size_age", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/stock_size_age", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for strata labels
+translate_strata <- function(strata_values) {
+  if (FRENCH) {
+    case_when(
+      strata_values == "Swiftsure\nBank" ~ "Banc\nSwiftsure",
+      strata_values == "Port\nRenfrew" ~ "Port\nRenfrew",
+      strata_values == "Sooke/\nVictoria" ~ "Sooke/\nVictoria",
+      strata_values == "S. Gulf\nIslands" ~ "Îles du Golfe\ndu Sud",
+      strata_values == "Saanich" ~ "Saanich",
+      strata_values == "Juan\nde Fuca" ~ "Juan\nde Fuca",
+      strata_values == "San Juan\nIslands" ~ "Îles\nSan Juan",
+      strata_values == "Nitinat" ~ "Nitinat",
+      TRUE ~ strata_values
+    )
+  } else {
+    strata_values
+  }
+}
 
 library(tidyverse)
 
@@ -86,15 +127,15 @@ age_comp_stacked <- ggplot() +
            position="stack", stat="identity", colour = "black") +
   geom_text(data = labs_age_comp, 
             aes(x = stock_group, y = 0.05, label = age_n)) +
-  scale_fill_manual(name = "Marine\nAge", values = age_pal, na.value = "grey60" ) +
-  labs(y = "Proportion Age Composition", x = "Stock") +
+  scale_fill_manual(name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, na.value = "grey60" ) +
+  labs(y = tr("Proportion Age Composition", "Composition proportionnelle par âge"), x = tr("Stock", "Stock")) +
   ggsidekick::theme_sleek() +
   theme(
     axis.text.x = element_text(angle = 45, hjust=1)
   )
 
 png(
-  here::here("figs", "stock_size_age", "comp_bar_fishery_age_sw.png"),
+  fig_path(file.path("stock_size_age", "comp_bar_fishery_age_sw.png")),
   height = 5, width = 8, units = "in", res = 250
 )
 age_comp_stacked
@@ -187,7 +228,7 @@ size_month2 <- ggplot(new_dat2) +
         ),
     shape = 21
   ) +
-  scale_fill_manual(name = "Marine\nAge", values = age_pal, 
+  scale_fill_manual(name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, 
                     na.value = "grey60" ) +
   facet_wrap(~age_stock_group) +
   ggsidekick::theme_sleek() +
@@ -196,11 +237,11 @@ size_month2 <- ggplot(new_dat2) +
     legend.position = "top"
   ) +
   labs(
-    y = "Predicted Fork Length"
+    y = tr("Predicted Fork Length", "Longueur à la fourche prédite")
   )
 
 png(
-  here::here("figs", "stock_size_age", "mean_pred_fishery.png"),
+  fig_path(file.path("stock_size_age", "mean_pred_fishery.png")),
   height = 6.5, width = 8, units = "in", res = 250
 )
 size_month2
@@ -243,7 +284,7 @@ size_pred_hist <- ggplot(
     filter(month == "Jul")
 ) +
   geom_histogram(aes(x = fl, fill = sw_age)) +
-  scale_fill_manual(name = "Marine\nAge", values = age_pal, 
+  scale_fill_manual(name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, 
                     na.value = "grey60" ) +
   facet_wrap(~age_stock_group) +
   ggsidekick::theme_sleek() +
@@ -252,11 +293,11 @@ size_pred_hist <- ggplot(
     legend.position = "top"
   ) +
   labs(
-    y = "Predicted Fork Length"
+    y = tr("Predicted Fork Length", "Longueur à la fourche prédite")
   )
 
 png(
-  here::here("figs", "stock_size_age", "hist_pred_fishery.png"),
+  fig_path(file.path("stock_size_age", "hist_pred_fishery.png")),
   height = 6.5, width = 8, units = "in", res = 250
 )
 size_pred_hist

@@ -4,6 +4,59 @@
 # - stock comp bar plots
 # - size comp bar plots
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/rkw_diet", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/rkw_diet", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation functions for facet labels and legends
+translate_era <- function(era_values) {
+  if (FRENCH) {
+    case_when(
+      era_values == "current" ~ "actuel",
+      era_values == "early" ~ "précoce", 
+      TRUE ~ era_values
+    )
+  } else {
+    era_values
+  }
+}
+
+translate_strata <- function(strata_values) {
+  if (FRENCH) {
+    case_when(
+      strata_values == "Juan\nde Fuca" ~ "Juan\nde Fuca",
+      strata_values == "S. Gulf\nIslands" ~ "Îles du Golfe\ndu Sud",
+      strata_values == "Swiftsure\nBank" ~ "Banc\nSwiftsure",
+      strata_values == "Port\nRenfrew" ~ "Port\nRenfrew",
+      strata_values == "Sooke/\nVictoria" ~ "Sooke/\nVictoria",
+      strata_values == "Saanich" ~ "Saanich",
+      strata_values == "San Juan\nIslands" ~ "Îles\nSan Juan",
+      TRUE ~ strata_values
+    )
+  } else {
+    strata_values
+  }
+}
+
 library(tidyverse)
 library(mgcv)
 library(mvtweedie)
@@ -108,17 +161,21 @@ sample_gap_poly <- data.frame(
 diet_samp_cov <- stock_dat %>% 
   group_by(week_n, strata, year, era) %>% 
   summarize(n = length(unique(id))) %>% 
+  mutate(
+    era = translate_era(era),
+    strata = translate_strata(strata)
+  ) %>%
   ggplot(.) +
   geom_point(aes(x = week_n, y = year, size = n, shape = era), 
              alpha = 0.6) +
   facet_wrap(~strata) +
   geom_polygon(data = sample_gap_poly, aes(x = x, y = y), 
                fill = "red", alpha = 0.3) +
-  scale_size_continuous(name = "Sample\nSize") +
-  scale_shape_manual(values = era_pal, name = "Sample\nEra") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
+  scale_shape_manual(values = era_pal, name = tr("Sample\nEra", "Période\nd'échantillonnage")) +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37, 41),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), c("juin", "juil", "août", "sep", "oct"))
   ) +
   ggsidekick::theme_sleek() +
   theme(
@@ -131,28 +188,38 @@ samp_size_stock <- stock_dat %>%
   group_by(era, strata) %>% 
   summarize(
     n = length(unique(id))
+  ) %>%
+  mutate(
+    era = translate_era(era),
+    strata = translate_strata(strata)
   )
 
 samp_size_age <- size_dat %>% 
   group_by(era, strata) %>% 
   summarize(
     n = length(unique(id))
+  ) %>%
+  mutate(
+    era = translate_era(era),
+    strata = translate_strata(strata)
   )
 
 
 # stacked bar plots
-diet_samp_bar <- ggplot(stock_dat) +
+diet_samp_bar <- ggplot(stock_dat %>% 
+                        mutate(era = translate_era(era),
+                               strata = translate_strata(strata))) +
   geom_bar(aes(x = month, y = stock_prob, fill = stock_group), 
            stat = "identity") +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = smu_colour_pal, name = "Stock") +
+  scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = "Prey Remains Composition\n(Individual Samples)"
+    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), c("juin", "juil", "août", "sep", "oct"))
   ) +
   theme(
     legend.position = "top",
@@ -167,19 +234,21 @@ diet_samp_bar <- ggplot(stock_dat) +
 age_samp_bar <- size_dat %>% 
   select(id, strata, era, month, fw_year, sw_year, total_year) %>%
   distinct() %>% 
+  mutate(era = translate_era(era),
+         strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month, fill = as.factor(sw_year))) +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(
-    name = "Marine\nAge", values = age_pal, na.value = "grey60" 
+    name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, na.value = "grey60" 
     ) +
   labs(
-    y = "Prey Remains Composition\n(Individual Samples)"
+    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), c("juin", "juil", "août", "sep", "oct"))
   ) +
   theme(
     legend.position = "top",
@@ -192,19 +261,21 @@ age_samp_bar <- size_dat %>%
   )
 
 # box plots of size
-size_samp_bar <- ggplot(size_dat) +
+size_samp_bar <- ggplot(size_dat %>% 
+                        mutate(era = translate_era(era),
+                               strata = translate_strata(strata))) +
   geom_bar(aes(x = month, y = prob, fill = size_bin), 
            stat = "identity") +
   facet_grid(era~strata) +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(name = "Size\nClass", values = size_colour_pal, 
+  scale_fill_manual(name = tr("Size\nClass", "Classe\nde taille"), values = size_colour_pal, 
                     na.value = "grey60" ) +
   labs(
-    y = "Prey Remains Composition\n(Individual Samples)"
+    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
-    labels = c("Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), c("juin", "juil", "août", "sep", "oct"))
   ) +
   theme(
     legend.position = "top",
@@ -220,28 +291,28 @@ size_samp_bar <- ggplot(size_dat) +
 
 ## export 
 png(
-  here::here("figs", "rkw_diet", "temporal_sample_coverage.png"),
+  fig_path("rkw_diet/temporal_sample_coverage.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 diet_samp_cov
 dev.off()
 
 png(
-  here::here("figs", "rkw_diet", "monthly_comp_bar.png"),
+  fig_path("rkw_diet/monthly_comp_bar.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 diet_samp_bar
 dev.off()
 
 png(
-  here::here("figs", "rkw_diet", "comp_bar_prey_age.png"),
+  fig_path("rkw_diet/comp_bar_prey_age.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 age_samp_bar
 dev.off()
 
 png(
-  here::here("figs", "rkw_diet", "comp_bar_prey_size.png"),
+  fig_path("rkw_diet/comp_bar_prey_size.png"),
   height = 5, width = 8, units = "in", res = 250
 )
 size_samp_bar

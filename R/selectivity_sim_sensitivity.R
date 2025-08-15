@@ -3,6 +3,42 @@
 # coincident with closures/slot limits
 # Dec. 19, 2024
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/selectivity", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/selectivity", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for dataset categories
+translate_dataset <- function(dataset_values) {
+  if (FRENCH) {
+    case_when(
+      dataset_values == "standard" ~ "standard",
+      dataset_values == "large" ~ "grand", 
+      dataset_values == "filtered" ~ "filtré",
+      TRUE ~ dataset_values
+    )
+  } else {
+    dataset_values
+  }
+}
 
 library(tidyverse)
 library(mvtweedie)
@@ -193,18 +229,18 @@ dd <- sim_ppn_dat %>%
 
 sel_bean <- ggplot() +
   geom_pointrange(
-    data = dd %>% filter(!dataset == "large"),
+    data = dd %>% filter(!dataset == "large") %>% mutate(dataset = translate_dataset(dataset)),
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = stock_group,
         fill = ppn),
     shape = 21
   ) +
   scale_fill_continuous(
-    name = "Proportion of\nFishery Samples\nin Western Strata",
+    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates ouest"),
     trans = "sqrt",
     breaks = c(0.05, 0.15, 0.25)
   ) +
-  labs(x = "Difference Between Observed and Predicted Composition",
-       y = "Stock") +
+  labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
+       y = tr("Stock", "Stock")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
         legend.key.size = unit(0.75, "cm"),
@@ -216,7 +252,7 @@ sel_bean <- ggplot() +
 
 
 png(
-  here::here("figs", "selectivity", "selectivity_bean_stock_sens.png"),
+  fig_path(file.path("selectivity", "selectivity_bean_stock_sens.png")),
   height = 6.5, width = 5.1, units = "in", res = 250
 )
 sel_bean
@@ -339,17 +375,17 @@ diff_quantile <- sim_ppn_dat_size %>%
 
 sel_bean_size <- ggplot() +
   geom_pointrange(
-    data = diff_quantile,
+    data = diff_quantile %>% mutate(dataset = translate_dataset(dataset)),
     aes(x = med_dif, xmin = lo_dif, xmax = up_dif, y = size_bin,
         fill = ppn),
     shape = 21
   ) +
   scale_fill_continuous(
-    name = "Proportion of\nFishery Samples\nin Western Strata",
+    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates ouest"),
     trans = "sqrt"
   ) +
-  labs(x = "Difference Between Observed and Predicted Composition",
-       y = "Size Bin (cm)") +
+  labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
+       y = tr("Size Bin (cm)", "Classe de taille (cm)")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top"
   ) +
@@ -358,7 +394,7 @@ sel_bean_size <- ggplot() +
 
 
 png(
-  here::here("figs", "selectivity", "selectivity_bean_size_sens.png"),
+  fig_path(file.path("selectivity", "selectivity_bean_size_sens.png")),
   height = 6.5, width = 5, units = "in", res = 250
 )
 sel_bean_size

@@ -5,6 +5,47 @@
 # Includes sensitivity analyses to evaluate effects of a) slot limits and b)
 # excluding fish < 75 cm
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/stock_comp_fishery", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/stock_comp_fishery", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for strata labels
+translate_strata <- function(strata_values) {
+  if (FRENCH) {
+    case_when(
+      strata_values == "Swiftsure\nBank" ~ "Banc\nSwiftsure",
+      strata_values == "Port\nRenfrew" ~ "Port\nRenfrew",
+      strata_values == "Sooke/\nVictoria" ~ "Sooke/\nVictoria",
+      strata_values == "S. Gulf\nIslands" ~ "Îles du Golfe\ndu Sud",
+      strata_values == "Saanich" ~ "Saanich",
+      strata_values == "Juan\nde Fuca" ~ "Juan\nde Fuca",
+      strata_values == "San Juan\nIslands" ~ "Îles\nSan Juan",
+      strata_values == "Nitinat" ~ "Nitinat",
+      TRUE ~ strata_values
+    )
+  } else {
+    strata_values
+  }
+}
 
 library(tidyverse)
 library(mvtweedie)
@@ -157,7 +198,9 @@ sample_gap_poly <- data.frame(
 )
 
 # sampling coverage 
-rec_samp_cov <- ggplot(sample_key) +
+rec_samp_cov <- sample_key %>%
+  mutate(strata = translate_strata(strata)) %>%
+  ggplot(.) +
   geom_polygon(data = sample_gap_poly, aes(x = x, y = y), 
                fill = "red", alpha = 0.3) +
   geom_jitter(aes(x = week_n, y = year, size = sample_id_n),
@@ -226,7 +269,9 @@ sample_key2 <- sample_key %>%
   ) %>% 
   filter(week_n > 17 & week_n < 41)
 
-rec_samp_cov2 <- ggplot(sample_key2) +
+rec_samp_cov2 <- sample_key2 %>%
+  mutate(strata = translate_strata(strata)) %>%
+  ggplot(.) +
   geom_jitter(aes(x = week_n, y = year, size = sample_id_n, colour = restricted),
               alpha = 0.4
   ) +
@@ -245,67 +290,74 @@ rec_samp_cov2 <- ggplot(sample_key2) +
 
 
 # stacked bar plot
-rec_samp_bar <- ggplot(dat) +
+rec_samp_bar <- dat %>%
+  mutate(strata = translate_strata(strata)) %>%
+  ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = smu_colour_pal, name = "Stock") +
+  scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = "Recreational Fishery Composition\n(Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
-    labels = c("Jan", "May", "Sep", "Dec")
+    labels = c(tr("Jan", "jan"), tr("May", "mai"), tr("Sep", "sep"), tr("Dec", "déc"))
   ) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = full_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = full_samp_size %>% mutate(strata = translate_strata(strata)), 
+    aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer <- dat %>% 
   filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
+  mutate(strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = smu_colour_pal, name = "Stock") +
+  scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = "Recreational Fishery Composition\n(Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   ) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = summer_samp_size %>% mutate(strata = translate_strata(strata)), 
+    aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
 
 # as above but for hatchery origin
-rec_samp_bar_h <- ggplot(dat) +
+rec_samp_bar_h <- dat %>%
+  mutate(strata = translate_strata(strata)) %>%
+  ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
+  scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
-    y = "Recreational Fishery Composition\n(Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
-    labels = c("Jan", "May", "Sep", "Dec")
+    labels = c(tr("Jan", "jan"), tr("May", "mai"), tr("Sep", "sep"), tr("Dec", "déc"))
   ) +
   theme(
     legend.position = "top",
@@ -319,18 +371,19 @@ rec_samp_bar_h <- ggplot(dat) +
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer_h <- dat %>%
   filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>%
+  mutate(strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
+  scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
-    y = "Recreational Fishery Composition\n(Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   ) +
   theme(
     legend.position = "top",
@@ -358,7 +411,7 @@ hatchery_stock_bar <- dat %>%
   geom_bar(aes(x = stock_group, y = ppn, fill = origin2),
            stat = "identity") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = hatchery_colour_pal, name = "Hatchery\nOrigin") +
+  scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
     y = "Recreational Fishery Composition\n(Proportion of Individual Samples)"
   ) +
@@ -404,36 +457,35 @@ size_density <- ggplot() +
 
 ## export
 png(
-  here::here("figs", "stock_comp_fishery", "rec_temporal_sample_coverage.png"),
+  fig_path(file.path("stock_comp_fishery", "rec_temporal_sample_coverage.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_cov
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", 
-             "rec_temporal_sample_coverage_management.png"),
+  fig_path(file.path("stock_comp_fishery", "rec_temporal_sample_coverage_management.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_cov2
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "rec_monthly_comp_bar.png"),
+  fig_path(file.path("stock_comp_fishery", "rec_monthly_comp_bar.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "rec_monthly_comp_bar_summer.png"),
+  fig_path(file.path("stock_comp_fishery", "rec_monthly_comp_bar_summer.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_summer
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar.png"),
+  fig_path(file.path("stock_comp_fishery", "rec_monthly_hatchery_comp_bar.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_h
@@ -449,14 +501,14 @@ rec_samp_bar_summer_h
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "rec_stock_hatchery_bar.png"),
+  fig_path(file.path("stock_comp_fishery", "rec_stock_hatchery_bar.png")),
   height = 5, width = 8.25, units = "in", res = 250
 )
 hatchery_stock_bar
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "size_density.png"),
+  fig_path(file.path("stock_comp_fishery", "size_density.png")),
   height = 5, width = 8.25, units = "in", res = 250
 )
 size_density
@@ -546,7 +598,7 @@ samp <- sdmTMBextra::predict_mle_mcmc(
 mcmc_res <- residuals(fit_sdmTMB, type = "mle-mcmc", mcmc_samples = samp)
 
 png(
-  here::here("figs", "stock_comp_fishery", "qq_plot_stock.png"),
+  fig_path(file.path("stock_comp_fishery", "qq_plot_stock.png")),
   height = 4.5, width = 4.5, units = "in", res = 250
 )
 qqnorm(mcmc_res); qqline(mcmc_res)
@@ -637,19 +689,19 @@ post_sim_list <- purrr::map(
 
 
 png(
-  here::here("figs", "stock_comp_fishery", "posterior_sims_stock1.png"),
+  fig_path(file.path("stock_comp_fishery", "posterior_sims_stock1.png")),
   height = 7.5, width = 7.5, units = "in", res = 250
 )
 post_sim_list[[1]]
 dev.off()
 png(
-  here::here("figs", "stock_comp_fishery", "posterior_sims_stock2.png"),
+  fig_path(file.path("stock_comp_fishery", "posterior_sims_stock2.png")),
   height = 7.5, width = 7.5, units = "in", res = 250
 )
 post_sim_list[[2]]
 dev.off()
 png(
-  here::here("figs", "stock_comp_fishery", "posterior_sims_stock3.png"),
+  fig_path(file.path("stock_comp_fishery", "posterior_sims_stock3.png")),
   height = 7.5, width = 7.5, units = "in", res = 250
 )
 post_sim_list[[3]]
@@ -696,20 +748,22 @@ newdata_yr <- cbind( newdata, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
     !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)
   )
 
-year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
+year_preds <- newdata_yr %>%
+  mutate(strata = translate_strata(strata)) %>%
+  ggplot(., aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
   facet_grid(stock_group2~strata, scales = "free_y") +
   scale_colour_discrete() +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
   ) +
-  labs(y="Predicted Proportion") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite")) +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top",
         axis.title.x = element_blank()) +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 
 
@@ -753,7 +807,7 @@ season_preds <- ggplot(newdata3a, aes(week_n, fit)) +
   theme(legend.position = "top") +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 
 season_preds_fullx <- season_preds +
@@ -780,12 +834,15 @@ newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
   ) 
 
 # integrates out yearly variation
-summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
+summer_preds <- newdata3b %>%
+  mutate(strata = translate_strata(strata)) %>%
+  ggplot(., aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
       filter(week_n %in% newdata$week_n,
              !strata == "Saanich"
-             ),
+             ) %>%
+      mutate(strata = translate_strata(strata)),
     aes(x = week_n, y = agg_ppn, size = sample_id_n),
     alpha = 0.3
   ) +
@@ -800,7 +857,7 @@ summer_preds <- ggplot(newdata3b, aes(week_n, fit)) +
         strip.text = element_text(size = 7)) +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   ) 
 
 summer_preds_fullx <- summer_preds +
@@ -809,13 +866,12 @@ summer_preds_fullx <- summer_preds +
 
 
 ## stacked ribbon predictions
-summer_pred_stacked <- ggplot(
-  data = newdata3b %>% 
+summer_pred_stacked <- newdata3b %>% 
     filter(week_n > 19 & week_n < 44,
            !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n < 22),
-           !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)), 
-  aes(x = week_n)
-) +
+           !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)) %>%
+    mutate(strata = translate_strata(strata)) %>%
+  ggplot(., aes(x = week_n)) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
             stat = "identity") +
   scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
@@ -832,7 +888,7 @@ summer_pred_stacked <- ggplot(
   facet_wrap(~strata) +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   ) 
 summer_pred_legend <- cowplot::get_legend(
   ggplot(
@@ -848,35 +904,35 @@ summer_pred_legend <- cowplot::get_legend(
 
 
 png(
-  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_year.png"),
+  fig_path(file.path("stock_comp_fishery", "smooth_preds_chinook_year.png")),
   height = 7.5, width = 6.5, units = "in", res = 250
 )
 year_preds
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "season_preds_chinook.png"),
+  fig_path(file.path("stock_comp_fishery", "season_preds_chinook.png")),
   height = 6.5, width = 7.5, units = "in", res = 250
 )
 season_preds
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook.png"),
+  fig_path(file.path("stock_comp_fishery", "smooth_preds_chinook.png")),
   height = 8.5, width = 7.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_xaxis.png"),
+  fig_path(file.path("stock_comp_fishery", "smooth_preds_chinook_xaxis.png")),
   height = 8.5, width = 7.5, units = "in", res = 250
 )
 summer_preds_fullx
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "smooth_preds_chinook_stacked.png"),
+  fig_path(file.path("stock_comp_fishery", "smooth_preds_chinook_stacked.png")),
   height = 6.5, width = 8.5, units = "in", res = 250
 )
 cowplot::ggdraw() +
@@ -1074,7 +1130,7 @@ spatial_scaled_legend <- cowplot::get_legend(
 
 
 png(
-  here::here("figs", "stock_comp_fishery", "spatial_preds.png"),
+  fig_path(file.path("stock_comp_fishery", "spatial_preds.png")),
   height = 4.5, width = 7.5, units = "in", res = 250
 )
 cowplot::ggdraw() +
@@ -1084,7 +1140,7 @@ cowplot::ggdraw() +
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "spatial_preds_scaled.png"),
+  fig_path(file.path("stock_comp_fishery", "spatial_preds_scaled.png")),
   height = 4.5, width = 7.5, units = "in", res = 250
 )
 cowplot::ggdraw(spatial_pred_scaled) +
@@ -1094,7 +1150,7 @@ cowplot::ggdraw(spatial_pred_scaled) +
 dev.off()
 
 # png(
-#   here::here("figs", "stock_comp_fishery", "spatial_preds_se.png"),
+#   fig_path(file.path("stock_comp_fishery", "spatial_preds_se.png")),
 #   height = 4, width = 6, units = "in", res = 250
 # )
 # spatial_pred_se
@@ -1312,11 +1368,10 @@ new_dat <- purrr::map2(
 model_pal <- c("#e41a1c", "#377eb8")#, "#4daf4a", "#984ea3")
 names(model_pal) <- levels(new_dat$model)
 
-model_comp_smooth1 <- ggplot(
-  new_dat %>% 
-    filter(!(grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
-  aes(week_n, fit, colour = model)
-) +
+model_comp_smooth1 <- new_dat %>% 
+    filter(!(grepl("FR", stock_group) | stock_group == "ECVI_SOMN")) %>%
+    mutate(strata = translate_strata(strata)) %>%
+  ggplot(., aes(week_n, fit, colour = model)) +
   geom_line() +
   facet_grid(stock_group~strata, scales = "free_y") +
   labs(y="Predicted Proportion", x = "Sampling Week") +
@@ -1334,11 +1389,10 @@ model_comp_smooth1 <- ggplot(
     labels = c("Jun", "Jul", "Aug", "Sep"),
     expand = c(0, 0)
   ) 
-model_comp_smooth2 <- ggplot(
-  new_dat %>% 
-    filter((grepl("FR", stock_group) | stock_group == "ECVI_SOMN")), 
-  aes(week_n, fit, colour = model)
-) +
+model_comp_smooth2 <- new_dat %>% 
+    filter((grepl("FR", stock_group) | stock_group == "ECVI_SOMN")) %>%
+    mutate(strata = translate_strata(strata)) %>%
+  ggplot(., aes(week_n, fit, colour = model)) +
   geom_line() +
   facet_grid(stock_group~strata, scales = "free_y") +
   labs(y="Predicted Proportion", x = "Sampling Week") +
@@ -1359,14 +1413,14 @@ model_comp_smooth2 <- ggplot(
 
 
 png(
-  here::here("figs", "stock_comp_fishery", "model_comp_stock1.png"),
+  fig_path(file.path("stock_comp_fishery", "model_comp_stock1.png")),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 model_comp_smooth1
 dev.off()
 
 png(
-  here::here("figs", "stock_comp_fishery", "model_comp_stock2.png"),
+  fig_path(file.path("stock_comp_fishery", "model_comp_stock2.png")),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 model_comp_smooth2

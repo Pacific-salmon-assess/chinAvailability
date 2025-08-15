@@ -5,6 +5,57 @@
 # Includes sensitivity analyses to evaluate effects of a) slot limits and b)
 # excluding fish < 75 cm
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/size_comp_fishery", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/size_comp_fishery", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
+
+# Translation function for strata labels
+translate_strata <- function(strata_values) {
+  if (FRENCH) {
+    case_when(
+      strata_values == "Swiftsure\nBank" ~ "Banc\nSwiftsure",
+      strata_values == "Port\nRenfrew" ~ "Port\nRenfrew",
+      strata_values == "Sooke/\nVictoria" ~ "Sooke/\nVictoria",
+      strata_values == "S. Gulf\nIslands" ~ "Îles du Golfe\ndu Sud",
+      strata_values == "Saanich" ~ "Saanich",
+      strata_values == "Juan\nde Fuca" ~ "Juan\nde Fuca",
+      strata_values == "San Juan\nIslands" ~ "Îles\nSan Juan",
+      strata_values == "Nitinat" ~ "Nitinat",
+      TRUE ~ strata_values
+    )
+  } else {
+    strata_values
+  }
+}
+
+# Translation function for size bins (keep as numeric ranges)
+translate_size_bins <- function(size_values) {
+  if (FRENCH) {
+    # Keep size bins as-is since they're numeric ranges
+    size_values
+  } else {
+    size_values
+  }
+}
 
 library(tidyverse)
 library(mvtweedie)
@@ -127,24 +178,28 @@ summer_samp_size <- dat %>%
 ## DATA FIGURES ----------------------------------------------------------------
 
 # stacked bar plot
-rec_size_bar <- ggplot(dat) +
+rec_size_bar <- dat %>%
+  mutate(strata = translate_strata(strata),
+         size_bin = translate_size_bins(size_bin)) %>%
+  ggplot(.) +
   geom_bar(aes(x = month_n, fill = size_bin)) +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = size_colour_pal, name = "Size\nBin") +
+  scale_fill_manual(values = size_colour_pal, name = tr("Size\nBin", "Classe de\nTaille")) +
   labs(
-    y = "Recreational Fishery Composition\n(Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
-    labels = c("Jan", "May", "Sep", "Dec")
+    labels = c(tr("Jan", "jan"), tr("May", "mai"), tr("Sep", "sep"), tr("Dec", "déc"))
   ) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = full_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = full_samp_size %>% mutate(strata = translate_strata(strata)), 
+    aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
@@ -152,37 +207,40 @@ rec_size_bar <- ggplot(dat) +
 # subset of monthly samples that matches RKW diet
 rec_size_bar_summer <- dat %>% 
   filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
+  mutate(strata = translate_strata(strata),
+         size_bin = translate_size_bins(size_bin)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, fill = size_bin)) +
   facet_wrap(~strata, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = size_colour_pal, name = "Size\nBin") +
+  scale_fill_manual(values = size_colour_pal, name = tr("Size\nBin", "Classe de\nTaille")) +
   labs(
-    y = "Recreational Fishery Composition\n(Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   ) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = summer_samp_size %>% mutate(strata = translate_strata(strata)), 
+    aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
 
 png(
-  here::here("figs", "size_comp_fishery", "rec_monthly_size_bar.png"),
+  fig_path(file.path("size_comp_fishery", "rec_monthly_size_bar.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_size_bar
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "rec_monthly_size_bar_summer.png"),
+  fig_path(file.path("size_comp_fishery", "rec_monthly_size_bar_summer.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_size_bar_summer
@@ -254,7 +312,7 @@ samp <- sdmTMBextra::predict_mle_mcmc(fit_sdmTMB, mcmc_iter = 101,
 mcmc_res <- residuals(fit_sdmTMB, type = "mle-mcmc", mcmc_samples = samp)
 
 png(
-  here::here("figs", "size_comp_fishery", "qq_plot_size.png"),
+  fig_path(file.path("size_comp_fishery", "qq_plot_size.png")),
   height = 4, width = 4, units = "in", res = 250
 )
 qqnorm(mcmc_res); qqline(mcmc_res)
@@ -332,10 +390,14 @@ avg_obs_comp <- avg_obs_comp1 %>%
   distinct()
 
 post_sim <- ggplot() +
-  geom_boxplot(data = avg_sim_comp ,
+  geom_boxplot(data = avg_sim_comp %>% 
+                 mutate(strata = translate_strata(strata),
+                        size_bin = translate_size_bins(size_bin)),
                aes(x = month, y = mean_sim_ppn)) +
   geom_pointrange(
-    data = avg_obs_comp,
+    data = avg_obs_comp %>% 
+      mutate(strata = translate_strata(strata),
+             size_bin = translate_size_bins(size_bin)),
     aes(x = month, y = mean_obs_ppn, ymin = lo, ymax = up), 
     col = "red", alpha = 0.6) +
   ggsidekick::theme_sleek() +
@@ -344,12 +406,13 @@ post_sim <- ggplot() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank()) +
   geom_text(
-    data = summer_samp_size, aes(x = Inf, y = Inf, label = paste(n)),
+    data = summer_samp_size %>% mutate(strata = translate_strata(strata)), 
+    aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
 
 png(
-  here::here("figs", "size_comp_fishery", "posterior_sims_size.png"),
+  fig_path(file.path("size_comp_fishery", "posterior_sims_size.png")),
   height = 8.5, width = 7.5, units = "in", res = 250
 )
 post_sim
@@ -406,7 +469,10 @@ newdata_yr <- cbind( newdata1, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
     !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)
   )
 
-year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
+year_preds <- newdata_yr %>%
+  mutate(strata = translate_strata(strata),
+         size_bin = translate_size_bins(size_bin)) %>%
+  ggplot(., aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
   facet_grid(size_bin~strata, scales = "free_y") +
   scale_colour_discrete(name = "Year") +
@@ -418,7 +484,7 @@ year_preds <- ggplot(newdata_yr, aes(week_n, fit)) +
         axis.title.x = element_blank()) +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 
 
@@ -454,13 +520,13 @@ season_preds <- ggplot(newdata_season2, aes(week_n, fit)) +
   scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
                   ) +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), x = tr("Sampling Week", "Semaine d'échantillonnage")) +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top")  +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 
 season_preds_fullx <- season_preds +
@@ -487,11 +553,16 @@ newdata_full <- cbind( newdata, fit=full_pred$fit, se.fit=full_pred$se.fit ) %>%
   ) 
 
 # integrates out yearly variation
-summer_preds <- ggplot(newdata_full, aes(week_n, fit)) +
+summer_preds <- newdata_full %>%
+  mutate(strata = translate_strata(strata),
+         size_bin = translate_size_bins(size_bin)) %>%
+  ggplot(., aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
       filter(week_n %in% newdata$week_n,
-             !strata == "Saanich"),
+             !strata == "Saanich") %>%
+      mutate(strata = translate_strata(strata),
+             size_bin = translate_size_bins(size_bin)),
     aes(x = week_n, y = agg_ppn, size = sample_id_n),
     alpha = 0.3
   ) +
@@ -499,13 +570,13 @@ summer_preds <- ggplot(newdata_full, aes(week_n, fit)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
   facet_grid(size_bin~strata) +
   coord_cartesian(xlim = c(20, 43), ylim = c(0, 1)) +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), x = tr("Sampling Week", "Semaine d'échantillonnage")) +
   ggsidekick::theme_sleek() +
   scale_size_continuous(name = "Sample\nSize") +
   theme(legend.position = "top") +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 
 summer_preds_fullx <- summer_preds +
@@ -514,15 +585,15 @@ summer_preds_fullx <- summer_preds +
 
 
 ## stacked ribbon predictions
-summer_pred_stacked <- ggplot(
-  data = newdata_full %>% 
+summer_pred_stacked <- newdata_full %>% 
     filter(
       week_n > 19 & week_n < 44,
       !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n < 22),
       !(strata %in% c("Swiftsure", "Nitinat", "Renfrew") & week_n > 40)
-    ), 
-  aes(x = week_n)
-) +
+    ) %>%
+    mutate(strata = translate_strata(strata),
+           size_bin = translate_size_bins(size_bin)) %>%
+  ggplot(., aes(x = week_n)) +
   geom_area(aes(y = fit, colour = size_bin, fill = size_bin), 
             stat = "identity") +
   scale_fill_manual(values = size_colour_pal) +
@@ -539,7 +610,7 @@ summer_pred_stacked <- ggplot(
   facet_wrap(~strata)  +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct")
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 summer_pred_legend <- cowplot::get_legend(
   ggplot(
@@ -558,35 +629,35 @@ summer_pred_legend <- cowplot::get_legend(
 
 
 png(
-  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_year.png"),
+  fig_path(file.path("size_comp_fishery", "size_smooth_preds_chinook_year.png")),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 year_preds
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "size_season_preds_chinook.png"),
+  fig_path(file.path("size_comp_fishery", "size_season_preds_chinook.png")),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 season_preds
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook.png"),
+  fig_path(file.path("size_comp_fishery", "size_smooth_preds_chinook.png")),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_preds
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_xaxis.png"),
+  fig_path(file.path("size_comp_fishery", "size_smooth_preds_chinook_xaxis.png")),
   height = 6.5, width = 6.5, units = "in", res = 250
 )
 summer_preds_fullx
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "size_smooth_preds_chinook_stacked.png"),
+  fig_path(file.path("size_comp_fishery", "size_smooth_preds_chinook_stacked.png")),
   height = 6.5, width = 8.5, units = "in", res = 250
 )
 cowplot::ggdraw(summer_pred_stacked) +
@@ -757,21 +828,21 @@ spatial_pred_scaled <- ggplot() +
 
 
 png(
-  here::here("figs", "size_comp_fishery", "size_spatial_preds.png"),
+  fig_path(file.path("size_comp_fishery", "size_spatial_preds.png")),
   height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred
 dev.off()
 
 png(
-  here::here("figs", "size_comp_fishery", "size_spatial_preds_scaled.png"),
+  fig_path(file.path("size_comp_fishery", "size_spatial_preds_scaled.png")),
   height = 4, width = 6, units = "in", res = 250
 )
 spatial_pred_scaled
 dev.off()
 
 # png(
-#   here::here("figs", "size_comp_fishery", "spatial_preds_se.png"),
+#   fig_path(file.path("size_comp_fishery", "spatial_preds_se.png")),
 #   height = 4, width = 6, units = "in", res = 250
 # )
 # spatial_pred_se

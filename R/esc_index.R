@@ -2,6 +2,28 @@
 # Figures of escapement/terminal return for relevant stock groups
 # Oct 19, 2024
 
+# Set French language option
+FRENCH <- FALSE
+
+# Create appropriate figure directories
+if (FRENCH) {
+  dir.create("figs-french", showWarnings = FALSE)
+  dir.create("figs-french/run_size", showWarnings = FALSE)
+  fig_dir <- "figs-french"
+} else {
+  dir.create("figs/run_size", showWarnings = FALSE)
+  fig_dir <- "figs"
+}
+
+# Translation helper function
+tr <- function(english, french) {
+  if (FRENCH) french else english
+}
+
+# Helper function for figure paths
+fig_path <- function(filename) {
+  file.path(fig_dir, filename)
+}
 
 library(tidyverse)
 
@@ -117,14 +139,14 @@ sg_plot <- ggplot(sg_esc) +
   scale_colour_manual(values = smu_colour_pal) +
   facet_wrap(~ stock_group, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  labs(y = "Terminal Abundance (thousands)") +
+  labs(y = tr("Terminal Abundance (thousands)", "Abondance terminale (milliers)")) +
   theme(
     axis.title.x = element_blank(),
     legend.position = "none"
   )
   
 png(
-  here::here("figs", "run_size", "escapement_stock_group.png"),
+  fig_path("run_size/escapement_stock_group.png"),
   height = 5, width = 7.5, units = "in", res = 250
 )
 sg_plot
@@ -137,7 +159,7 @@ reg_plot <- ggplot(re_esc) +
   # scale_alpha_manual(values = average_pal) +
   ggsidekick::theme_sleek() +
   scale_fill_viridis_d() +
-  labs(y = "Terminal Abundance (thousands)") +
+  labs(y = tr("Terminal Abundance (thousands)", "Abondance terminale (milliers)")) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
@@ -145,7 +167,7 @@ reg_plot <- ggplot(re_esc) +
   labs(fill = NULL)
 
 png(
-  here::here("figs", "run_size", "escapement_region.png"),
+  fig_path("run_size/escapement_region.png"),
   height = 5, width = 5.5, units = "in", res = 250
 )
 reg_plot
@@ -251,7 +273,7 @@ dd <- re_esc %>%
   filter(!is.na(aabm_fishery))
 
 png(
-  here::here("figs", "run_size", "escapement_aabm_corr_aggregate.png"),
+  fig_path("run_size/escapement_aabm_corr_aggregate.png"),
   height = 5, width = 5.5, units = "in", res = 250
 )
 plot(total_esc ~ abundance_index, data = dd)
@@ -271,7 +293,7 @@ cor_df <- sg_esc2 %>%
   mutate(label = paste0("r = ", round(correlation, 2)))
 
 png(
-  here::here("figs", "run_size", "escapement_aabm_corr.png"),
+  fig_path("run_size/escapement_aabm_corr.png"),
   height = 7, width = 7.5, units = "in", res = 250
 )
 ggplot(data = sg_esc2, aes(x = abundance_index, y = sum_esc / 1000)) +
@@ -279,7 +301,7 @@ ggplot(data = sg_esc2, aes(x = abundance_index, y = sum_esc / 1000)) +
   facet_wrap(~stock_group, scales = "free_y") +
   geom_text(data = cor_df, aes(x = -Inf, y = Inf, label = label),
             hjust = -0.1, vjust = 1.5, inherit.aes = FALSE) + 
-  labs(x = "WCVI AABM Index", y = "Terminal Run Size") +
+  labs(x = tr("WCVI AABM Index", "Indice AABM COIV"), y = tr("Terminal Run Size", "Taille de la remonte terminale")) +
   ggsidekick::theme_sleek()
 dev.off()
 
