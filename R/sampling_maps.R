@@ -3,7 +3,7 @@
 # Uses cleaned and aggregated data generated in model fitting scripts
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -126,14 +126,9 @@ strata_colour_pal <- c(
 
 era_shape_pal <- c(22, 21)
 
-# Set palette names based on language setting
-if (FRENCH) {
-  names(strata_colour_pal) <- translate_strata(levels(dat$strata))
-  names(era_shape_pal) <- translate_era(levels(dat$era))
-} else {
-  names(strata_colour_pal) <- levels(dat$strata)
-  names(era_shape_pal) <- levels(dat$era)
-} 
+# Set palette names to original factor levels (not translated)
+names(strata_colour_pal) <- levels(dat$strata)
+names(era_shape_pal) <- levels(dat$era)
 
   
 coast <- readRDS(
@@ -152,23 +147,23 @@ coast <- readRDS(
 diet_samp_map <- ggplot() +
   geom_sf(data = coast,  fill = "white", colour = "white") +
   geom_point(
-    data = dat %>% 
-      mutate(strata = translate_strata(strata),
-             era = translate_era(era)),
+    data = dat,
     aes(x = utm_x_m, y = utm_y_m, fill = strata, shape = era, 
         size = n_samples), 
     alpha = 0.7
   ) +
   geom_point(
-    data = strata_key %>% mutate(strata = translate_strata(strata)), 
+    data = strata_key, 
     aes(x = utm_x_m, y = utm_y_m), 
     shape = 4, stroke = 1.5
   ) +
   coord_sf(expand = FALSE) +
   scale_fill_manual(values = strata_colour_pal,
+                    labels = if(FRENCH) translate_strata(names(strata_colour_pal)) else names(strata_colour_pal),
                     name = tr("Spatial\nStrata", "Strates\nspatiales")) +
   scale_size_continuous(guide = "none") +
-  scale_shape_manual(values = era_shape_pal, 
+  scale_shape_manual(values = era_shape_pal,
+                     labels = if(FRENCH) translate_era(names(era_shape_pal)) else names(era_shape_pal), 
                      name = tr("Diet\nSampling\nEra", "Époque\nd'échantillonnage\ndu régime")) +
   labs(
     fill = tr("Spatial Strata", "Strates spatiales"),

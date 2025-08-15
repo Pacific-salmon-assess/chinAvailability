@@ -6,7 +6,7 @@
 # excluding fish < 75 cm
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -317,7 +317,11 @@ png(
   fig_path(file.path("size_comp_fishery", "qq_plot_size.png")),
   height = 4, width = 4, units = "in", res = 250
 )
-qqnorm(mcmc_res); qqline(mcmc_res)
+qqnorm(mcmc_res,
+       xlab = tr("Theoretical Quantiles", "Quantiles théoriques"),
+       ylab = tr("Sample Quantiles", "Quantiles échantillonnaux")
+)
+qqline(mcmc_res)
 dev.off()
 
 
@@ -357,7 +361,10 @@ week_key <- data.frame(
 ) %>% 
   mutate(
     month = cut(
-      week_n, breaks = 5, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
+      week_n, breaks = 5, 
+      labels = c(tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), 
+                 tr("Sep", "sep"), tr("Oct", "oct"))
+      )
   )
 
 avg_sim_comp <- sim_comp %>% 
@@ -489,7 +496,6 @@ year_preds <- newdata_yr %>%
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
     labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
-
 
 
 ## average seasonal predictions by size bin
@@ -786,7 +792,9 @@ spatial_pred <- ggplot() +
     ~ size_bin
   ) +
   scale_fill_viridis_c(
-    name = "Predicted Proportion\nof Rec Catch"
+    name = tr(
+      "Predicted Proportion\nof Rec Catch",
+      "Proportion prévue de\nla capture récréatives")
   ) +
   ggsidekick::theme_sleek() +
   theme(
@@ -807,7 +815,10 @@ spatial_pred_scaled <- ggplot() +
   ) +
   scale_fill_viridis_c(
     option = "A",
-    name = "Predicted Scaled\nProportion\nof Rec Catch"
+    name = tr(
+      "Predicted Scaled\nProportion\nof Rec Catch",
+      "Proportion prévue\nnormalisée de la\ncapture récréatives"
+      )
   ) +
   ggsidekick::theme_sleek()  +
   theme(

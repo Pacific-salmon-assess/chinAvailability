@@ -4,7 +4,7 @@
 # Oct 9, 2024
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {

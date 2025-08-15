@@ -143,12 +143,8 @@ names(smu_colour_pal) <- levels(stock_dat$stock_group)
 
 # era shape palette
 era_pal <- c(15, 16)
-# Set palette names based on language setting
-if (FRENCH) {
-  names(era_pal) <- translate_era(levels(stock_dat$era))
-} else {
-  names(era_pal) <- levels(stock_dat$era)
-}
+# Set palette names to original factor levels (not translated)
+names(era_pal) <- levels(stock_dat$era)
 
 # size colour palette
 size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
@@ -166,21 +162,23 @@ sample_gap_poly <- data.frame(
 diet_samp_cov <- stock_dat %>% 
   group_by(week_n, strata, year, era) %>% 
   summarize(n = length(unique(id))) %>% 
-  mutate(
-    era = translate_era(era),
-    strata = translate_strata(strata)
-  ) %>%
   ggplot(.) +
   geom_point(aes(x = week_n, y = year, size = n, shape = era), 
              alpha = 0.6) +
-  facet_wrap(~strata) +
+  facet_wrap(
+    ~strata, 
+    labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   geom_polygon(data = sample_gap_poly, aes(x = x, y = y), 
                fill = "red", alpha = 0.3) +
   scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
-  scale_shape_manual(values = era_pal, name = tr("Sample\nEra", "Période\nd'échantillonnage")) +
+  scale_shape_manual(
+    values = era_pal,
+    labels = if(FRENCH) translate_era(names(era_pal)) else names(era_pal),
+    name = tr("Sample\nEra", "Période\nd'échantillonnage")) +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37, 41),
-    labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), c("juin", "juil", "août", "sep", "oct"))
+    labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), 
+                c("juin", "juil", "août", "sep", "oct"))
   ) +
   labs(
     size = tr("Sample Size", "Taille d'échantillon"),
@@ -192,39 +190,34 @@ diet_samp_cov <- stock_dat %>%
   )
 
 
-# sample size labels
+# sample size labels - keep original factor levels
 samp_size_stock <- stock_dat %>% 
   group_by(era, strata) %>% 
   summarize(
     n = length(unique(id))
-  ) %>%
-  mutate(
-    era = translate_era(era),
-    strata = translate_strata(strata)
   )
 
 samp_size_age <- size_dat %>% 
   group_by(era, strata) %>% 
   summarize(
     n = length(unique(id))
-  ) %>%
-  mutate(
-    era = translate_era(era),
-    strata = translate_strata(strata)
   )
 
 
 # stacked bar plots
-diet_samp_bar <- ggplot(stock_dat %>% 
-                        mutate(era = translate_era(era),
-                               strata = translate_strata(strata))) +
+diet_samp_bar <- ggplot(stock_dat) +
   geom_bar(aes(x = month, y = stock_prob, fill = stock_group), 
            stat = "identity") +
-  facet_grid(era~strata) +
+  facet_grid(
+    era~strata, 
+    labeller = labeller(
+      era = function(x) if(FRENCH) translate_era(x) else x,
+      strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)"),
+    y = tr("Prey Remains Composition\n(Individual Samples)", 
+           "Composition des restes de proie\n(Échantillons individuels)"),
     fill = tr("Stock", "Stock")
   ) +
   scale_x_continuous(
@@ -244,11 +237,11 @@ diet_samp_bar <- ggplot(stock_dat %>%
 age_samp_bar <- size_dat %>% 
   select(id, strata, era, month, fw_year, sw_year, total_year) %>%
   distinct() %>% 
-  mutate(era = translate_era(era),
-         strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month, fill = as.factor(sw_year))) +
-  facet_grid(era~strata) +
+  facet_grid(era~strata, 
+             labeller = labeller(era = function(x) if(FRENCH) translate_era(x) else x,
+                                strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(
     name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, na.value = "grey60" 
@@ -272,12 +265,12 @@ age_samp_bar <- size_dat %>%
   )
 
 # box plots of size
-size_samp_bar <- ggplot(size_dat %>% 
-                        mutate(era = translate_era(era),
-                               strata = translate_strata(strata))) +
+size_samp_bar <- ggplot(size_dat) +
   geom_bar(aes(x = month, y = prob, fill = size_bin), 
            stat = "identity") +
-  facet_grid(era~strata) +
+  facet_grid(era~strata, 
+             labeller = labeller(era = function(x) if(FRENCH) translate_era(x) else x,
+                                strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(name = tr("Size\nClass", "Classe\nde taille"), values = size_colour_pal, 
                     na.value = "grey60" ) +

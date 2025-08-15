@@ -6,7 +6,7 @@
 # excluding fish < 75 cm
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -44,6 +44,20 @@ translate_strata <- function(strata_values) {
     )
   } else {
     strata_values
+  }
+}
+
+# Translation function for management measures
+translate_management <- function(management_values) {
+  if (FRENCH) {
+    case_when(
+      management_values == "non-retention" ~ "non-rétention",
+      management_values == "size limit" ~ "limite de taille",
+      management_values == "standard" ~ "standard",
+      TRUE ~ management_values
+    )
+  } else {
+    management_values
   }
 }
 
@@ -213,7 +227,7 @@ rec_samp_cov <- sample_key %>%
   ) +
   scale_x_continuous(
     breaks = c(2, 20, 36, 50),
-    labels = c("Jan", "May", "Sep", "Dec")
+    labels = c(tr("Jan", "jan"), tr("May", "mai"), tr("Sep", "sep"), tr("Dec", "déc"))
   ) + 
   lims(y = c(2003, 2023.5)) +
   ggsidekick::theme_sleek() +
@@ -272,14 +286,25 @@ sample_key2 <- sample_key %>%
   ) %>% 
   filter(week_n > 17 & week_n < 41)
 
+# Management measures color palette - consistent colors for English/French
+management_colour_pal <- c("#e31a1c", "#33a02c", "#1f78b4")
+# Set palette names based on language setting
+if (FRENCH) {
+  names(management_colour_pal) <- translate_management(
+    c("non-retention", "size limit", "standard")
+    )
+} else {
+  names(management_colour_pal) <- c("non-retention", "size limit", "standard")
+}
+
 rec_samp_cov2 <- sample_key2 %>%
-  mutate(strata = translate_strata(strata)) %>%
+  mutate(restricted = translate_management(restricted)) %>%
   ggplot(.) +
   geom_jitter(aes(x = week_n, y = year, size = sample_id_n, colour = restricted),
               alpha = 0.4
   ) +
-  facet_wrap(~strata) +
-  scale_colour_discrete(name = tr("Management\nMeasures", "Mesures de\ngestion")) +
+  facet_wrap(~strata, labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
+  scale_colour_manual(values = management_colour_pal, name = tr("Management\nMeasures", "Mesures de\ngestion")) +
   scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
   labs(
     colour = tr("Management Measures", "Mesures de gestion"),
@@ -287,7 +312,7 @@ rec_samp_cov2 <- sample_key2 %>%
   ) +
   scale_x_continuous(
     breaks = c(19.5, 24, 28.5, 32.5, 37),
-    labels = c("May 15", "Jun 15", "Jul 15", "Aug 15", "Sep 15")
+    labels = c(tr("May 15", "15 mai"), tr("Jun 15", "15 juin"), tr("Jul 15", "15 juil"), tr("Aug 15", "15 août"), tr("Sep 15", "15 sep"))
   ) +
   ggsidekick::theme_sleek() +
   theme(
@@ -298,11 +323,10 @@ rec_samp_cov2 <- sample_key2 %>%
 
 # stacked bar plot
 rec_samp_bar <- dat %>%
-  mutate(strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
-  facet_wrap(~strata, scales = "free_y") +
+  facet_wrap(~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
@@ -318,7 +342,7 @@ rec_samp_bar <- dat %>%
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = full_samp_size %>% mutate(strata = translate_strata(strata)), 
+    data = full_samp_size, 
     aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
@@ -326,11 +350,10 @@ rec_samp_bar <- dat %>%
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer <- dat %>% 
   filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>% 
-  mutate(strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = stock_group), 
            stat = "identity") +
-  facet_wrap(~strata, scales = "free_y") +
+  facet_wrap(~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
@@ -346,7 +369,7 @@ rec_samp_bar_summer <- dat %>%
     axis.title.x = element_blank()
   ) +
   geom_text(
-    data = summer_samp_size %>% mutate(strata = translate_strata(strata)), 
+    data = summer_samp_size, 
     aes(x = Inf, y = Inf, label = paste(n)),
     hjust = 1.1, vjust = 1.1
   )
@@ -354,11 +377,10 @@ rec_samp_bar_summer <- dat %>%
 
 # as above but for hatchery origin
 rec_samp_bar_h <- dat %>%
-  mutate(strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
-  facet_wrap(~strata, scales = "free_y") +
+  facet_wrap(~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
@@ -381,15 +403,16 @@ rec_samp_bar_h <- dat %>%
 # subset of monthly samples that matches RKW diet
 rec_samp_bar_summer_h <- dat %>%
   filter(month_n %in% c("5", "6", "7", "8", "9", "10")) %>%
-  mutate(strata = translate_strata(strata)) %>%
   ggplot(.) +
   geom_bar(aes(x = month_n, y = prob, fill = origin2),
            stat = "identity") +
-  facet_wrap(~strata, scales = "free_y") +
+  facet_wrap(~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   ggsidekick::theme_sleek() +
-  scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
+  scale_fill_manual(values = hatchery_colour_pal, 
+                    name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", 
+           "Composition de la pêche récréative\n(Échantillons individuels)"),
     fill = tr("Hatchery Origin", "Origine d'écloserie")
   ) +
   scale_x_continuous(
@@ -531,20 +554,20 @@ dev.off()
 
 # Includes year/stock as RE; remove global smooth after sdmTMB v fails to 
 # converge
-system.time(
-  fit2 <- gam(
-    agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 20, bs = "cc") +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
-      s(sg_year, bs = "re"),
-    data = agg_dat, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
-class(fit2) = c( "mvtweedie", class(fit2) )
-saveRDS(
-  fit2,
-  here::here("data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds")
-)
+# system.time(
+#   fit2 <- gam(
+#     agg_prob ~ 0 + stock_group + s(week_n, by = stock_group, k = 20, bs = "cc") +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
+#       s(sg_year, bs = "re"),
+#     data = agg_dat, family = "tw", method = "REML",
+#     knots = list(week_n = c(0, 52))
+#   )
+# )
+# class(fit2) = c( "mvtweedie", class(fit2) )
+# saveRDS(
+#   fit2,
+#   here::here("data", "model_fits", "fit_spatial_fishery_ri_mvtw.rds")
+# )
 
 fit2 <- readRDS(
   here::here(
@@ -613,7 +636,11 @@ png(
   fig_path(file.path("stock_comp_fishery", "qq_plot_stock.png")),
   height = 4.5, width = 4.5, units = "in", res = 250
 )
-qqnorm(mcmc_res); qqline(mcmc_res)
+qqnorm(mcmc_res,
+       xlab = tr("Theoretical Quantiles", "Quantiles théoriques"),
+       ylab = tr("Sample Quantiles", "Quantiles échantillonnaux")
+       )
+qqline(mcmc_res)
 dev.off()
 
 
@@ -628,7 +655,9 @@ week_key <- data.frame(
 ) %>% 
   mutate(
     month = cut(
-      week_n, breaks = 5, labels = c("Jun", "Jul", "Aug", "Sep", "Oct"))
+      week_n, breaks = 5, 
+      labels = c(tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), 
+                 tr("Sep", "sep"), tr("Oct", "oct")))
   )
 
 colnames(s_sdmTMB) <- paste("sim", seq(1:500), sep = "_")
@@ -689,7 +718,7 @@ post_sim_list <- purrr::map(
         col = "red", alpha = 0.6) +
       ggsidekick::theme_sleek() +
       facet_grid(strata~stock_group) +
-      labs(y = "Mean Composition") +
+      labs(y = tr("Mean Composition", "Composition moyenne")) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1),
             axis.title.x = element_blank()) +
       geom_text(
@@ -756,17 +785,18 @@ newdata_yr <- cbind( newdata, fit=pred3$fit, se.fit=pred3$se.fit ) %>%
     stock_group2 = gsub("_", "\n", stock_group)
   ) %>% 
   filter(
-    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n < 22),
-    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)
+    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & 
+        week_n < 22),
+    !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & 
+        week_n > 40)
   )
 
 year_preds <- newdata_yr %>%
-  mutate(strata = translate_strata(strata)) %>%
   ggplot(., aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
-  facet_grid(stock_group2~strata, scales = "free_y") +
+  facet_grid(stock_group2~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   scale_colour_discrete() +
-  coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
+  coord_cartesian(xlim = c(20, 43)
   ) +
   labs(y=tr("Predicted Proportion", "Proportion prédite"),
        colour = tr("Year", "Année")) +
@@ -779,7 +809,8 @@ year_preds <- newdata_yr %>%
         axis.title.x = element_blank()) +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
-    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
+    labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), 
+               tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
   )
 
 
@@ -859,20 +890,19 @@ newdata3b <- cbind( newdata_b, fit=pred3b$fit, se.fit=pred3b$se.fit ) %>%
 
 # integrates out yearly variation
 summer_preds <- newdata3b %>%
-  mutate(strata = translate_strata(strata)) %>%
   ggplot(., aes(week_n, fit)) +
   geom_point(
     data = agg_dat %>% 
       filter(week_n %in% newdata$week_n,
              !strata == "Saanich"
-             ) %>%
-      mutate(strata = translate_strata(strata)),
+             ),
     aes(x = week_n, y = agg_ppn, size = sample_id_n),
     alpha = 0.3
   ) +
   geom_line(colour = "red") +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
-  facet_grid(stock_group~strata) +
+  facet_grid(stock_group~strata, 
+             labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   coord_cartesian(xlim = c(20, 43), ylim = c(0, 1)) +
   labs(y=tr("Predicted Proportion", "Proportion prédite"), 
        x = tr("Sampling Week", "Semaine d'échantillonnage"),
@@ -896,13 +926,13 @@ summer_pred_stacked <- newdata3b %>%
     filter(week_n > 19 & week_n < 44,
            !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n < 22),
            !(strata %in% c("Swiftsure\nBank", "Nitinat", "Port\nRenfrew") & week_n > 40)) %>%
-    mutate(strata = translate_strata(strata)) %>%
   ggplot(., aes(x = week_n)) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
             stat = "identity") +
   scale_fill_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
   scale_colour_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
-  labs(y = tr("Predicted Mean Composition of Fishery Sample", "Composition moyenne prédite de l'échantillon de pêche"), 
+  labs(y = tr("Predicted Mean Composition of Fishery Sample", 
+              "Composition moyenne prédite de l'échantillon de pêche"), 
        x = tr("Week", "Semaine"),
        fill = tr("Stock Group", "Groupe de stocks"),
        colour = tr("Stock Group", "Groupe de stocks")) +
@@ -914,7 +944,7 @@ summer_pred_stacked <- newdata3b %>%
     axis.title.x = element_blank()
   ) +
   coord_cartesian(expand = FALSE, ylim = c(0, NA)) +
-  facet_wrap(~strata) +
+  facet_wrap(~strata, labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
     labels = c(tr("May", "mai"), tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep"), tr("Oct", "oct"))
@@ -1115,10 +1145,12 @@ spatial_pred_scaled <- ggplot() +
   ) +
   scale_fill_viridis_c(
     option = "A",
-    name = tr("Predicted Scaled\nProportion\nof Rec Catch", "Proportion mise à l'échelle prédite\ndes prises récréatives")
+    name = tr("Predicted Scaled\nProportion\nof Rec Catch", 
+              "Proportion mise à l'échelle prédite\ndes prises récréatives")
   ) +
   labs(
-    fill = tr("Predicted Scaled Proportion of Rec Catch", "Proportion mise à l'échelle prédite des prises récréatives")
+    fill = tr("Predicted Scaled Proportion of Rec Catch", 
+              "Proportion mise à l'échelle prédite des prises récréatives")
   ) +
   ggsidekick::theme_sleek()  +
   theme(
@@ -1135,7 +1167,8 @@ spatial_scaled_legend <- cowplot::get_legend(
     geom_sf(data = coast, color = "black", fill = "grey") +
     scale_fill_viridis_c(
       option = "A",
-      name = tr("Predicted Scaled Proportion\nof Rec Catch", "Proportion mise à l'échelle prédite\ndes prises récréatives")
+      name = tr("Predicted Scaled Proportion\nof Rec Catch", 
+                "Proportion mise à l'échelle prédite\ndes prises récréatives")
     ) +
     guides(fill = guide_legend(nrow = 1)) +
     theme(
@@ -1315,23 +1348,23 @@ agg_dat_large <- expand.grid(
   ) 
 
 # Includes smooth for year by stock group
-system.time(
-  fit_large <- gam(
-    agg_prob ~ 0 + stock_group + 
-      s(week_n, by = stock_group, k = 20, bs = "cc") +
-      s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
-      s(sg_year, bs = "re"),
-    data = agg_dat_large, family = "tw", method = "REML",
-    knots = list(week_n = c(0, 52))
-  )
-)
-class(fit_large) = c( "mvtweedie", class(fit_large) )
-saveRDS(
-  fit_large,
-  here::here(
-    "data", "model_fits", "fit_large.rds"
-  )
-)
+# system.time(
+#   fit_large <- gam(
+#     agg_prob ~ 0 + stock_group + 
+#       s(week_n, by = stock_group, k = 20, bs = "cc") +
+#       s(utm_y, utm_x, by = stock_group, m = c(0.5, 1), bs = "ds", k = 35) +
+#       s(sg_year, bs = "re"),
+#     data = agg_dat_large, family = "tw", method = "REML",
+#     knots = list(week_n = c(0, 52))
+#   )
+# )
+# class(fit_large) = c( "mvtweedie", class(fit_large) )
+# saveRDS(
+#   fit_large,
+#   here::here(
+#     "data", "model_fits", "fit_large.rds"
+#   )
+# )
 
 
 ## compare predictions from all 3 models
@@ -1405,10 +1438,9 @@ names(model_pal) <- levels(new_dat$model)
 
 model_comp_smooth1 <- new_dat %>% 
     filter(!(grepl("FR", stock_group) | stock_group == "ECVI_SOMN")) %>%
-    mutate(strata = translate_strata(strata)) %>%
   ggplot(., aes(week_n, fit, colour = model)) +
   geom_line() +
-  facet_grid(stock_group~strata, scales = "free_y") +
+  facet_grid(stock_group~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   labs(y=tr("Predicted Proportion", "Proportion prédite"), 
        x = tr("Sampling Week", "Semaine d'échantillonnage"),
        colour = tr("Model", "Modèle")) +
@@ -1423,15 +1455,14 @@ model_comp_smooth1 <- new_dat %>%
         strip.text = element_text(size = 8)) +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37),
-    labels = c("Jun", "Jul", "Aug", "Sep"),
+    labels = c(tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep")),
     expand = c(0, 0)
   ) 
 model_comp_smooth2 <- new_dat %>% 
     filter((grepl("FR", stock_group) | stock_group == "ECVI_SOMN")) %>%
-    mutate(strata = translate_strata(strata)) %>%
   ggplot(., aes(week_n, fit, colour = model)) +
   geom_line() +
-  facet_grid(stock_group~strata, scales = "free_y") +
+  facet_grid(stock_group~strata, scales = "free_y", labeller = labeller(strata = function(x) if(FRENCH) translate_strata(x) else x)) +
   labs(y=tr("Predicted Proportion", "Proportion prédite"), 
        x = tr("Sampling Week", "Semaine d'échantillonnage"),
        colour = tr("Model", "Modèle")) +
@@ -1446,7 +1477,7 @@ model_comp_smooth2 <- new_dat %>%
         strip.text = element_text(size = 8)) +
   scale_x_continuous(
     breaks = c(25, 29, 33, 37),
-    labels = c("Jun", "Jul", "Aug", "Sep"),
+    labels = c(tr("Jun", "juin"), tr("Jul", "juil"), tr("Aug", "août"), tr("Sep", "sep")),
     expand = c(0, 0)
   ) 
 
