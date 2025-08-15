@@ -49,7 +49,12 @@ source(here::here("R", "functions", "sim_multinomial.R"))
 
 
 dataset_pal <- c("#e0f3db", "#43a2ca")
-names(dataset_pal) <- c("standard", "large")
+# Set palette names based on language setting
+if (FRENCH) {
+  names(dataset_pal) <- translate_dataset(c("standard", "large"))
+} else {
+  names(dataset_pal) <- c("standard", "large")
+}
 
 # import SRKW prey data list
 # NOTE: uses mean week and location for samples collected within a given strata;
@@ -240,7 +245,8 @@ sel_bean <- ggplot() +
     breaks = c(0.05, 0.15, 0.25)
   ) +
   labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
-       y = tr("Stock", "Stock")) +
+       y = tr("Stock", "Stock"),
+       fill = tr("Proportion of Fishery Samples in Western Strata", "Proportion des échantillons de pêche dans les strates ouest")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
         legend.key.size = unit(0.75, "cm"),
@@ -385,7 +391,8 @@ sel_bean_size <- ggplot() +
     trans = "sqrt"
   ) +
   labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
-       y = tr("Size Bin (cm)", "Classe de taille (cm)")) +
+       y = tr("Size Bin (cm)", "Classe de taille (cm)"),
+       fill = tr("Proportion of Fishery Samples in Western Strata", "Proportion des échantillons de pêche dans les strates ouest")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top"
   ) +

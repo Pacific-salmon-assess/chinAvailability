@@ -9,7 +9,7 @@
 # probabilities and ultimately size class assignment vector
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -38,6 +38,8 @@ translate_bias <- function(bias_values) {
       bias_values == "zero" ~ "zéro",
       bias_values == "negative" ~ "négatif", 
       bias_values == "positive" ~ "positif",
+      bias_values == "under" ~ "sous-estimé",
+      bias_values == "over" ~ "surestimé",
       TRUE ~ bias_values
     )
   } else {
@@ -151,7 +153,8 @@ obs_error <- ggplot(ppn_dat %>% mutate(bias = translate_bias(bias))) +
     vjust = -1.1, size = rel(2.5)
   ) +
   labs(x = tr("Estimated Total Age", "Âge total estimé"), 
-       y = tr("Proportion of Samples", "Proportion des échantillons")) +
+       y = tr("Proportion of Samples", "Proportion des échantillons"),
+       fill = tr("Bias", "Biais")) +
   theme(
     legend.position = "top"
   )
@@ -214,11 +217,13 @@ posterior_probs_new %>%
   left_join(., new_data, by = "asg") %>% 
   mutate(bias = factor(bias, levels = c("zero", "under", "over"),
                        labels = c("zero", "negative", "positive"))) %>% 
+  mutate(bias = translate_bias(bias)) %>%
   ggplot(.) +
   geom_bar(aes(x = est_age, y = mean_prob, fill = bias),
            position="stack", stat="identity") +
   facet_wrap(~stock_group) +
-  ggsidekick::theme_sleek()
+  ggsidekick::theme_sleek() +
+  labs(fill = tr("Bias", "Biais"))
 
 
 # export posterior samples
@@ -256,12 +261,14 @@ posterior_probs_new2 %>%
                values_to = "mean_prob") %>%
   mutate(est_age = rep(new_data2$est_age, each = length(unique(dum$bias))),
          bias = factor(bias, levels = c("zero", "under", "over"))) %>%
+  mutate(bias = translate_bias(bias)) %>%
   # left_join(., new_data2, by = "asg") %>% 
   ggplot(.) +
   geom_bar(aes(x = est_age, y = mean_prob, fill = bias),
            position="stack", stat="identity") +
   # facet_wrap(~stock_group) +
-  ggsidekick::theme_sleek()
+  ggsidekick::theme_sleek() +
+  labs(fill = tr("Bias", "Biais"))
 
 
 # export posterior samples

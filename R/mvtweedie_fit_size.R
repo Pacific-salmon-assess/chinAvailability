@@ -187,7 +187,8 @@ rec_size_bar <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = size_colour_pal, name = tr("Size\nBin", "Classe de\nTaille")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    fill = tr("Size Bin", "Classe de taille")
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -215,7 +216,8 @@ rec_size_bar_summer <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = size_colour_pal, name = tr("Size\nBin", "Classe de\nTaille")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    fill = tr("Size Bin", "Classe de taille")
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
@@ -402,7 +404,7 @@ post_sim <- ggplot() +
     col = "red", alpha = 0.6) +
   ggsidekick::theme_sleek() +
   facet_grid(strata~size_bin) +
-  labs(y = "Mean Composition") +
+  labs(y = tr("Mean Composition", "Composition moyenne")) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank()) +
   geom_text(
@@ -475,10 +477,11 @@ year_preds <- newdata_yr %>%
   ggplot(., aes(week_n, fit)) +
   geom_line(aes(colour = year)) +
   facet_grid(size_bin~strata, scales = "free_y") +
-  scale_colour_discrete(name = "Year") +
+  scale_colour_discrete(name = tr("Year", "Année")) +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
   ) +
-  labs(y="Predicted Proportion") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"),
+       colour = tr("Year", "Année")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
         axis.title.x = element_blank()) +
@@ -516,8 +519,12 @@ season_preds <- ggplot(newdata_season2, aes(week_n, fit)) +
   geom_line(aes(colour = size_bin)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill = size_bin), alpha = 0.5) +
   facet_wrap(~size_bin, scales = "free_y") +
-  scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
-  scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
+  scale_fill_manual(name = tr("Size Bin", "Classe de taille"), values = size_colour_pal) +
+  scale_colour_manual(name = tr("Size Bin", "Classe de taille"), values = size_colour_pal) +
+  labs(
+    fill = tr("Size Bin", "Classe de taille"),
+    colour = tr("Size Bin", "Classe de taille")
+  ) +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
                   ) +
   labs(y=tr("Predicted Proportion", "Proportion prédite"), x = tr("Sampling Week", "Semaine d'échantillonnage")) +
@@ -570,9 +577,11 @@ summer_preds <- newdata_full %>%
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
   facet_grid(size_bin~strata) +
   coord_cartesian(xlim = c(20, 43), ylim = c(0, 1)) +
-  labs(y=tr("Predicted Proportion", "Proportion prédite"), x = tr("Sampling Week", "Semaine d'échantillonnage")) +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), 
+       x = tr("Sampling Week", "Semaine d'échantillonnage"),
+       size = tr("Sample Size", "Taille d'échantillon")) +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
   theme(legend.position = "top") +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
@@ -598,7 +607,10 @@ summer_pred_stacked <- newdata_full %>%
             stat = "identity") +
   scale_fill_manual(values = size_colour_pal) +
   scale_colour_manual(values = size_colour_pal) +
-  labs(y = "Predicted Mean Composition of Fishery Sample", x = "Week") +
+  labs(y = tr("Predicted Mean Composition of Fishery Sample", "Composition moyenne prédite de l'échantillon de pêche"), 
+       x = tr("Week", "Semaine"),
+       fill = tr("Size Bin", "Classe de taille"),
+       colour = tr("Size Bin", "Classe de taille")) +
   ggsidekick::theme_sleek() +
   theme(
     legend.position = "off",
@@ -618,8 +630,8 @@ summer_pred_legend <- cowplot::get_legend(
   ) +
     geom_area(aes(y = fit, colour = size_bin, fill = size_bin), 
               stat = "identity") +
-    scale_fill_manual(name = "Size Bin", values = size_colour_pal) +
-    scale_colour_manual(name = "Size Bin", values = size_colour_pal) +
+    scale_fill_manual(name = tr("Size Bin", "Classe de taille"), values = size_colour_pal) +
+    scale_colour_manual(name = tr("Size Bin", "Classe de taille"), values = size_colour_pal) +
     theme(
       legend.title = element_text(size = 15),
       legend.key.size = unit(1.4, "lines"),  # Adjust the size of the legend keys

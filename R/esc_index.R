@@ -3,7 +3,7 @@
 # Oct 19, 2024
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -102,14 +102,6 @@ esc_dat <- readxl::read_xlsx(
   filter(year > 1981)
 
 
-# # visualize data presence
-# ggplot(
-#   esc_dat,
-#   aes(x = year, y = stock, colour = obs)
-# ) +
-#   geom_point()
-
-
 sg_esc <- esc_dat %>% 
   group_by(year, stock_group) %>% 
   summarize(
@@ -139,7 +131,8 @@ sg_plot <- ggplot(sg_esc) +
   scale_colour_manual(values = smu_colour_pal) +
   facet_wrap(~ stock_group, scales = "free_y") +
   ggsidekick::theme_sleek() +
-  labs(y = tr("Terminal Abundance (thousands)", "Abondance terminale (milliers)")) +
+  labs(y = tr("Terminal Abundance (thousands)", "Abondance terminale (milliers)"),
+       colour = tr("Stock Group", "Groupe de stocks")) +
   theme(
     axis.title.x = element_blank(),
     legend.position = "none"
@@ -158,13 +151,13 @@ reg_plot <- ggplot(re_esc) +
            stat = "identity") +
   # scale_alpha_manual(values = average_pal) +
   ggsidekick::theme_sleek() +
-  scale_fill_viridis_d() +
-  labs(y = tr("Terminal Abundance (thousands)", "Abondance terminale (milliers)")) +
+  scale_fill_viridis_d(name = tr("Region", "Région")) +
+  labs(y = tr("Terminal Abundance (thousands)", "Abondance terminale (milliers)"),
+       fill = tr("Region", "Région")) +
   theme(
     legend.position = "top",
     axis.title.x = element_blank()
-  ) +
-  labs(fill = NULL)
+  )
 
 png(
   fig_path("run_size/escapement_region.png"),
@@ -235,10 +228,10 @@ ggplot(synch_dat, aes(x = year)) +
   geom_line(aes(y = synch), colour = "red") +
   geom_line(aes(y = scaled_esc), colour = "black") +
   scale_y_continuous(
-    name = "Synchrony Index (0-1)",  # Left y-axis label
+    name = tr("Synchrony Index (0-1)", "Indice de synchronie (0-1)"),  # Left y-axis label
     sec.axis = sec_axis(~ (. - min_synch) / (max_synch - min_synch) * 
                           (max_esc - min_esc) + min_esc,
-                        name = "Total Abundance (millions)")  # Right y-axis label and transformation
+                        name = tr("Total Abundance (millions)", "Abondance totale (millions)"))  # Right y-axis label and transformation
   ) +
   theme_minimal() +
   theme(

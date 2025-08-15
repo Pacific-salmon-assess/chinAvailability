@@ -5,7 +5,7 @@
 # - size comp bar plots
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -143,7 +143,12 @@ names(smu_colour_pal) <- levels(stock_dat$stock_group)
 
 # era shape palette
 era_pal <- c(15, 16)
-names(era_pal) <- levels(ppn_dat_size)
+# Set palette names based on language setting
+if (FRENCH) {
+  names(era_pal) <- translate_era(levels(stock_dat$era))
+} else {
+  names(era_pal) <- levels(stock_dat$era)
+}
 
 # size colour palette
 size_colour_pal <- c("grey30", "#8c510a", "#f6e8c3", "#c7eae5", "#01665e")
@@ -176,6 +181,10 @@ diet_samp_cov <- stock_dat %>%
   scale_x_continuous(
     breaks = c(25, 29, 33, 37, 41),
     labels = tr(c("Jun", "Jul", "Aug", "Sep", "Oct"), c("juin", "juil", "août", "sep", "oct"))
+  ) +
+  labs(
+    size = tr("Sample Size", "Taille d'échantillon"),
+    shape = tr("Sample Era", "Période d'échantillonnage")
   ) +
   ggsidekick::theme_sleek() +
   theme(
@@ -215,7 +224,8 @@ diet_samp_bar <- ggplot(stock_dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)")
+    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)"),
+    fill = tr("Stock", "Stock")
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
@@ -244,7 +254,8 @@ age_samp_bar <- size_dat %>%
     name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, na.value = "grey60" 
     ) +
   labs(
-    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)")
+    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)"),
+    fill = tr("Marine Age", "Âge marin")
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),
@@ -271,7 +282,8 @@ size_samp_bar <- ggplot(size_dat %>%
   scale_fill_manual(name = tr("Size\nClass", "Classe\nde taille"), values = size_colour_pal, 
                     na.value = "grey60" ) +
   labs(
-    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)")
+    y = tr("Prey Remains Composition\n(Individual Samples)", "Composition des restes de proie\n(Échantillons individuels)"),
+    fill = tr("Size Class", "Classe de taille")
   ) +
   scale_x_continuous(
     breaks = c(6, 7, 8, 9, 10),

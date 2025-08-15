@@ -123,9 +123,17 @@ strata_colour_pal <- c(
   "#e41a1c",  "#377eb8",  "#4daf4a",  "#984ea3",  "#ff7f00",  "#ffff33", 
   "#a65628",  "#f781bf"
   )
-names(strata_colour_pal) <- levels(dat$strata) 
+
 era_shape_pal <- c(22, 21)
-names(era_shape_pal) <- levels(dat$era) 
+
+# Set palette names based on language setting
+if (FRENCH) {
+  names(strata_colour_pal) <- translate_strata(levels(dat$strata))
+  names(era_shape_pal) <- translate_era(levels(dat$era))
+} else {
+  names(strata_colour_pal) <- levels(dat$strata)
+  names(era_shape_pal) <- levels(dat$era)
+} 
 
   
 coast <- readRDS(
@@ -162,6 +170,10 @@ diet_samp_map <- ggplot() +
   scale_size_continuous(guide = "none") +
   scale_shape_manual(values = era_shape_pal, 
                      name = tr("Diet\nSampling\nEra", "Époque\nd'échantillonnage\ndu régime")) +
+  labs(
+    fill = tr("Spatial Strata", "Strates spatiales"),
+    shape = tr("Diet Sampling Era", "Époque d'échantillonnage du régime")
+  ) +
   ggsidekick::theme_sleek() +
   guides(
     fill = guide_legend(override.aes = list(shape = 21))

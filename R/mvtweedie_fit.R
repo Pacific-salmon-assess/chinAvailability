@@ -207,7 +207,10 @@ rec_samp_cov <- sample_key %>%
               alpha = 0.4
   ) +
   facet_wrap(~strata) +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
+  labs(
+    size = tr("Sample Size", "Taille d'échantillon")
+  ) +
   scale_x_continuous(
     breaks = c(2, 20, 36, 50),
     labels = c("Jan", "May", "Sep", "Dec")
@@ -276,8 +279,12 @@ rec_samp_cov2 <- sample_key2 %>%
               alpha = 0.4
   ) +
   facet_wrap(~strata) +
-  scale_colour_discrete(name = "Management\nMeasures") +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_colour_discrete(name = tr("Management\nMeasures", "Mesures de\ngestion")) +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
+  labs(
+    colour = tr("Management Measures", "Mesures de gestion"),
+    size = tr("Sample Size", "Taille d'échantillon")
+  ) +
   scale_x_continuous(
     breaks = c(19.5, 24, 28.5, 32.5, 37),
     labels = c("May 15", "Jun 15", "Jul 15", "Aug 15", "Sep 15")
@@ -299,7 +306,8 @@ rec_samp_bar <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    fill = tr("Stock", "Stock")
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -326,7 +334,8 @@ rec_samp_bar_summer <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    fill = tr("Stock", "Stock")
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
@@ -353,7 +362,8 @@ rec_samp_bar_h <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    fill = tr("Hatchery Origin", "Origine d'écloserie")
   ) +
   scale_x_continuous(
     breaks = c(1, 5, 9, 12),
@@ -379,7 +389,8 @@ rec_samp_bar_summer_h <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
-    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)")
+    y = tr("Recreational Fishery Composition\n(Individual Samples)", "Composition de la pêche récréative\n(Échantillons individuels)"),
+    fill = tr("Hatchery Origin", "Origine d'écloserie")
   ) +
   scale_x_continuous(
     breaks = c(5, 6, 7, 8, 9, 10),
@@ -413,7 +424,8 @@ hatchery_stock_bar <- dat %>%
   ggsidekick::theme_sleek() +
   scale_fill_manual(values = hatchery_colour_pal, name = tr("Hatchery\nOrigin", "Origine\nÉcloserie")) +
   labs(
-    y = "Recreational Fishery Composition\n(Proportion of Individual Samples)"
+    y = tr("Recreational Fishery Composition\n(Proportion of Individual Samples)", "Composition de la pêche récréative\n(Proportion des échantillons individuels)"),
+    fill = tr("Hatchery Origin", "Origine d'écloserie")
   ) +
  theme(
     legend.position = "top",
@@ -444,7 +456,7 @@ size_density <- ggplot() +
   facet_wrap(~stock_group) +
   scale_fill_manual(values = smu_colour_pal) +
   ggsidekick::theme_sleek() +
-  labs(x = "Fork Length (cm)") +
+  labs(x = tr("Fork Length (cm)", "Longueur à la fourche (cm)")) +
   theme(
     legend.position="none",
     panel.spacing = unit(0.1, "lines"),
@@ -756,9 +768,13 @@ year_preds <- newdata_yr %>%
   scale_colour_discrete() +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
   ) +
-  labs(y=tr("Predicted Proportion", "Proportion prédite")) +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"),
+       colour = tr("Year", "Année")) +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
+  labs(
+    size = tr("Sample Size", "Taille d'échantillon")
+  ) +
   theme(legend.position = "top",
         axis.title.x = element_blank()) +
   scale_x_continuous(
@@ -797,13 +813,21 @@ season_preds <- ggplot(newdata3a, aes(week_n, fit)) +
   geom_line(aes(colour = stock_group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill = stock_group), alpha = 0.5) +
   facet_wrap(~stock_group, scales = "free_y") +
-  scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
-  scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
+  scale_fill_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
+  scale_colour_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
+  labs(
+    fill = tr("Stock Group", "Groupe de stocks"),
+    colour = tr("Stock Group", "Groupe de stocks")
+  ) +
   coord_cartesian(xlim = c(20, 43)#, ylim = c(0, 1)
                   ) +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), 
+       x = tr("Sampling Week", "Semaine d'échantillonnage")) +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
+  labs(
+    size = tr("Sample Size", "Taille d'échantillon")
+  ) +
   theme(legend.position = "top") +
   scale_x_continuous(
     breaks = c(20.75, 25, 29.25, 33.5, 38, 42.5),
@@ -850,9 +874,11 @@ summer_preds <- newdata3b %>%
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.5, fill = "red") +
   facet_grid(stock_group~strata) +
   coord_cartesian(xlim = c(20, 43), ylim = c(0, 1)) +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), 
+       x = tr("Sampling Week", "Semaine d'échantillonnage"),
+       size = tr("Sample Size", "Taille d'échantillon")) +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
   theme(legend.position = "top",
         strip.text = element_text(size = 7)) +
   scale_x_continuous(
@@ -874,9 +900,12 @@ summer_pred_stacked <- newdata3b %>%
   ggplot(., aes(x = week_n)) +
   geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
             stat = "identity") +
-  scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
-  scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
-  labs(y = "Predicted Mean Composition of Fishery Sample", x = "Week") +
+  scale_fill_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
+  scale_colour_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
+  labs(y = tr("Predicted Mean Composition of Fishery Sample", "Composition moyenne prédite de l'échantillon de pêche"), 
+       x = tr("Week", "Semaine"),
+       fill = tr("Stock Group", "Groupe de stocks"),
+       colour = tr("Stock Group", "Groupe de stocks")) +
   ggsidekick::theme_sleek() +
   theme(
     legend.position = "none",
@@ -896,8 +925,8 @@ summer_pred_legend <- cowplot::get_legend(
   ) +
     geom_area(aes(y = fit, colour = stock_group, fill = stock_group), 
               stat = "identity") +
-    scale_fill_manual(name = "Stock Group", values = smu_colour_pal) +
-    scale_colour_manual(name = "Stock Group", values = smu_colour_pal) +
+    scale_fill_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
+    scale_colour_manual(name = tr("Stock Group", "Groupe de stocks"), values = smu_colour_pal) +
     guides(fill = guide_legend(ncol = 2),
            colour = guide_legend(ncol = 2))
 )
@@ -1048,7 +1077,10 @@ spatial_pred <- ggplot() +
     ~ stock_group, ncol = 3
   ) +
   scale_fill_viridis_c(
-    name = "Predicted Proportion\nof Rec Catch"
+    name = tr("Predicted Proportion\nof Rec Catch", "Proportion prédite\ndes prises récréatives")
+  ) +
+  labs(
+    fill = tr("Predicted Proportion of Rec Catch", "Proportion prédite des prises récréatives")
   ) +
   ggsidekick::theme_sleek() +
   theme(
@@ -1064,7 +1096,7 @@ spatial_legend <- cowplot::get_legend(
                 aes(x = X, y = Y, fill = fit)) +
     geom_sf(data = coast, color = "black", fill = "grey") +
     scale_fill_viridis_c(
-      name = "Predicted Proportion\nof Rec Catch"
+      name = tr("Predicted Proportion\nof Rec Catch", "Proportion prédite\ndes prises récréatives")
     ) +
     guides(fill = guide_legend(nrow = 1)) +
     theme(
@@ -1083,7 +1115,10 @@ spatial_pred_scaled <- ggplot() +
   ) +
   scale_fill_viridis_c(
     option = "A",
-    name = "Predicted Scaled\nProportion\nof Rec Catch"
+    name = tr("Predicted Scaled\nProportion\nof Rec Catch", "Proportion mise à l'échelle prédite\ndes prises récréatives")
+  ) +
+  labs(
+    fill = tr("Predicted Scaled Proportion of Rec Catch", "Proportion mise à l'échelle prédite des prises récréatives")
   ) +
   ggsidekick::theme_sleek()  +
   theme(
@@ -1100,7 +1135,7 @@ spatial_scaled_legend <- cowplot::get_legend(
     geom_sf(data = coast, color = "black", fill = "grey") +
     scale_fill_viridis_c(
       option = "A",
-      name = "Predicted Scaled Proportion\nof Rec Catch"
+      name = tr("Predicted Scaled Proportion\nof Rec Catch", "Proportion mise à l'échelle prédite\ndes prises récréatives")
     ) +
     guides(fill = guide_legend(nrow = 1)) +
     theme(
@@ -1374,11 +1409,13 @@ model_comp_smooth1 <- new_dat %>%
   ggplot(., aes(week_n, fit, colour = model)) +
   geom_line() +
   facet_grid(stock_group~strata, scales = "free_y") +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), 
+       x = tr("Sampling Week", "Semaine d'échantillonnage"),
+       colour = tr("Model", "Modèle")) +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
   scale_colour_manual(
-    name = "Model",
+    name = tr("Model", "Modèle"),
     values = model_pal
   ) +
   theme(legend.position = "none",
@@ -1395,11 +1432,13 @@ model_comp_smooth2 <- new_dat %>%
   ggplot(., aes(week_n, fit, colour = model)) +
   geom_line() +
   facet_grid(stock_group~strata, scales = "free_y") +
-  labs(y="Predicted Proportion", x = "Sampling Week") +
+  labs(y=tr("Predicted Proportion", "Proportion prédite"), 
+       x = tr("Sampling Week", "Semaine d'échantillonnage"),
+       colour = tr("Model", "Modèle")) +
   ggsidekick::theme_sleek() +
-  scale_size_continuous(name = "Sample\nSize") +
+  scale_size_continuous(name = tr("Sample\nSize", "Taille\nd'échantillon")) +
   scale_colour_manual(
-    name = "Model",
+    name = tr("Model", "Modèle"),
     values = model_pal
   ) +
   theme(legend.position = "none",

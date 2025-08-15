@@ -105,11 +105,11 @@ pbt_coverage <- ggplot(pbt_rate_plot, aes(x = brood_year, y = tag_rate)) +
   facet_wrap(~pbt_stock, ncol = 3) +
   labs(y = tr("Proportion of Brood Stock with PBT", "Proportion du stock reproducteur avec PBT"), 
        x = tr("Brood Year", "Année de fraie"), 
-       fill = NULL) +
+       fill = tr("Stock", "Stock")) +
   scale_x_discrete(
     breaks = seq(2013, 2021, by = 2)
   ) +
-  scale_fill_manual(values = smu_colour_pal) +
+  scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top")
 
@@ -155,8 +155,9 @@ phos <- readxl::read_xlsx(
 
 phos_box <- ggplot(phos) +
   geom_boxplot(aes(x = population, y = pHOS, fill = stock_group)) +
-  scale_fill_manual(values = smu_colour_pal) +
-  labs(y = tr("Proportion Hatchery Origin Spawners", "Proportion de géniteurs d'origine d'écloserie"), fill = NULL) +
+  scale_fill_manual(values = smu_colour_pal, name = tr("Stock", "Stock")) +
+  labs(y = tr("Proportion Hatchery Origin Spawners", "Proportion de géniteurs d'origine d'écloserie"), 
+       fill = tr("Stock", "Stock")) +
   ggsidekick::theme_sleek() +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(angle = 45, hjust = 1),
