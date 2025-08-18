@@ -4,7 +4,7 @@
 # Dec. 19, 2024
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -240,13 +240,23 @@ sel_bean <- ggplot() +
     shape = 21
   ) +
   scale_fill_continuous(
-    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates ouest"),
+    name = tr(
+      "Proportion of\nFishery Samples\nin Western Strata", 
+      "Proportion des\néchantillons de pêche\ndans les strates ouest"
+      ),
     trans = "sqrt",
     breaks = c(0.05, 0.15, 0.25)
   ) +
-  labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
-       y = tr("Stock", "Stock"),
-       fill = tr("Proportion of Fishery Samples in Western Strata", "Proportion des échantillons de pêche dans les strates ouest")) +
+  labs(x = tr(
+    "Difference Between Observed and Predicted Composition", 
+    "Différence entre la composition observée et prédite"
+    ),
+    y = tr("Stock", "Stock"),
+    fill = tr(
+      "Proportion of Fishery Samples in Western Strata",
+      "Proportion des échantillons de pêche dans les strates ouest"
+    )
+    ) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top",
         legend.key.size = unit(0.75, "cm"),
@@ -387,12 +397,19 @@ sel_bean_size <- ggplot() +
     shape = 21
   ) +
   scale_fill_continuous(
-    name = tr("Proportion of\nFishery Samples\nin Western Strata", "Proportion des\néchantillons de pêche\ndans les strates ouest"),
+    name = tr(
+      "Proportion of\nFishery Samples\nin Western Strata",
+      "Proportion des\néchantillons de pêche\ndans les strates ouest"
+      ),
     trans = "sqrt"
   ) +
-  labs(x = tr("Difference Between Observed and Predicted Composition", "Différence entre la composition observée et prédite"),
-       y = tr("Size Bin (cm)", "Classe de taille (cm)"),
-       fill = tr("Proportion of Fishery Samples in Western Strata", "Proportion des échantillons de pêche dans les strates ouest")) +
+  labs(
+    x = tr("Difference Between Observed and Predicted Composition", 
+           "Différence entre la composition observée et prédite"),
+    y = tr("Size Bin (cm)", "Classe de taille (cm)"),
+    fill = tr("Proportion of Fishery Samples in Western Strata", 
+              "Proportion des échantillons de pêche dans les strates ouest")
+  ) +
   ggsidekick::theme_sleek() +
   theme(legend.position = "top"
   ) +
