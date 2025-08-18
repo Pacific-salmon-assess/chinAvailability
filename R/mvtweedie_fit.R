@@ -527,9 +527,7 @@ rec_samp_bar_h
 dev.off()
 
 png(
-  here::here(
-    "figs", "stock_comp_fishery", "rec_monthly_hatchery_comp_bar_summer.png"
-    ),
+  fig_path(file.path("stock_comp_fishery", "rec_monthly_hatchery_comp_bar_summer.png")),
   height = 5, width = 7.5, units = "in", res = 250
 )
 rec_samp_bar_summer_h

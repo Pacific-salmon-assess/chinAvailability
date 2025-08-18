@@ -3,7 +3,7 @@
 # Oct 30, 2023
 
 # Set French language option
-FRENCH <- FALSE
+FRENCH <- TRUE
 
 # Create appropriate figure directories
 if (FRENCH) {
@@ -127,10 +127,13 @@ age_comp_stacked <- ggplot() +
            position="stack", stat="identity", colour = "black") +
   geom_text(data = labs_age_comp, 
             aes(x = stock_group, y = 0.05, label = age_n)) +
-  scale_fill_manual(name = tr("Marine\nAge", "Âge\nmarin"), values = age_pal, na.value = "grey60" ) +
-  labs(y = tr("Proportion Age Composition", "Composition proportionnelle par âge"), 
-       x = tr("Stock", "Stock"),
-       fill = tr("Marine Age", "Âge marin")) +
+  scale_fill_manual(name = tr("Marine\nAge", "Âge\nmarin"), 
+                    values = age_pal, na.value = "grey60" ) +
+  labs(
+    y = tr("Proportion Age Composition", "Composition proportionnelle par âge"), 
+    x = tr("Stock", "Stock"),
+    fill = tr("Marine Age", "Âge marin")
+  ) +
   ggsidekick::theme_sleek() +
   theme(
     axis.text.x = element_text(angle = 45, hjust=1)

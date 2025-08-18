@@ -1,0 +1,1 @@
+This directory is used to modify tex files to meet CSAS accessibility and translation requirements.

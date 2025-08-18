@@ -1,0 +1,244 @@
+\DocumentMetadata{testphase={phase-II,table}, pdfstandard=A-2U, lang=fr-CA}
+
+% Configuration du document
+\documentclass[11pt]{book}
+
+% correction pour pandoc 1.14
+\providecommand{\tightlist}{%
+\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\usepackage{tabu} % https://tex.stackexchange.com/questions/50332/vertical-spacing-of-a-table-cell
+
+\usepackage{threeparttable}
+
+% Localisation du dépôt csas-style : ajuster le chemin au besoin
+\newcommand{\locRepo}{csas-style}
+% \usepackage{csas-style}
+
+% Utiliser le fichier de style dans le dépôt csas-style (res-doc.sty)
+% \usepackage{\locRepo/res-doc}
+\usepackage{./csas-style/res-doc}
+
+% header-includes de l'entrée R markdown
+
+% En-têtes et pieds de page
+\lhead{Ébauche de document de travail --- Ne pas citer ou diffuser}
+% \lhead{}
+\rhead{}
+% \rfoot{ÉBAUCHE - NE PAS CITER}
+
+% Améliorations d'accessibilité visuelle
+\usepackage{environ}
+\NewEnviron{taggedfigure}[3]{%
+  % \tagstructbegin{tag=Figure,alttext={#1}}%
+  \tagstructbegin{tag=Figure,alttext=Figure}%
+  \tagmcbegin{tag=Figure}%
+  {\centering \includegraphics[width=#2]{#3}}%
+  \tagmcend%
+  \tagstructend%
+  \tagpdfparaOn%
+  \tagstructbegin{tag=Caption}%
+  \tagmcbegin{tag=Caption}%
+  \BODY%
+  \tagmcend%
+  \tagstructend%
+}
+
+%%%% Commandes pour la page de titre etc %%%%%
+
+% Année de publication
+\newcommand{\rdYear}{2024}
+
+% Mois de publication
+\newcommand{\rdMonth}{Mois}
+
+% Numéro du rapport
+\newcommand{\rdNumber}{nnn}
+
+% Région
+\newcommand{\rdRegion}{Région du Pacifique}
+
+% Titre
+\newcommand{\rdTitle}{Sélectivité des proies de l'épaulard résident du Sud en relation avec la composition des stocks et de la taille du saumon chinook dans l'habitat essentiel canadien}
+
+\newcommand{\rdISBN}{978-0-660-38322-4}
+\newcommand{\rdCatNo}{Fs70-6/2021-012F-PDF}
+
+% Noms des auteurs séparés par des virgules et ', et' pour le dernier auteur au format 'M.H. Grinnell' (utiliser \textsuperscript{n} pour les adresses)
+\newcommand{\rdAuth}{
+Cameron Freshwater\textsuperscript{1}, Wilf Luedke\textsuperscript{1}, Scott Toews\textsuperscript{2}, et Sheila J. Thornton\textsuperscript{2}}
+
+% Noms des auteurs inversés séparés par des virgules au format 'Grinnell, M.H.'
+\newcommand{\rdAuthRev}{
+Freshwater, C., Luedke, W., Toews, S., Thornton, S.}
+
+% Adresses des auteurs (utiliser \textsuperscript{n})
+\newcommand{\rdAuthAddy}{
+\textsuperscript{1}Station biologique du Pacifique\\
+Pêches et Océans Canada, 3190 Hammond Bay Road\\
+Nanaimo, Colombie-Britannique, V9T 6N7, Canada\\
+\smallskip \textsuperscript{2}Centre d'entreprise scientifique du Pacifique\\
+Pêches et Océans Canada, 4160 Marine Drive\\
+West Vancouver, Colombie-Britannique, V7V 1H2, Canada\\
+}
+
+\newcommand{\citationOtherLanguage}{Last, F.M. and Smith, A.B. Title Here (\emph{Latin Species Name}). DFO Can. Sci. Advis. Sec. Res. Doc. 2019/nnn. iv + 13 p.}
+
+% \linenumbers
+
+% Packages français pour la typographie
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+\newcommand{\rdAbstract}{\abstract{
+Deux populations d'un écotype d'épaulard piscivore (\textit{Orcinus orca}) vivent dans les eaux canadiennes du Pacifique : les épaulards résidents du Nord et du Sud. Ces populations sont respectivement inscrites comme menacées et en voie de disparition en vertu de la \textit{Loi sur les espèces en péril} du Canada. Le saumon chinook (\textit{Oncorhynchus tschawytscha}) constitue une proie clé pour les deux populations et le déclin de la disponibilité des proies est un facteur probable limitant le rétablissement des épaulards résidents. L'habitat essentiel de l'épaulard résident du Sud (ÉRES) du Canada a été identifié dans la mer des Salish. Cette région abrite également un large éventail de populations de saumon chinook aux histoires de vie, caractéristiques physiques et tendances d'abondance diverses. Ce rapport résume les patrons saisonniers et spatiaux de l'abondance relative de 11 stocks de saumon chinook et de quatre classes de taille dans l'habitat essentiel de l'ÉRES au Canada, en mettant l'accent sur les mois d'été et les zones s'étendant du détroit ouest de Juan de Fuca aux îles Gulf du Sud. Les données de composition des stocks et des âges du saumon chinook provenant des restes de proies de l'ÉRES (2007-2023) ont été évaluées, ainsi que les estimations basées sur des modèles de la composition de la taille des proies. Un deuxième ensemble de données d'échantillons provenant de pêches récréatives au saumon chinook, collectés entre 2014 et 2023, a été utilisé pour paramétrer des modèles géostatistiques qui ont fourni un indice du champ de proies. Les deux ensembles de données ont ensuite été comparés pour tester l'évidence de la sélectivité de l'alimentation de l'ÉRES. Enfin, ces résultats ont été évalués dans le contexte de l'amélioration de l'écloserie au Canada, ainsi que des différences entre les stocks de saumon chinook en matière de caractéristiques biologiques et de tendances de l'abondance terminale.
+
+Bien que tous les stocks de saumon chinook aient été observés dans les restes de proies de l'ÉRES, les stocks Fraser River Spring $5_2$ et Summer $4_1$ étaient les plus communs. Indépendamment de l'identité du stock, les saumons chinook relativement plus âgés étaient plus communs dans les restes de proies de l'ÉRES que les individus plus jeunes. Les prédictions d'un modèle de taille selon l'âge spécifique à la saison et au stock indiquaient que les restes de proies provenaient principalement de poissons de plus de 75 cm de longueur à la fourche. Selon l'emplacement et la semaine, les saumons chinook Columbia River Summer/Fall, Puget Sound, côte ouest de l'île de Vancouver (COIV), et Fraser River Summer $4_1$ figuraient parmi les stocks les plus abondants dans les échantillons dépendants de la pêche. Les deux plus grandes classes de taille de saumon chinook étaient les plus abondantes en juillet et août et dans les emplacements près de Port Renfrew. Une analyse de simulation comparant les prédictions du modèle géostatistique dépendant de la pêche aux restes de proies observés a trouvé des preuves mitigées de sélectivité des proies par l'ÉRES. Les stocks Fraser River Spring $5_2$, Summer $5_2$, et Summer $4_1$ se produisaient plus fréquemment qu'attendu dans les restes de proies tandis que les stocks COIV, Puget Sound, Columbia River Summer/Fall, et divers (c.-à-d., « Autre ») se produisaient moins fréquemment qu'attendu. Les stocks restants étaient présents dans les proies approximativement proportionnellement à leur abondance telle que prédite par le modèle dépendant de la pêche. Les deux plus petites classes de taille de saumon chinook ($55-65$ cm et $65-75$ cm de longueur à la fourche) étaient sous-représentées dans les restes de proies de l'ÉRES, tandis que les plus grandes classes de taille ($65-75$ et $75-85$ cm) étaient sur-représentées. Les saumons d'origine d'écloserie canadienne ont été identifiés dans les restes de proies de l'ÉRES en utilisant le PBT ; cependant, ces estimations sont probablement biaisées vers le bas en raison de la couverture incomplète du PBT pendant la période d'échantillonnage. Aucun des stocks qui ont montré des preuves de sélectivité positive n'est fortement amélioré, tandis que les stocks Puget Sound et COIV, qui sont fortement améliorés, ont été sélectionnés négativement. Cependant, les poissons d'origine d'écloserie peuvent être des éléments de proie importants dans d'autres emplacements ou périodes. L'abondance terminale, sommée sur tous les stocks de saumon chinook présents dans l'habitat essentiel canadien, n'a pas diminué ; cependant, les stocks ont montré des tendances divergentes d'abondance. En particulier, les stocks Fraser River Spring $4_2$, Spring $5_2$, et Summer $5_2$ ont diminué, tandis que les stocks Fraser River Summer $4_1$, côte est de l'île de Vancouver, et COIV ont augmenté.
+
+Les ÉRES dépendent d'un assemblage diversifié de saumons chinook dont la disponibilité des stocks et des classes de taille varie à fine échelle, saisonnièrement et spatialement. Cependant, les saumons chinook de grande taille et riches en énergie sont probablement des proies clés, particulièrement pendant le printemps et le début de l'été lorsque l'ÉRES peut être en condition physique relativement pauvre. Les interventions de gestion qui augmentent la disponibilité de saumons chinook de grande taille ou à haute teneur en lipides pendant cette période peuvent être particulièrement importantes pour le rétablissement de l'ÉRES. Les augmentations pourraient se produire en reconstruisant les stocks de saumon chinook actuellement épuisés avec ces traits (p. ex., Fraser Spring $5_2$, Fraser Summer $5_2$) ou en augmentant la taille moyenne individuelle ou la teneur en lipides des stocks actuellement abondants qui se chevauchent dans l'espace et le temps avec les habitats d'alimentation de l'ÉRES.
+}}
+
+%%%% Fin des commandes de page de titre %%%%%
+
+% \pdfcompresslevel=5 % PNGs plus rapides
+
+\setcounter{section}{0}
+
+% \bibliographystyle{csas-style/res-doc}
+
+\usepackage{amsmath}
+\usepackage{bm}
+
+% commandes et environnements nécessaires pour les extraits pandoc
+% extraits de la sortie de `pandoc -s`
+%% Faire fonctionner les blocs de code R markdown
+\usepackage{array}
+\usepackage{amssymb,amsmath}
+\usepackage{color}
+\usepackage{fancyvrb}
+
+% Du modèle par défaut :
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\},formatcom=\color[rgb]{0.00,0.00,0.00}}
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textit{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textit{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textit{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textit{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+
+\newcommand{\lt}{\ensuremath <}
+\newcommand{\gt}{\ensuremath >}
+
+%Définit l'environnement cslreferences
+%Requis par pandoc 2.8
+%Copié de https://github.com/rstudio/rmarkdown/issues/1649
+% % \newlength{\cslhangindent}
+% \setlength{\cslhangindent}{1.5em}
+% \newenvironment{cslreferences}%
+%   {}%
+%   {\par}
+% 
+
+\DeclareGraphicsExtensions{.png,.pdf}
+
+%%%%%%%%%%%%%%%%%
+% éléments ajoutés
+\usepackage[round]{natbib}
+\bibliographystyle{res-doc}
+\bibpunct{(}{)}{,}{a}{}{,}
+% \renewcommand{\bibname}{RÉFÉRENCES CITÉES}
+\addto{\extrasfrench}{%
+  \renewcommand{\bibname}{RÉFÉRENCES CITÉES}
+}
+\newcommand{\note}[1]{{\color{red}#1}}
+%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\frontmatter
+
+\section{INTRODUCTION}\label{sec:introduction}
+
+\input{introduction.tex} 
+
+\section{MÉTHODES}\label{sec:METHODS}
+
+\input{methods-data.tex}
+\input{methods.tex} 
+
+
+
+
+\section{RÉSULTATS}\label{sec:results}
+
+\input{results.tex}
+
+\section{DISCUSSION}\label{sec:discussion}
+
+\input{discussion.tex}  
+
+\section{REMERCIEMENTS}\label{sec:acknowledgements}
+
+Nous sommes reconnaissants envers les techniciens, biologistes et observateurs d'enquête qui ont collecté des échantillons de la pêche récréative. Nous remercions les membres des Avid Anglers qui ont bénévolement donné de leur temps et de leurs ressources pour soumettre des échantillons scientifiques. Nous apprécions les contributions d'Eric Rondeau et Brock Ramshaw, qui ont partagé des données sur les taux de PBT, pHOS, et les lâchers d'écloserie. Nous sommes profondément reconnaissants envers le Dr John Ford, Graeme Ellis, et Brian Gisborne pour leurs perspectives et leurs efforts considérables de collecte de proies de l'ÉRES qui ont résulté en les données de la Période d'échantillonnage précoce de l'alimentation. Nous sommes reconnaissants pour les efforts infatigables de l'équipe de terrain de physiologie de conservation des mammifères marins du MPO, qui ont passé des centaines d'heures d'enquête à collecter des échantillons pour la Période d'échantillonnage actuelle ; et à Brianna Wright, aux membres du Laboratoire de sclérochronologie, et aux membres du Laboratoire de génétique moléculaire, pour le soutien continu de traitement et d'analyse des échantillons. Nous remercions Chuck Parken pour sa suggestion d'incorporer l'erreur de vieillissement dans cette analyse et de fournir les données nécessaires pour le faire. Le manuscrit a été amélioré par les révisions fournies par Eric Ward, Brendan Connors, Aswea Porter, Chuck Parken, et Pat Ahrens. Nous remercions les participants de la Réunion d'examen régional pour avoir fourni des commentaires constructifs et des suggestions qui ont amélioré ce document. Nous remercions Cory Lagasse d'avoir présidé le processus d'examen par les pairs régional du Centre des avis scientifiques du Pacifique.
+
+\addcontentsline{toc}{section}{RÉFÉRENCES CITÉES}
+\bibliography{refs}
+
+\clearpage
+
+\Appendices
+
+\clearpage
+
+\renewcommand{\thechapter}{A}
+\refstepcounter{chapter}
+\input{100-supp-figs.tex}
+\clearpage
+
+\renewcommand{\thechapter}{B}
+\refstepcounter{chapter}
+\input{100-supp-size-at-age.tex}
+\clearpage
+
+\renewcommand{\thechapter}{C}
+\refstepcounter{chapter}
+\input{100-supp-terminal-abundance.tex}
+\clearpage
+
+\renewcommand{\thechapter}{D}
+\refstepcounter{chapter}
+\input{100-supp-sensitivity.tex}
+\clearpage
+
+\end{document}

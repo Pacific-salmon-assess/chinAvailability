@@ -22,7 +22,8 @@ data/rkw_diet/raw_data/
 data/rec/raw_data/
 data/run_size/old/
 R/defunct/
-tex/
+tex/chinook-srkw-diet/
+tex/chinook-srkw-diet2/
 .claude/
 
 # History files
