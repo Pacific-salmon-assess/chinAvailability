@@ -1,5 +1,5 @@
-%% res-doc.sty - Unoffocial LaTeX style file for Canadian
-%%  Science Advisory Secretariat Research Documents.
+%% res-doc.sty - Fichier de style LaTeX non officiel pour les
+%%  documents de recherche du Secrétariat canadien de consultation scientifique.
 \usepackage[french]{babel}
 
 
@@ -20,7 +20,7 @@
   \hypersetup{%
     pdftitle={\rdTitle{}},%
     pdfauthor={\rdAuth{}},%
-    pdfkeywords={Fisheries and Oceans Canada; Canadian Science Advisory Secretariat; Research Document},
+    pdfkeywords={Pêches et Océans Canada; Secrétariat canadien de consultation scientifique; Document de recherche},
   }%
 }
 %% ------------------------------------------------------------------------------
@@ -214,7 +214,7 @@
   \pagenumbering{roman}
   %% TOC is required by CSAS to be on page iii.
   \setcounter{page}{3}
-  \renewcommand{\contentsname}{\bf \large \vspace{-20mm} TABLE OF CONTENTS}
+  \renewcommand{\contentsname}{\bf \large \vspace{-20mm} TABLE DES MATIÈRES}
   \addtocontents{toc}{\protect\thispagestyle{fancy}}
   \begin{center}
     \tableofcontents
@@ -228,7 +228,7 @@
   %% Start citation indentation
   \leftskip=3em
   \parindent=-3em
-  {\bf Correct citation for this publication:}
+  {\bf Citation correcte de cette publication :}
 
   #1
 
@@ -317,7 +317,7 @@
   \vspace*{-40\p@}
   \phantomsection
   %% Add the appendix name to the table of contents.
-  \addcontentsline{toc}{section}{ABSTRACT}\nonumsection*{ABSTRACT}
+  \addcontentsline{toc}{section}{RÉSUMÉ}\nonumsection*{RÉSUMÉ}
 }
 
 %% ------------------------------------------------------------------------------
@@ -589,7 +589,7 @@ breaklines=true
 
 \vspace{1.5mm}
 
-\textbf{Canadian Science Advisory Secretariat (CSAS)}
+\textbf{Secrétariat canadien de consultation scientifique (SCCCS)}
 
 \vspace{0.4mm}
 
@@ -597,7 +597,7 @@ breaklines=true
 
 \vspace{1.8mm}
 
-\textbf{Research Document \rdYear{}/\rdNumber{}}\\
+\textbf{Document de recherche \rdYear{}/\rdNumber{}}\\
 
 \vspace{2mm}
 
@@ -635,19 +635,19 @@ breaklines=true
 \vspace*{\fill}
 
 \begin{center}
-\textbf{Foreword}
+\textbf{Avant-propos}
 \end{center}
 \vspace{0.2mm}
 
-This series documents the scientific basis for the evaluation of aquatic resources and ecosystems in Canada.  As such, it addresses the issues of the day in the time frames required and the documents it contains are not intended as definitive statements on the subjects addressed but rather as progress reports on ongoing investigations.
+Cette série documente les bases scientifiques de l'évaluation des ressources aquatiques et des écosystèmes au Canada. En tant que telle, elle aborde les enjeux du jour dans les délais requis et les documents qu'elle contient ne sont pas destinés à être des déclarations définitives sur les sujets abordés mais plutôt des rapports d'étape sur les enquêtes en cours.
 
 \vspace{4.2mm}
 
 \begin{center}
-\textbf{Published by:\\}
+\textbf{Publié par :\\}
 \vspace{1.9mm}
-Fisheries and Oceans Canada\\
-Canadian Science Advisory Secretariat\\
+Pêches et Océans Canada\\
+Secrétariat canadien de consultation scientifique\\
 200 Kent Street\\
 Ottawa ON K1A 0E6\\
 \vspace{0.17cm}
@@ -659,10 +659,10 @@ Ottawa ON K1A 0E6\\
 \includegraphics[scale=0.96]{\locRepo/images/recycle.png}
 
 \vspace{-1mm}
-\textcopyright\ His Majesty the King in Right of Canada, as represented by the Minister of the\\ Department of Fisheries and Oceans, \rdYear{}\\
+\textcopyright\ Sa Majesté le Roi du chef du Canada, représenté par le ministre du\\ ministère des Pêches et des Océans, \rdYear{}\\
 
 \vspace{1.9mm}
-This report is published under the \link{https://open.canada.ca/en/open-government-licence-canada}{Open Government Licence -- Canada}\\
+Ce rapport est publié sous la \link{https://ouvert.canada.ca/fr/licence-du-gouvernement-ouvert-canada}{Licence du gouvernement ouvert -- Canada}\\
 \vspace{1.9mm}
 
 
@@ -674,16 +674,16 @@ ISBN~\rdISBN{} \hspace{5mm} Cat.~No.~\rdCatNo
 
 \vspace{-0.1mm}
 
-\textbf{Correct citation for this publication:}\\
+\textbf{Citation correcte de cette publication :}\\
 \vspace{2mm}
 \hangindent=0.6cm \rdAuthRev{}
 \rdYear{}.
 \rdTitle{}.
-DFO Can.\ Sci.\ Advis.\ Sec.\ Res.\ Doc. \rdYear{}/\rdNumber{}.
+MPO Secr.\ can.\ de consult.\ scient.\ Doc.\ de rech. \rdYear{}/\rdNumber{}.
 \pageref{TRlastRoman}{} + \pageref{LastPage}~p.
 
 \vspace{0.2mm}
-\textbf{\emph{Aussi disponible en fran\c cais :}}\\
+\textbf{\emph{Also available in English:}}\\
 \vspace{2mm}
 \hangindent=0.6cm \emph{\citationOtherLanguage{}}\\
 

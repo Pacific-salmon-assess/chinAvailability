@@ -276,16 +276,16 @@ FUNCTION {bbl.etal}
 { "et~al." }
 
 FUNCTION {bbl.editors}
-{ "eds." }
+{ "éd." }
 
 FUNCTION {bbl.editor}
-{ "ed." }
+{ "éd." }
 
 FUNCTION {bbl.edby}
 { "edited by" }
 
 FUNCTION {bbl.edition}
-{ "ed." }
+{ "éd." }
 
 FUNCTION {bbl.volume}
 { "vol." }
@@ -294,10 +294,10 @@ FUNCTION {bbl.of}
 { "of" }
 
 FUNCTION {bbl.number}
-{ "no." }
+{ "n°" }
 
 FUNCTION {bbl.nr}
-{ "no." }
+{ "n°" }
 
 FUNCTION {bbl.in}
 { "in" }
@@ -320,29 +320,29 @@ FUNCTION {bbl.mthesis}
 FUNCTION {bbl.phdthesis}
 { "Ph.D. thesis" }
 
-MACRO {jan} {"Jan."}
+MACRO {jan} {"janv."}
 
-MACRO {feb} {"Feb."}
+MACRO {feb} {"févr."}
 
-MACRO {mar} {"Mar."}
+MACRO {mar} {"mars"}
 
-MACRO {apr} {"Apr."}
+MACRO {apr} {"avr."}
 
-MACRO {may} {"May"}
+MACRO {may} {"mai"}
 
-MACRO {jun} {"Jun."}
+MACRO {jun} {"juin"}
 
-MACRO {jul} {"Jul."}
+MACRO {jul} {"juill."}
 
-MACRO {aug} {"Aug."}
+MACRO {aug} {"août"}
 
-MACRO {sep} {"Sep."}
+MACRO {sep} {"sept."}
 
-MACRO {oct} {"Oct."}
+MACRO {oct} {"oct."}
 
-MACRO {nov} {"Nov."}
+MACRO {nov} {"nov."}
 
-MACRO {dec} {"Dec."}
+MACRO {dec} {"déc."}
 
 MACRO {acmcs} {"ACM Comput. Surv."}
 
